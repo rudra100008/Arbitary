@@ -1,0 +1,80 @@
+{
+  "tasks": [
+    {
+      "title": "Daily Check-in",
+      "description": "Login to the platform daily to earn points!",
+      "taskType": "daily",
+      "rewardPoint": 5,
+      "platform": "daily-login",
+      "difficulty": "easy",
+      "isFlash": false,
+      "isShare": false,
+      "shareThreshold": 3,
+      "expiresAt": null
+    },
+    {
+      "title": "Watch Promotional Video",
+      "description": "Watch our latest feature showcase on YouTube for 60 seconds.",
+      "taskType": "social",
+      "rewardPoint": 20,
+      "videoUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "platform": "youtube",
+      "watchDuration": 60,
+      "difficulty": "easy",
+      "isFlash": false,
+      "isShare": false,
+      "shareThreshold": 3,
+      "expiresAt": null
+    },
+    {
+      "title": "Share on Facebook",
+      "description": "Share our official page on your Facebook timeline.",
+      "taskType": "social",
+      "rewardPoint": 15,
+      "socialPostUrl": "https://www.facebook.com/example",
+      "platform": "facebook",
+      "socialPostId": "fb_123456789",
+      "difficulty": "medium",
+      "isFlash": false,
+      "isShare": false,
+      "shareThreshold": 3,
+      "expiresAt": null
+    },
+    {
+      "title": "TikTok Viral Challenge",
+      "description": "Create a creative video using our brand hashtag on TikTok.",
+      "taskType": "social",
+      "rewardPoint": 50,
+      "platform": "tiktok",
+      "difficulty": "hard",
+      "isFlash": false,
+      "isShare": false,
+      "shareThreshold": 3,
+      "expiresAt": null
+    },
+    {
+      "title": "Flash Reward: Early Bird",
+      "description": "Limited time offer! Complete this task before the deadline.",
+      "taskType": "special",
+      "rewardPoint": 100,
+      "platform": null,
+      "difficulty": "easy",
+      "isFlash": true,
+      "isShare": false,
+      "shareThreshold": 3,
+      "expiresAt": "2026-07-01T00:00:00Z"
+    },
+    {
+      "title": "Viral Referrer",
+      "description": "Get 10 people to click your referral link to earn a huge bonus.",
+      "taskType": "share",
+      "rewardPoint": 30,
+      "platform": "instagram",
+      "difficulty": "medium",
+      "isFlash": false,
+      "isShare": true,
+      "shareThreshold": 10,
+      "expiresAt": null
+    }
+  ]
+}
