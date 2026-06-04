@@ -92,9 +92,11 @@ export default function DashboardPage() {
     mutationFn: async ({
       taskId,
       proofUrl,
+      proofImageUrl,
     }: {
       taskId: number;
       proofUrl: string;
+      proofImageUrl?: string;
     }) => {
       const res = await fetch("/api/user/tasks", {
         method: "PATCH",
@@ -103,6 +105,7 @@ export default function DashboardPage() {
           taskId,
           status: "Pending Verification",
           proofUrl,
+          proofImageUrl,
         }),
       });
       if (!res.ok) {
@@ -256,6 +259,9 @@ export default function DashboardPage() {
   const inProgressTasks = tasks.filter(
     (t: any) => t.userStatus?.toLowerCase() === "in progress",
   );
+  const rejectedTasks = tasks.filter(
+    (t: any) => t.userStatus?.toLowerCase() === "rejected",
+  );
   const availableTasks = tasks.filter((t: any) => !t.userStatus);
 
   const completedCount = completedTasks.length;
@@ -267,6 +273,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     document.title = "Dashboard | Arbitary";
+  }, []);
+
+  // Bind referral code from OAuth signup if one was stashed in sessionStorage
+  useEffect(() => {
+    const code = sessionStorage.getItem("pendingRefCode");
+    if (!code) return;
+    sessionStorage.removeItem("pendingRefCode");
+    fetch("/api/referral/bind", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    })
+      .then((r) =>
+        r.ok
+          ? toast.success("Referral code linked!")
+          : r.json().then((d) => toast.error(d.error || "Failed to link referral")),
+      )
+      .catch(() => toast.error("Failed to link referral code"));
   }, []);
 
   return (
@@ -374,6 +398,7 @@ export default function DashboardPage() {
                 <TaskList
                   availableTasks={availableTasks}
                   inProgressTasks={inProgressTasks}
+                  rejectedTasks={rejectedTasks}
                   completedTasks={completedTasks}
                   systemTasks={systemTasks}
                   isLoading={isLoading}
@@ -384,8 +409,8 @@ export default function DashboardPage() {
                   onToggleExpand={toggleExpand}
                   onPickup={(id) => pickupMutation.mutate(id)}
                   onCancel={(id) => cancelMutation.mutate(id)}
-                  onComplete={(id, proofUrl) =>
-                    completeMutation.mutate({ taskId: id, proofUrl })
+                  onComplete={(id, proofUrl, proofImageUrl) =>
+                    completeMutation.mutate({ taskId: id, proofUrl, proofImageUrl })
                   }
                   onClaimDailyLogin={(id) => claimDailyLogin.mutate(id)}
                   onClaimProfile={(id) => claimProfile.mutate(id)}

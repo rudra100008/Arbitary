@@ -50,6 +50,13 @@
       "when": 1749072000000,
       "tag": "0006_schema_refactoring",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1756848000000,
+      "tag": "0007_add_deals_watch_sessions_rate_limits",
+      "breakpoints": true
     }
   ]
 }

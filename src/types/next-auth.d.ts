@@ -19,6 +19,8 @@ declare module "next-auth" {
         } & DefaultSession["user"];
         facebookAccessToken?: string;
         facebookId?: string;
+        googleAccessToken?: string;
+        googleTokenExpiry?: number;
     }
 }
 
@@ -31,5 +33,8 @@ declare module "next-auth/jwt" {
         facebookAccessToken?: string;
         facebookId?: string;
         googleId?: string;
+        googleAccessToken?: string;
+        googleRefreshToken?: string;
+        googleTokenExpiry?: number;
     }
 }

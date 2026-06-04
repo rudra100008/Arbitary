@@ -1,16 +1,11 @@
 import { db } from "@/src/db";
 import { usersTable, referralsTable, userTasksTable, tasksTable } from "@/src/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
-import { customAlphabet } from "nanoid";
+import { eq, desc, sql, aliasedTable } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { toDateStr } from "@/src/lib/streak-helper";
+import { ReferralService } from "./referral.service";
 import { ServiceResult, ok, fail } from "./result";
 import type { User } from "@/src/types/db";
-
-const generateReferralCode = customAlphabet(
-  "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789",
-  8,
-);
 
 export type UserPointsResult = {
   points: number;
@@ -18,12 +13,13 @@ export type UserPointsResult = {
   currentStreak: number;
   longestStreak: number;
   claimedToday: boolean;
+  lifetimePoints: number | null;
 };
 
 export type UserProfile = Pick<
   User,
   "id" | "name" | "email" | "image" | "bio" | "location" | "phoneNumber" | "referralCode" | "points"
->;
+> & { rank: string; lifetimePoints: number; referredBy: number | null; referredByName: string | null };
 
 export const UserService = {
   async getUserPoints(userId: number): Promise<ServiceResult<UserPointsResult>> {
@@ -34,6 +30,7 @@ export const UserService = {
         currentStreak: usersTable.currentStreak,
         longestStreak: usersTable.longestStreak,
         dailyLoginDate: usersTable.dailyLoginDate,
+        lifetimePoints: usersTable.lifetimePoints,
       })
       .from(usersTable)
       .where(eq(usersTable.id, userId));
@@ -48,6 +45,7 @@ export const UserService = {
       currentStreak: user.currentStreak || 0,
       longestStreak: user.longestStreak || 0,
       claimedToday: dailyLoginStr === today,
+      lifetimePoints: user.lifetimePoints,
     });
   },
 
@@ -68,6 +66,7 @@ export const UserService = {
   },
 
   async getProfile(userId: number): Promise<ServiceResult<UserProfile>> {
+    const referrerAlias = aliasedTable(usersTable, "referrer");
     const [user] = await db
       .select({
         id: usersTable.id,
@@ -79,29 +78,23 @@ export const UserService = {
         phoneNumber: usersTable.phoneNumber,
         referralCode: usersTable.referralCode,
         points: usersTable.points,
+        rank: usersTable.rank,
+        lifetimePoints: usersTable.lifetimePoints,
+        referredBy: usersTable.referredBy,
+        referredByName: referrerAlias.name,
       })
       .from(usersTable)
+      .leftJoin(referrerAlias, eq(usersTable.referredBy, referrerAlias.id))
       .where(eq(usersTable.id, userId));
 
     if (!user) return fail("User not found", 404);
-    return ok(user);
+    return ok(user as UserProfile);
   },
 
   async generateReferralCode(userId: number): Promise<ServiceResult<{ referralCode: string }>> {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-    if (!user) return fail("User not found", 404);
-
-    if (user.referralCode) return ok({ referralCode: user.referralCode });
-
-    let code = generateReferralCode();
-    let existing = await db.select().from(usersTable).where(eq(usersTable.referralCode, code));
-    while (existing.length > 0) {
-      code = generateReferralCode();
-      existing = await db.select().from(usersTable).where(eq(usersTable.referralCode, code));
-    }
-
-    await db.update(usersTable).set({ referralCode: code }).where(eq(usersTable.id, userId));
-    return ok({ referralCode: code });
+    const result = await ReferralService.assignReferralCode(userId);
+    if (!result.success) return fail(result.error, result.status);
+    return ok({ referralCode: result.data.code });
   },
 
   async signup(data: {
@@ -118,35 +111,20 @@ export const UserService = {
 
     const hashPassword = await bcrypt.hash(data.password, 12);
 
-    let newUserCode = generateReferralCode();
-    let existingCode = await db.select().from(usersTable).where(eq(usersTable.referralCode, newUserCode));
-    while (existingCode.length > 0) {
-      newUserCode = generateReferralCode();
-      existingCode = await db.select().from(usersTable).where(eq(usersTable.referralCode, newUserCode));
-    }
-
     const [newUser] = await db.insert(usersTable).values({
       email: data.email,
       name: `${data.firstName} ${data.lastName}`,
       password: hashPassword,
       provider: "credentials",
-      referralCode: newUserCode,
       lastLoginAt: new Date(),
     }).returning();
 
-    if (data.referralCode) {
-      const [referrer] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.referralCode, data.referralCode))
-        .limit(1);
+    // Assign a unique referral code
+    await ReferralService.assignReferralCode(newUser.id);
 
-      if (referrer && referrer.id !== newUser.id) {
-        await db.insert(referralsTable).values({
-          referrerId: referrer.id,
-          referredId: newUser.id,
-        });
-      }
+    // Bind referral code if provided
+    if (data.referralCode) {
+      await ReferralService.bindReferralCode(newUser.id, data.referralCode);
     }
 
     return ok({ success: true });

@@ -116,7 +116,7 @@ export function TaskFormModal({
   };
 
   const defaultDuration =
-    mode === "edit" ? ((task as any)?.watchDuration ?? 60) : 60;
+    mode === "edit" ? ((task as any)?.watchDuration ?? 30) : 30;
 
   return (
     <ModalShell
@@ -292,17 +292,26 @@ export function TaskFormModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="taskType" className={labelClass}>
-              Type
+              Task Type
             </label>
-            <input
-              type="text"
+            <select
               id="taskType"
               name="taskType"
               required
               defaultValue={mode === "edit" ? task?.taskType : ""}
-              placeholder="e.g. daily, social, special, share"
               className={inputClass}
-            />
+            >
+              <option value="">Select type...</option>
+              <option value="daily">Daily</option>
+              <option value="monthly">Monthly</option>
+              <option value="social">Social</option>
+              <option value="special">Special</option>
+              <option value="share">Share</option>
+              <option value="VIDEO_WATCH">Video Watch</option>
+              <option value="VIDEO_LIKE">Video Like</option>
+              <option value="VIDEO_SUBSCRIBE">Video Subscribe</option>
+              <option value="SCREENSHOT_UPLOAD">Screenshot Upload</option>
+            </select>
           </div>
           <div>
             <label htmlFor="points" className={labelClass}>

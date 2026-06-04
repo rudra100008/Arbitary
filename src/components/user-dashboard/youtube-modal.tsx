@@ -5,9 +5,10 @@ import { createPortal } from "react-dom";
 
 type YoutubeModalProps = {
   url: string;
+  taskId: number;
   isOpen: boolean;
   onClose: () => void;
-  onComplete: (watchedSeconds: number) => void;
+  onComplete: (watchedSeconds: number, sessionId?: number) => void;
   requiredSeconds?: number;
 };
 
@@ -27,6 +28,7 @@ declare global {
 
 export function YoutubeModal({
   url,
+  taskId,
   isOpen,
   onClose,
   onComplete,
@@ -43,6 +45,40 @@ export function YoutubeModal({
   const completedRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const watchedSecondsRef = useRef(0);
+  const sessionIdRef = useRef<number | null>(null);
+  const reportingRef = useRef(false);
+
+  const startSession = useCallback(async () => {
+    if (sessionIdRef.current) return sessionIdRef.current;
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/watch-session`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start watch session");
+      sessionIdRef.current = data.sessionId;
+      return data.sessionId;
+    } catch {
+      return null;
+    }
+  }, [taskId]);
+
+  const reportProgress = useCallback(async () => {
+    if (!playerRef.current || reportingRef.current) return;
+    const sessionId = sessionIdRef.current ?? (await startSession());
+    if (!sessionId) return;
+    reportingRef.current = true;
+    try {
+      const positionSeconds = Math.floor(playerRef.current.getCurrentTime?.() ?? 0);
+      await fetch(`/api/tasks/${taskId}/watch-session`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, positionSeconds }),
+      });
+    } catch {
+      // silent — non-critical
+    } finally {
+      reportingRef.current = false;
+    }
+  }, [taskId, startSession]);
 
   const videoId = getYoutubeId(url);
 
@@ -69,12 +105,14 @@ export function YoutubeModal({
     completedRef.current = true;
     setIsCompleted(true);
     if (timerRef.current) clearInterval(timerRef.current);
-    // Small delay so the user sees "Completed!" before the modal closes
+    // Final progress report before completing
+    reportProgress();
     const finalSeconds = watchedSecondsRef.current;
+    const sessId = sessionIdRef.current ?? undefined;
     setTimeout(() => {
-      onComplete(finalSeconds);
+      onComplete(finalSeconds, sessId);
     }, 1200);
-  }, [onComplete]);
+  }, [onComplete, reportProgress]);
 
   // Init / destroy YouTube player
   useEffect(() => {
@@ -111,6 +149,7 @@ export function YoutubeModal({
           onStateChange: (event: any) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
               setIsPlaying(true);
+              startSession();
             } else {
               setIsPlaying(false);
             }
@@ -178,6 +217,13 @@ export function YoutubeModal({
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isPlaying, requiredSeconds, handleComplete]);
+
+  // Report server progress every 5s while playing
+  useEffect(() => {
+    if (!isPlaying || completedRef.current) return;
+    const interval = setInterval(reportProgress, 5000);
+    return () => clearInterval(interval);
+  }, [isPlaying, reportProgress]);
 
   if (!isOpen || !mounted) return null;
 

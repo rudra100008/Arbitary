@@ -60,6 +60,11 @@ export const updateTaskSchema = z.object({
         .url("proofUrl must be a valid URL")
         .max(2048, "URL too long")
         .optional(),
+    proofImageUrl: z
+        .string()
+        .url("proofImageUrl must be a valid URL")
+        .max(2048, "URL too long")
+        .optional(),
 });
 
 
@@ -68,7 +73,11 @@ export const DifficultyEnum = z.enum(["easy", "medium", "hard"]);
 export const adminTaskSchema = z.object({
     title: z.string().min(1, "Title is required").max(255),
     description: z.string().min(1, "Description is required").max(5000),
-    taskType: z.string().min(1, "Task type is required").max(50),
+    taskType: z.string().min(1, "Task type is required").max(50)
+      .refine((val) => ["daily","monthly","social","special","share",
+        "VIDEO_WATCH","VIDEO_LIKE","VIDEO_SUBSCRIBE","SCREENSHOT_UPLOAD",
+        "manual","social_media","video_watch"
+      ].includes(val) || val.length >= 1, "Unknown task type"),
     rewardPoint: z.number("rewardPoint must be a number").int().positive("rewardPoint must be positive"),
     socialPostUrl: z.string().url().max(2048).nullable().optional(),
     videoUrl: z.string().url().max(2048).nullable().optional(),
@@ -92,6 +101,7 @@ export const verifySubmissionSchema = z.object({
 export const youtubeCompleteSchema = z.object({
     taskId: z.number("taskId must be a number").int().positive(),
     watchedSeconds: z.number("watchedSeconds must be a number").int().min(0),
+    sessionId: z.number("sessionId must be a number").int().positive().optional(),
 }).strict();
 
 

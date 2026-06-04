@@ -7,6 +7,7 @@ import { TaskCard } from "./task-card";
 type TaskListProps = {
   availableTasks: any[];
   inProgressTasks: any[];
+  rejectedTasks: any[];
   completedTasks: any[];
   systemTasks: any[];
   isLoading: boolean;
@@ -17,7 +18,7 @@ type TaskListProps = {
   onToggleExpand: (e: React.MouseEvent, taskId: number) => void;
   onPickup: (taskId: number) => void;
   onCancel: (taskId: number) => void;
-  onComplete: (taskId: number, proofUrl: string) => void;
+  onComplete: (taskId: number, proofUrl: string, proofImageUrl?: string) => void;
   onClaimDailyLogin: (taskId: number) => void;
   onClaimProfile: (taskId: number) => void;
   onClaimReferral: (taskId: number) => void;
@@ -36,6 +37,7 @@ function TaskSection({
   TaskListProps,
   | "availableTasks"
   | "inProgressTasks"
+  | "rejectedTasks"
   | "completedTasks"
   | "systemTasks"
   | "isLoading"
@@ -69,6 +71,7 @@ const DIFFICULTIES = ["all", "easy", "medium", "hard"] as const;
 export function TaskList({
   availableTasks,
   inProgressTasks,
+  rejectedTasks,
   completedTasks,
   systemTasks,
   isLoading,
@@ -81,6 +84,7 @@ export function TaskList({
   const hasAnyTasks =
     availableTasks.length > 0 ||
     inProgressTasks.length > 0 ||
+    rejectedTasks.length > 0 ||
     completedTasks.length > 0;
 
   const filteredAvailable = useMemo(() => {
@@ -161,6 +165,12 @@ export function TaskList({
               title="In Progress"
               accent="bg-amber-400 animate-pulse"
               tasks={inProgressTasks}
+              {...cardProps}
+            />
+            <TaskSection
+              title="Rejected — Re-claim"
+              accent="bg-red-400"
+              tasks={rejectedTasks}
               {...cardProps}
             />
             <TaskSection

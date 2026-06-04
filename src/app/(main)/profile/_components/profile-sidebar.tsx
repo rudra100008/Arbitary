@@ -2,9 +2,9 @@
 
 import React from "react";
 
-type Tab = "profile" | "settings" | "tasks" | "tickets";
+export type Tab = "profile" | "settings" | "tasks" | "tickets" | "referrals";
 
-interface ProfileSidebarProps {
+export interface ProfileSidebarProps {
   user: {
     name?: string | null;
     email?: string | null;
@@ -99,6 +99,25 @@ const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
           strokeLinejoin="round"
           strokeWidth={2}
           d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"
+        />
+      </svg>
+    ),
+  },
+  {
+    key: "referrals",
+    label: "Referrals",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
         />
       </svg>
     ),

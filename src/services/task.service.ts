@@ -5,6 +5,7 @@ import {
   usersTable,
   shareTasksTable,
   shareClicksTable,
+  watchSessionsTable,
 } from "@/src/db/schema";
 import { eq, and, desc, sql, or, gte } from "drizzle-orm";
 import { calculateStreak, getNextMilestone, toDateStr } from "@/src/lib/streak-helper";
@@ -13,7 +14,11 @@ import {
   checkUserCommentedOnPost,
   getVerificationCode,
 } from "@/src/lib/facebook";
+import { YouTubeService } from "./youtube.service";
+import { ReferralService } from "./referral.service";
+import { pointsLogTable } from "@/src/db/schema";
 import { ServiceResult, ok, fail } from "./result";
+import { getRankLabel } from "@/src/lib/tiers";
 import type { Task, UserTask, ShareTask } from "@/src/types/db";
 
 export type UserTaskItem = {
@@ -93,9 +98,13 @@ export type SubmissionItem = {
   userName: string | null;
   userEmail: string;
   taskTitle: string;
+  taskType: string | null;
+  taskPlatform: string | null;
+  watchDuration: number | null;
   points: number;
   status: string;
   proofUrl: string | null;
+  proofImageUrl: string | null;
   assignedAt: Date | null;
   completedAt: Date | null;
 };
@@ -205,6 +214,14 @@ export const TaskService = {
     userId: number,
     taskId: number,
   ): Promise<ServiceResult<{ message: string }>> {
+    const [currentUser] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+    if (currentUser?.role === "admin") {
+      return fail("Admins cannot pick up tasks", 403);
+    }
+
     const [targetTask] = await db
       .select()
       .from(tasksTable)
@@ -255,6 +272,28 @@ export const TaskService = {
       });
 
       return ok({ message: "Daily login reward claimed!" });
+    }
+
+    // Re-claim: delete any previous rejected entry for this task
+    const existingRejected = await db
+      .select()
+      .from(userTasksTable)
+      .where(
+        and(
+          eq(userTasksTable.userId, userId),
+          eq(userTasksTable.taskId, taskId),
+          eq(userTasksTable.status, "Rejected"),
+        ),
+      )
+      .then((rows) => rows[0]);
+
+    if (existingRejected) {
+      if (existingRejected.proofImageUrl) {
+        await deleteCloudinaryImage(existingRejected.proofImageUrl);
+      }
+      await db
+        .delete(userTasksTable)
+        .where(eq(userTasksTable.id, existingRejected.id));
     }
 
     const existingActiveTasks = await db
@@ -339,9 +378,11 @@ export const TaskService = {
     taskId: number,
     status: string,
     proofUrl?: string,
+    proofImageUrl?: string,
   ): Promise<ServiceResult<{ message: string }>> {
     const updateData: Record<string, unknown> = { status };
     if (proofUrl) updateData.proofUrl = proofUrl;
+    if (proofImageUrl) updateData.proofImageUrl = proofImageUrl;
 
     const [updated] = await db
       .update(userTasksTable)
@@ -366,25 +407,28 @@ export const TaskService = {
     if (!task) return fail("Task not found", 404);
 
     const today = new Date().toISOString().split("T")[0];
-    const [user] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, userId));
-    if (!user) return fail("User not found", 404);
-
-    const dailyLoginStr = toDateStr(user.dailyLoginDate);
-    if (dailyLoginStr === today) {
-      return fail("You already claimed your daily login reward today", 429);
-    }
-
-    const { newStreak, bonus } = calculateStreak(
-      user.dailyLoginDate,
-      user.currentStreak || 0,
-    );
-    const newLongest = Math.max(user.longestStreak || 0, newStreak);
-    const totalPoints = (user.points || 0) + (task.points || 0) + bonus;
 
     return await db.transaction(async (tx) => {
+      // Lock the user row to prevent concurrent double-credit
+      const [user] = await tx
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, userId))
+        .for("update");
+      if (!user) return fail("User not found", 404);
+
+      const dailyLoginStr = toDateStr(user.dailyLoginDate);
+      if (dailyLoginStr === today) {
+        return fail("You already claimed your daily login reward today", 429);
+      }
+
+      const { newStreak, bonus } = calculateStreak(
+        user.dailyLoginDate,
+        user.currentStreak || 0,
+      );
+      const newLongest = Math.max(user.longestStreak || 0, newStreak);
+      const totalPoints = (user.points || 0) + (task.points || 0) + bonus;
+
       await tx
         .update(usersTable)
         .set({
@@ -492,6 +536,7 @@ export const TaskService = {
     userId: number,
     taskId: number,
     watchedSeconds: number,
+    sessionId?: number,
   ): Promise<ServiceResult<YoutubeCompleteResult>> {
     const [userTaskWithTask] = await db
       .select({
@@ -519,20 +564,143 @@ export const TaskService = {
       return fail("This endpoint is only for YouTube tasks", 400);
     }
 
-    const requiredSeconds = task.watchDuration ?? 30;
-    if (!watchedSeconds || watchedSeconds < requiredSeconds) {
-      const remaining = Math.ceil(requiredSeconds - (watchedSeconds || 0));
-      return fail(
-        `Please watch the video for at least ${requiredSeconds} seconds. ${remaining}s remaining.`,
-        429,
-      );
+    const tokenResult = await YouTubeService.getAccessToken();
+    if (!tokenResult.success) {
+      return fail("Link your YouTube account in settings first", 401);
     }
 
-    if (userTask.assignedAt) {
-      const elapsedMs = Date.now() - new Date(userTask.assignedAt).getTime();
-      if (elapsedMs / 1000 < requiredSeconds) {
-        const remaining = Math.ceil(requiredSeconds - elapsedMs / 1000);
-        return fail(`Please wait ${remaining}s before completing.`, 429);
+    const accessToken = tokenResult.data;
+    const taskType = task.taskType;
+    const pointsAwarded = task.points || 0;
+
+    // Type-specific YouTube verification
+    if (taskType === "VIDEO_SUBSCRIBE") {
+      const channelId = task.socialPostId || extractChannelId(task.postUrl);
+      if (!channelId) {
+        return fail("No YouTube channel linked to this task", 400);
+      }
+      const resolvedId = channelId.startsWith("@")
+        ? await YouTubeService.resolveChannelHandle(channelId, accessToken)
+        : channelId;
+      if (!resolvedId) {
+        return fail("Could not resolve YouTube channel", 400);
+      }
+      const isSubscribed = await YouTubeService.verifySubscription(resolvedId, accessToken);
+      if (!isSubscribed) {
+        return fail("Please subscribe to the YouTube channel to complete this task", 429);
+      }
+    } else if (taskType === "VIDEO_LIKE") {
+      const videoId = task.socialPostId || extractVideoId(task.postUrl);
+      const isLiked = videoId ? await YouTubeService.verifyLike(videoId, accessToken) : false;
+      if (!isLiked) {
+        return fail("Please like the video to complete this task", 429);
+      }
+    } else if (taskType !== "VIDEO_WATCH" && taskType !== "video_watch") {
+      const targetUrl = task.postUrl ?? "";
+      const titleLower = (task.title ?? "").toLowerCase();
+
+      const isVidUrl =
+        targetUrl.includes("youtube.com/watch") ||
+        targetUrl.includes("youtu.be/") ||
+        targetUrl.includes("youtube.com/shorts");
+
+      const isChannelUrl =
+        targetUrl.includes("youtube.com/channel") ||
+        targetUrl.includes("youtube.com/@") ||
+        targetUrl.includes("youtube.com/c/") ||
+        targetUrl.includes("youtube.com/user/") ||
+        (targetUrl.startsWith("UC") && !targetUrl.includes("/"));
+
+      const isSubscriptionTask = isChannelUrl || titleLower.includes("subscri");
+      const isCommentTask = isVidUrl && (titleLower.includes("comment") || titleLower.includes("engage"));
+      const isLikeTask = isVidUrl && !isCommentTask && titleLower.includes("like");
+
+      if (isCommentTask) {
+        const videoId = task.socialPostId || extractVideoId(targetUrl);
+        if (!videoId) {
+          return fail("Could not extract video ID from the task URL", 400);
+        }
+        const hasCommented = await YouTubeService.verifyComment(videoId, userId, taskId, accessToken);
+        if (!hasCommented) {
+          return fail("Please comment on the video to complete this task", 429);
+        }
+      } else if (isLikeTask) {
+        const videoId = task.socialPostId || extractVideoId(targetUrl);
+        if (!videoId) {
+          return fail("Could not extract video ID from the task URL", 400);
+        }
+        const isLiked = await YouTubeService.verifyLike(videoId, accessToken);
+        if (!isLiked) {
+          return fail("Please like the video to complete this task", 429);
+        }
+      } else if (isSubscriptionTask) {
+        const channelId = task.socialPostId || extractChannelId(targetUrl);
+        if (!channelId) {
+          return fail("No YouTube channel linked to this task", 400);
+        }
+        const resolvedId = channelId.startsWith("@")
+          ? await YouTubeService.resolveChannelHandle(channelId, accessToken)
+          : channelId;
+        if (!resolvedId) {
+          return fail("Could not resolve YouTube channel", 400);
+        }
+        const isSubscribed = await YouTubeService.verifySubscription(resolvedId, accessToken);
+        if (!isSubscribed) {
+          return fail("Please subscribe to the YouTube channel to complete this task", 429);
+        }
+      } else {
+        return fail("Could not determine the YouTube task type from the URL or title", 400);
+      }
+    }
+
+    // Watch duration check (skip for subscribe tasks)
+    if (taskType !== "VIDEO_SUBSCRIBE") {
+      const requiredSeconds = task.watchDuration ?? 30;
+
+      // Server-authoritative session cross-validation
+      if (sessionId) {
+        const [session] = await db
+          .select()
+          .from(watchSessionsTable)
+          .where(
+            and(
+              eq(watchSessionsTable.id, sessionId),
+              eq(watchSessionsTable.userId, userId),
+              eq(watchSessionsTable.taskId, taskId),
+            ),
+          );
+        if (!session) {
+          return fail("Watch session not found. Start the video first.", 404);
+        }
+        if (!session.completedAt) {
+          return fail("Watch session not yet completed. Keep watching.", 429);
+        }
+        if (session.watchedSeconds < requiredSeconds) {
+          const remaining = Math.ceil(requiredSeconds - session.watchedSeconds);
+          return fail(
+            `Server tracking shows ${session.watchedSeconds}s watched. ${remaining}s remaining.`,
+            429,
+          );
+        }
+        // Use server-authoritative seconds
+        watchedSeconds = session.watchedSeconds;
+      } else {
+        // Fallback: client-supplied seconds (less authoritative)
+        if (!watchedSeconds || watchedSeconds < requiredSeconds) {
+          const remaining = Math.ceil(requiredSeconds - (watchedSeconds || 0));
+          return fail(
+            `Please watch the video for at least ${requiredSeconds} seconds. ${remaining}s remaining.`,
+            429,
+          );
+        }
+
+        if (userTask.assignedAt) {
+          const elapsedMs = Date.now() - new Date(userTask.assignedAt).getTime();
+          if (elapsedMs / 1000 < requiredSeconds) {
+            const remaining = Math.ceil(requiredSeconds - elapsedMs / 1000);
+            return fail(`Please wait ${remaining}s before completing.`, 429);
+          }
+        }
       }
     }
 
@@ -543,22 +711,43 @@ export const TaskService = {
         .where(eq(userTasksTable.id, userTask.id));
 
       const [currentUser] = await tx
-        .select({ points: usersTable.points })
+        .select({ points: usersTable.points, lifetimePoints: usersTable.lifetimePoints })
         .from(usersTable)
         .where(eq(usersTable.id, userId));
 
       if (currentUser) {
+        const newLifetime = (currentUser.lifetimePoints || 0) + pointsAwarded;
         await tx
           .update(usersTable)
           .set({
-            points: (currentUser.points || 0) + (task.points || 0),
+            points: (currentUser.points || 0) + pointsAwarded,
+            lifetimePoints: newLifetime,
+            rank: getRankLabel(newLifetime),
             completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
           })
           .where(eq(usersTable.id, userId));
+
+        const reason = taskType === "VIDEO_SUBSCRIBE"
+          ? `YouTube subscribe: ${task.title}`
+          : taskType === "VIDEO_WATCH" || taskType === "video_watch"
+            ? `YouTube watch: ${task.title}`
+            : `YouTube task: ${task.title}`;
+
+        await tx.insert(pointsLogTable).values({
+          userId,
+          taskId: task.id,
+          points: pointsAwarded,
+          reason,
+        });
       }
     });
 
-    return ok({ message: "YouTube task completed and points awarded!" });
+    await ReferralService.awardReferralBonusIfEligible(userId);
+
+    const msg = taskType === "VIDEO_SUBSCRIBE"
+      ? "YouTube subscription verified and points awarded!"
+      : "YouTube task completed and points awarded!";
+    return ok({ message: msg });
   },
 
   async getCompletedTodayCount(
@@ -939,9 +1128,13 @@ export const TaskService = {
       userName: s.user.name,
       userEmail: s.user.email,
       taskTitle: s.task.title,
+      taskType: s.task.taskType,
+      taskPlatform: s.task.platform,
+      watchDuration: s.task.watchDuration,
       points: s.task.points,
       status: s.userTask.status,
       proofUrl: s.userTask.proofUrl,
+      proofImageUrl: s.userTask.proofImageUrl,
       assignedAt: s.userTask.assignedAt,
       completedAt: s.userTask.completedAt,
     }));
@@ -981,26 +1174,114 @@ export const TaskService = {
       countChange = -1;
     }
 
-    await db.update(usersTable)
-      .set({
+    await db.transaction(async (tx) => {
+      const setData: any = {
         points: newPoints,
+        lifetimePoints: countChange > 0
+          ? sql`${usersTable.lifetimePoints} + ${taskPoints}`
+          : undefined,
         completedTasksCount: sql`${usersTable.completedTasksCount} + ${countChange}`,
-      })
-      .where(eq(usersTable.id, userTaskInfo.user.id));
+      };
 
-    await db.update(userTasksTable)
-      .set({ status: newStatus })
-      .where(eq(userTasksTable.id, userTaskId));
+      if (countChange > 0) {
+        const newLifetime = (userTaskInfo.user.lifetimePoints || 0) + taskPoints;
+        setData.rank = getRankLabel(newLifetime);
+      }
+
+      await tx
+        .update(usersTable)
+        .set(setData)
+        .where(eq(usersTable.id, userTaskInfo.user.id));
+
+      await tx
+        .update(userTasksTable)
+        .set({ status: newStatus })
+        .where(eq(userTasksTable.id, userTaskId));
+
+      if (countChange > 0) {
+        await tx.insert(pointsLogTable).values({
+          userId: userTaskInfo.user.id,
+          taskId: userTaskInfo.task.id,
+          points: taskPoints,
+          reason: `Admin verified: ${userTaskInfo.task.title}`,
+        });
+      }
+    });
+
+    if (newStatus === "Verified" && currentStatus !== "Verified") {
+      await ReferralService.awardReferralBonusIfEligible(userTaskInfo.user.id);
+    }
 
     return ok({ message: "Submission updated" });
   },
 };
+
+async function deleteCloudinaryImage(url: string | null): Promise<void> {
+  if (!url) return;
+  try {
+    const uploadSegment = "/upload/";
+    const idx = url.indexOf(uploadSegment);
+    if (idx === -1) return;
+    const afterUpload = url.slice(idx + uploadSegment.length);
+    const withoutVersion = afterUpload.replace(/^v\d+\//, "");
+    const publicId = withoutVersion.replace(/\.[^.]+$/, "");
+
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    if (!cloudName || !apiKey || !apiSecret) return;
+
+    const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
+    await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ public_id: publicId }),
+      },
+    );
+  } catch {
+    // non-critical; orphaned images are acceptable
+  }
+}
+
+function extractVideoId(url: string | null): string | null {
+  if (!url) return null;
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+function extractChannelId(url: string | null): string | null {
+  if (!url) return null;
+  const patterns = [
+    /youtube\.com\/channel\/(UC[\w-]{22})/,
+    /youtube\.com\/@([\w.-]+)/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
 
 async function awardFacebookPoints(
   userId: number,
   task: Task,
   userTask: UserTask,
 ): Promise<ServiceResult<FacebookCompleteResult>> {
+  const pointsAwarded = task.points || 0;
+
   await db.transaction(async (tx) => {
     await tx
       .update(userTasksTable)
@@ -1008,23 +1289,35 @@ async function awardFacebookPoints(
       .where(eq(userTasksTable.id, userTask.id));
 
     const [currentUser] = await tx
-      .select({ points: usersTable.points })
+      .select({ points: usersTable.points, lifetimePoints: usersTable.lifetimePoints })
       .from(usersTable)
       .where(eq(usersTable.id, userId));
 
     if (currentUser) {
+      const newLifetime = (currentUser.lifetimePoints || 0) + pointsAwarded;
       await tx
         .update(usersTable)
         .set({
-          points: (currentUser.points || 0) + (task.points || 0),
+          points: (currentUser.points || 0) + pointsAwarded,
+          lifetimePoints: newLifetime,
+          rank: getRankLabel(newLifetime),
           completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
         })
         .where(eq(usersTable.id, userId));
+
+      await tx.insert(pointsLogTable).values({
+        userId,
+        taskId: task.id,
+        points: pointsAwarded,
+        reason: `Facebook task: ${task.title}`,
+      });
     }
   });
 
+  await ReferralService.awardReferralBonusIfEligible(userId);
+
   return ok({
     message: "Facebook task completed and points awarded!",
-    pointsAwarded: task.points || 0,
+    pointsAwarded,
   });
 }

@@ -9,16 +9,18 @@ import ProfileTab from "./_components/profile-tab";
 import SettingsTab from "./_components/settings-tab";
 import TasksTab from "./_components/tasks-tab";
 import TicketsTab from "./_components/tickets-tab";
+import ReferralTab from "./_components/referral-tab";
 import { toast } from "sonner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-type Tab = "profile" | "settings" | "tasks" | "tickets";
+type Tab = "profile" | "settings" | "tasks" | "tickets" | "referrals";
 
 const TAB_TITLES: Record<Tab, string> = {
   profile: "Profile",
   settings: "Settings",
   tasks: "Tasks",
   tickets: "Tickets",
+  referrals: "Referrals",
 };
 
 // Map the API response (Title Case userStatus, points, completedAt)
@@ -229,6 +231,10 @@ export default function ProfilePage() {
 
             {activeTab === "tickets" && (
               <TicketsTab />
+            )}
+
+            {activeTab === "referrals" && (
+              <ReferralTab />
             )}
           </div>
         </div>

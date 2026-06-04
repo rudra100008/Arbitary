@@ -79,9 +79,9 @@ const Header = () => {
         {/* Navigation Pill and Profile */}
         <div className="pointer-events-auto flex items-center gap-3 shrink-0">
           <nav className="bg-black/5 backdrop-blur-md px-1.5 py-1.5 rounded-full border border-black/10 flex items-center gap-0.5">
-            {["Home", "Work", "Events", "Leaderboard", "Dashboard", "About", "Contact"].map(
+            {["Home", "Work", "Events", "Leaderboard", "Dashboard", "Rewards", "About", "Contact"].map(
               (item) => {
-                const href = item === "Home" ? "/" : `/${item.toLowerCase()}`;
+                const href = item === "Home" ? "/" : item === "Rewards"? "/deals" : `/${item.toLowerCase()}`;
                 const isActive = pathName === href;
                 return (
                   <Link

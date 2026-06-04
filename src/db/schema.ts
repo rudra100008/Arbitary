@@ -1,4 +1,4 @@
-import { integer, pgTable, varchar, text, timestamp, serial, boolean, index } from "drizzle-orm/pg-core";
+import { integer, pgTable, varchar, text, timestamp, serial, boolean, index, AnyPgColumn } from "drizzle-orm/pg-core";
 import { relations } from 'drizzle-orm';
 
 // --- Events Tables ---
@@ -108,6 +108,11 @@ export const usersTable = pgTable("users", {
     longestStreak: integer("longest_streak").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow(),
     lastLoginAt: timestamp("last_login_at"),
+    rank: varchar("rank", { length: 255 }).default("Iron"),
+    lifetimePoints: integer("lifetime_points").notNull().default(0),
+    referredBy: integer("referred_by").references((): AnyPgColumn => usersTable.id),
+    referralRewarded: boolean("referral_rewarded").default(false),
+
 })
 
 // --- Task Table -----
@@ -168,9 +173,74 @@ export const referralsTable = pgTable("referrals", {
     createdAt: timestamp("created_at").defaultNow(),
 });
 
+// --- Points Log ---
+export const pointsLogTable = pgTable("points_log", {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id),
+    taskId: integer("task_id").references(() => tasksTable.id),
+    points: integer("points").notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// --- Watch Sessions ---
+export const watchSessionsTable = pgTable("watch_sessions", {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id),
+    taskId: integer("task_id").notNull().references(() => tasksTable.id),
+    watchedSeconds: integer("watched_seconds").notNull().default(0),
+    lastPositionSeconds: integer("last_position_seconds").notNull().default(0),
+    lastCheckpointAt: timestamp("last_checkpoint_at"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+// --- Rate Limits ---
+export const rateLimitsTable = pgTable("rate_limits", {
+    key: varchar("key", { length: 255 }).primaryKey(),
+    count: integer("count").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+// --- Deals / Rewards ---
+export const dealsTable = pgTable("deals", {
+    id: serial("id").primaryKey(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description").notNull(),
+    pointsCost: integer("points_cost").notNull(),
+    discountType: varchar("discount_type", { length: 20 }).notNull().default("percent"),
+    discountValue: integer("discount_value").notNull().default(0),
+    discountMaxAmount: integer("discount_max_amount"),
+    imageUrl: text("image_url"),
+    stock: integer("stock"),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dealCodesTable = pgTable("deal_codes", {
+    id: serial("id").primaryKey(),
+    dealId: integer("deal_id").notNull().references(() => dealsTable.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    isRedeemed: boolean("is_redeemed").notNull().default(false),
+    redeemedAt: timestamp("redeemed_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const redemptionsTable = pgTable("redemptions", {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id),
+    dealId: integer("deal_id").notNull().references(() => dealsTable.id),
+    pointsSpent: integer("points_spent").notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    revealedCode: text("revealed_code"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const usersRelations = relations(usersTable, ({ many }) => ({
     userTasks: many(userTasksTable),
     userTickets: many(userTicketsTable),
+    pointsLog: many(pointsLogTable),
+    watchSessions: many(watchSessionsTable),
 }));
 export const tasksRelations = relations(tasksTable, ({ many, one }) => ({
     userTasks: many(userTasksTable),
@@ -242,5 +312,50 @@ export const referralsRelations = relations(referralsTable, ({ one }) => ({
     referred: one(usersTable, {
         fields: [referralsTable.referredId],
         references: [usersTable.id],
+    }),
+}));
+
+export const pointsLogRelations = relations(pointsLogTable, ({ one }) => ({
+    user: one(usersTable, {
+        fields: [pointsLogTable.userId],
+        references: [usersTable.id],
+    }),
+    task: one(tasksTable, {
+        fields: [pointsLogTable.taskId],
+        references: [tasksTable.id],
+    }),
+}));
+
+export const watchSessionsRelations = relations(watchSessionsTable, ({ one }) => ({
+    user: one(usersTable, {
+        fields: [watchSessionsTable.userId],
+        references: [usersTable.id],
+    }),
+    task: one(tasksTable, {
+        fields: [watchSessionsTable.taskId],
+        references: [tasksTable.id],
+    }),
+}));
+
+export const dealsRelations = relations(dealsTable, ({ many }) => ({
+    codes: many(dealCodesTable),
+    redemptions: many(redemptionsTable),
+}));
+
+export const dealCodesRelations = relations(dealCodesTable, ({ one }) => ({
+    deal: one(dealsTable, {
+        fields: [dealCodesTable.dealId],
+        references: [dealsTable.id],
+    }),
+}));
+
+export const redemptionsRelations = relations(redemptionsTable, ({ one }) => ({
+    user: one(usersTable, {
+        fields: [redemptionsTable.userId],
+        references: [usersTable.id],
+    }),
+    deal: one(dealsTable, {
+        fields: [redemptionsTable.dealId],
+        references: [dealsTable.id],
     }),
 }));

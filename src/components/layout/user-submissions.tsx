@@ -11,11 +11,90 @@ interface Submission {
   userName: string;
   userEmail: string;
   taskTitle: string;
+  taskType: string | null;
+  taskPlatform: string | null;
+  watchDuration: number | null;
   points: number;
   status: string;
   proofUrl: string | null;
+  proofImageUrl: string | null;
   assignedAt: string;
   completedAt: string;
+}
+
+function isCloudinaryUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname === "res.cloudinary.com";
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeUrl(url: string | null): string {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" ? url : "";
+  } catch {
+    return "";
+  }
+}
+
+function ProofDisplay({ sub }: { sub: Submission }) {
+  const imageUrl = sub.proofImageUrl && isCloudinaryUrl(sub.proofImageUrl)
+    ? sub.proofImageUrl
+    : (sub.proofUrl && isCloudinaryUrl(sub.proofUrl) ? sub.proofUrl : null);
+
+  if (imageUrl) {
+    return (
+      <a
+        href={imageUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 mt-2"
+      >
+        <img
+          src={imageUrl}
+          alt="Proof screenshot"
+          className="w-24 h-16 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
+        />
+        <span className="text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors">
+          View Full Size
+        </span>
+      </a>
+    );
+  }
+
+  if (sub.taskType === "VIDEO_WATCH") {
+    return (
+      <div className="flex items-center gap-2 mt-2">
+        <span className="text-[10px] font-bold uppercase text-red-600 bg-red-50 px-2 py-1 rounded-lg border border-red-200">
+          Watch Duration
+        </span>
+        <span className="text-xs font-medium text-gray-600">
+          {sub.watchDuration ? `${sub.watchDuration}s` : "Auto-verified"}
+        </span>
+      </div>
+    );
+  }
+
+  const safeUrl = sanitizeUrl(sub.proofUrl);
+  if (!safeUrl) return null;
+
+  return (
+    <a
+      href={safeUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+      </svg>
+      View User Proof
+    </a>
+  );
 }
 
 export default function UserSubmissions() {
@@ -29,7 +108,7 @@ export default function UserSubmissions() {
       if (!res.ok) throw new Error("Failed to fetch submissions");
       return res.json() as Promise<Submission[]>;
     },
-    refetchInterval: 15_000, // Poll every 15 seconds for new submissions
+    refetchInterval: 15_000,
   });
 
   const { mutate: verifySubmission } = useMutation({
@@ -45,12 +124,25 @@ export default function UserSubmissions() {
       }
       return res.json();
     },
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-submissions"] });
+      const previous = queryClient.getQueryData<Submission[]>(["admin-submissions"]);
+      queryClient.setQueryData<Submission[]>(["admin-submissions"], (old) =>
+        old?.filter((s) => s.id !== id) ?? []
+      );
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Submission status updated!");
-      queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
     },
-    onError: (err: any) => {
+    onError: (err: any, vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["admin-submissions"], context.previous);
+      }
       toast.error(err.message || "Failed to update submission");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
     },
   });
 
@@ -58,9 +150,7 @@ export default function UserSubmissions() {
     setProcessingId(id);
     verifySubmission(
       { id, status },
-      {
-        onSettled: () => setProcessingId(null),
-      }
+      { onSettled: () => setProcessingId(null) }
     );
   };
 
@@ -82,12 +172,17 @@ export default function UserSubmissions() {
               key={sub.id}
               className="flex justify-between items-center bg-gray-50 p-5 rounded-2xl border border-gray-100"
             >
-              <div>
+              <div className="min-w-0 flex-1">
                 <h3 className="font-bold text-lg">
                   {sub.taskTitle}{" "}
                   <span className="text-sm font-semibold text-blue-600 ml-2">
                     ({sub.points} pts)
                   </span>
+                  {sub.taskType && (
+                    <span className="text-[10px] font-bold uppercase text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded ml-2 align-middle">
+                      {sub.taskType}
+                    </span>
+                  )}
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
                   Submitted by:{" "}
@@ -98,21 +193,9 @@ export default function UserSubmissions() {
                 <p className="text-xs text-gray-400 mt-1">
                   Picked up on: {new Date(sub.assignedAt).toLocaleDateString()}
                 </p>
-                {sub.proofUrl && (
-                  <a
-                    href={sub.proofUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    View User Proof
-                  </a>
-                )}
+                <ProofDisplay sub={sub} />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 ml-4 shrink-0">
                 <button
                   onClick={() => handleVerify(sub.id, "Verified")}
                   disabled={processingId === sub.id}

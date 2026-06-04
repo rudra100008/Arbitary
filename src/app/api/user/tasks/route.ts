@@ -70,12 +70,13 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const { taskId, status, proofUrl } = parsed.data;
+  const { taskId, status, proofUrl, proofImageUrl } = parsed.data;
   const result = await TaskService.updateTaskStatus(
     auth.data.id,
     taskId,
     status,
     proofUrl,
+    proofImageUrl,
   );
   return toNextResponse(result);
 }

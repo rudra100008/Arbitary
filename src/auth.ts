@@ -9,12 +9,20 @@ import { eq } from "drizzle-orm";
 import { db } from "@/src/db";
 import { usersTable } from "@/src/db/schema";
 import FacebookProvider from "next-auth/providers/facebook";
+import { ReferralService } from "@/src/services/referral.service";
 
 export const authOptions: import("next-auth").NextAuthOptions = {
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || "",
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+            authorization: {
+                params: {
+                    scope: 'openid email profile',
+                    access_type: 'offline',
+                    prompt: 'consent',
+                },
+            },
         }),
         FacebookProvider({
             clientId: process.env.FACEBOOK_LOGIN_APP_ID || "",
@@ -119,7 +127,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                             .set(updateData)
                             .where(eq(usersTable.email, user.email!));
                     } else {
-                        await db.insert(usersTable).values({
+                        const [newUser] = await db.insert(usersTable).values({
                             email: user.email!,
                             name: user.name,
                             image: user.image,
@@ -128,7 +136,11 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                             provider: account.provider,
                             role: "USER",
                             lastLoginAt: new Date(),
-                        });
+                        }).returning({ id: usersTable.id });
+
+                        if (newUser) {
+                            await ReferralService.assignReferralCode(newUser.id);
+                        }
                     }
                 } catch (error) {
                     console.error("Failed to save user:", error);
@@ -144,6 +156,38 @@ export const authOptions: import("next-auth").NextAuthOptions = {
             if (account?.provider === "facebook") {
                 token.facebookAccessToken = account.access_token;
                 token.facebookId = account.providerAccountId;
+            }
+
+            if (account?.provider === "google") {
+                token.googleAccessToken = account.access_token;
+                token.googleRefreshToken = account.refresh_token;
+                token.googleTokenExpiry = account.expires_at;
+            }
+
+            // Auto-refresh Google access token if expired
+            const isExpired = token.googleTokenExpiry
+                ? Date.now() > (token.googleTokenExpiry as number) * 1000
+                : false;
+            if (token.googleRefreshToken && isExpired) {
+                try {
+                    const response = await fetch('https://oauth2.googleapis.com/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            client_id: process.env.GOOGLE_CLIENT_ID!,
+                            client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+                            grant_type: 'refresh_token',
+                            refresh_token: token.googleRefreshToken as string,
+                        }),
+                    });
+                    const refreshed = await response.json();
+                    if (refreshed.access_token) {
+                        token.googleAccessToken = refreshed.access_token;
+                        token.googleTokenExpiry = Math.floor(Date.now() / 1000) + refreshed.expires_in;
+                    }
+                } catch (err) {
+                    console.error('Google token refresh failed:', err);
+                }
             }
 
             // Only hit DB on signIn, explicit update, or first-time token
@@ -186,6 +230,8 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                 session.user.googleId = token.googleId as string;
                 session.facebookAccessToken = token.facebookAccessToken as string;
                 session.facebookId = token.facebookId as string;
+                session.googleAccessToken = token.googleAccessToken as string;
+                session.googleTokenExpiry = token.googleTokenExpiry as number;
             }
             return session;
         },
