@@ -95,17 +95,15 @@ export function TaskCard({
   const youtubeCompleteMutation = useMutation({
     mutationFn: async ({
       taskId,
-      watchedSeconds,
       sessionId,
     }: {
       taskId: number;
-      watchedSeconds: number;
       sessionId?: number;
     }) => {
       const res = await fetch("/api/user/tasks/youtube-complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, watchedSeconds, sessionId }),
+        body: JSON.stringify({ taskId, sessionId }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -394,7 +392,18 @@ export function TaskCard({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onComplete(task.id, "liked");
+                            youtubeCompleteMutation.mutate(
+                              { taskId: task.id },
+                              {
+                                onSuccess: () => {
+                                  toast.success("Like verified! Points awarded.");
+                                  queryClient.invalidateQueries({ queryKey: ["user-tasks"] });
+                                  queryClient.invalidateQueries({ queryKey: ["user-points"] });
+                                },
+                                onError: () =>
+                                  toast.error("Please like the video and try again."),
+                              },
+                            );
                           }}
                           className="text-xs font-bold text-white bg-emerald-500/50 hover:bg-emerald-500/70
                                           px-2.5 py-1 rounded-full backdrop-blur-sm transition-all duration-200
@@ -598,8 +607,8 @@ export function TaskCard({
         taskId={task.id}
         isOpen={isYoutubeModalOpen}
         onClose={() => setIsYoutubeModalOpen(false)}
-        onComplete={(watchedSeconds, sessionId) =>
-          youtubeCompleteMutation.mutate({ taskId: task.id, watchedSeconds, sessionId })
+        onComplete={(_watchedSeconds, sessionId) =>
+          youtubeCompleteMutation.mutate({ taskId: task.id, sessionId })
         }
         requiredSeconds={requiredSeconds}
       />

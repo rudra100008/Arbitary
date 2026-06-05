@@ -111,7 +111,6 @@ export const verifySubmissionSchema = z.object({
 
 export const youtubeCompleteSchema = z.object({
     taskId: z.number("taskId must be a number").int().positive(),
-    watchedSeconds: z.number("watchedSeconds must be a number").int().min(0),
     sessionId: z.number("sessionId must be a number").int().positive().optional(),
 }).strict();
 

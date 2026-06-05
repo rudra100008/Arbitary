@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { taskId, watchedSeconds, sessionId } = parsed.data;
-  const result = await TaskService.completeYoutubeTask(auth.data.id, Number(taskId), watchedSeconds, sessionId);
+  const { taskId, sessionId } = parsed.data;
+  const result = await TaskService.completeYoutubeTask(auth.data.id, Number(taskId), sessionId ?? undefined);
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: (result as any).status ?? 400 });
   }

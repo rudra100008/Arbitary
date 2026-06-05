@@ -30,17 +30,19 @@ export const YouTubeService = {
   async verifySubscription(
     channelId: string,
     accessToken: string,
-  ): Promise<boolean> {
+  ): Promise<{ verified: boolean; needsScreenshot: boolean }> {
     try {
       const res = await fetch(
         `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&forChannelId=${channelId}&mine=true`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      if (!res.ok) return false;
+      if (res.status === 403) return { verified: false, needsScreenshot: true };
+      if (!res.ok) return { verified: false, needsScreenshot: false };
       const data = await res.json();
-      return data.items?.length > 0;
+      if (data.items?.length > 0) return { verified: true, needsScreenshot: false };
+      return { verified: false, needsScreenshot: true };
     } catch {
-      return false;
+      return { verified: false, needsScreenshot: false };
     }
   },
 

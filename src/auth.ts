@@ -208,6 +208,8 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                     token.phoneNumber = dbUser.phoneNumber;
                     token.googleId = dbUser.googleId ?? undefined;
                     if (dbUser.facebookId) token.facebookId = dbUser.facebookId;
+                } else if (trigger === "signIn") {
+                    console.warn("JWT signIn: DB user not found for email", token.email);
                 }
             }
 
