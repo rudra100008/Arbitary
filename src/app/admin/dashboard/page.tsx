@@ -9,6 +9,7 @@ import AdminSidebar from "./_components/admin-sidebar";
 import OverviewTab from "./_components/overview-tab";
 import EventTable from "./_components/event-table";
 import EventFormModal from "./_components/event-form-modal";
+import DealsManager from "./_components/deals-manager";
 import type { ContentSection, AccessType, TimelineItem } from "./_components/types";
 import type { Event } from "@/src/types/db";
 
@@ -136,6 +137,7 @@ const AdminDashboard = () => {
     { label: "Overview" },
     { label: "Manage Events" },
     { label: "Manage Tasks" },
+    { label: "Manage Deals" },
     { label: "User Submissions" },
     { label: "Our Work" },
     { label: "Team Members" },
@@ -378,9 +380,15 @@ const AdminDashboard = () => {
             <UserSubmissions />
           </div>
         )}
+        {activeTab === "Manage Deals" && (
+          <div>
+            <DealsManager />
+          </div>
+        )}
         {activeTab !== "Overview" &&
           activeTab !== "Manage Events" &&
           activeTab !== "Manage Tasks" &&
+          activeTab !== "Manage Deals" &&
           activeTab !== "User Submissions" && (
             <div className="flex flex-col items-center justify-center py-40 bg-white rounded-[3rem] border border-black/5 border-dashed shadow-sm">
               <p className="text-zinc-300 font-black uppercase tracking-[0.3em]">

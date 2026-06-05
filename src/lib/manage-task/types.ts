@@ -13,10 +13,18 @@ export type Task = {
     completedUsers: number;
     rewardPoint?: number;
     videoUrl?: string;
-    // Social media fields
     platform?: import("@/src/lib/social/type").Platform;
     socialPostId?: string;
     socialPostUrl?: string;
+    socialPlatform?: string;
+    targetUrl?: string;
+    isActive?: boolean;
+    watchDuration?: number | null;
+    difficulty?: string;
+    isFlash?: boolean;
+    isShare?: boolean;
+    shareThreshold?: number;
+    expiresAt?: string | null;
 };
 
 export type ModalMode = "add" | "edit";

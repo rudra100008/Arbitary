@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { TaskService } from "@/src/services/task.service";
+import { rateLimit } from "@/src/lib/rate-limit";
 import { pickUpTaskSchema, updateTaskSchema, cancelTaskSchema } from "@/src/lib/validations/task";
 
 function toNextResponse<T>(result: import("@/src/services/result").ServiceResult<T>): NextResponse {
@@ -23,6 +24,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) return toNextResponse(auth);
+
+  const rl = await rateLimit(`claim:user:${auth.data.id}`, 10, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `Too many attempts. Try again in ${rl.retryAfterSeconds}s.` },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const parsed = pickUpTaskSchema.safeParse(await req.json());
   if (!parsed.success) {
@@ -61,6 +70,14 @@ export async function DELETE(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) return toNextResponse(auth);
+
+  const rl = await rateLimit(`claim:user:${auth.data.id}`, 10, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `Too many attempts. Try again in ${rl.retryAfterSeconds}s.` },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const parsed = updateTaskSchema.safeParse(await req.json());
   if (!parsed.success) {

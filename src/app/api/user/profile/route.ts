@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { UserService } from "@/src/services/user.service";
+import { checkRankUpdate } from "@/src/services/rank.service";
 import { z } from "zod";
 
 const profileUpdateSchema = z.object({
@@ -15,6 +16,8 @@ export async function GET() {
   if (!auth.success) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
+
+  await checkRankUpdate(auth.data.id).catch(() => {});
 
   const result = await UserService.getProfile(auth.data.id);
   if (!result.success) {

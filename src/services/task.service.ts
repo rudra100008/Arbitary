@@ -7,7 +7,7 @@ import {
   shareClicksTable,
   watchSessionsTable,
 } from "@/src/db/schema";
-import { eq, and, desc, sql, or, gte } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, ne } from "drizzle-orm";
 import { calculateStreak, getNextMilestone, toDateStr } from "@/src/lib/streak-helper";
 import {
   findCodeInComments,
@@ -64,6 +64,7 @@ export type FacebookCompleteResult = {
 
 export type YoutubeCompleteResult = {
   message: string;
+  requiresScreenshot?: boolean;
 };
 
 export type CompletedTodayResult = {
@@ -296,6 +297,23 @@ export const TaskService = {
         .where(eq(userTasksTable.id, existingRejected.id));
     }
 
+    // Prevent re-picking the same task (In Progress, Completed, Verified, Pending Verification)
+    const existingNonRejected = await db
+      .select()
+      .from(userTasksTable)
+      .where(
+        and(
+          eq(userTasksTable.userId, userId),
+          eq(userTasksTable.taskId, taskId),
+          ne(userTasksTable.status, "Rejected"),
+        ),
+      )
+      .then((rows) => rows[0]);
+
+    if (existingNonRejected) {
+      return fail("You have already picked up this task", 400);
+    }
+
     const existingActiveTasks = await db
       .select({ userTask: userTasksTable, task: tasksTable })
       .from(userTasksTable)
@@ -382,7 +400,11 @@ export const TaskService = {
   ): Promise<ServiceResult<{ message: string }>> {
     const updateData: Record<string, unknown> = { status };
     if (proofUrl) updateData.proofUrl = proofUrl;
-    if (proofImageUrl) updateData.proofImageUrl = proofImageUrl;
+    if (proofImageUrl) {
+      updateData.proofImageUrl = proofImageUrl;
+    } else if (proofUrl) {
+      updateData.proofImageUrl = proofUrl;
+    }
 
     const [updated] = await db
       .update(userTasksTable)
@@ -486,7 +508,7 @@ export const TaskService = {
         and(
           eq(userTasksTable.userId, userId),
           eq(userTasksTable.taskId, taskId),
-          sql`${userTasksTable.status} NOT IN ('Completed', 'Verified', 'Cancelled')`,
+          sql`LOWER(${userTasksTable.status}) NOT IN ('completed', 'verified', 'cancelled')`,
         ),
       )
       .orderBy(desc(userTasksTable.assignedAt));
@@ -549,7 +571,7 @@ export const TaskService = {
         and(
           eq(userTasksTable.userId, userId),
           eq(userTasksTable.taskId, taskId),
-          sql`${userTasksTable.status} NOT IN ('Completed', 'Verified', 'Cancelled')`,
+          sql`LOWER(${userTasksTable.status}) NOT IN ('completed', 'verified', 'cancelled')`,
         ),
       )
       .orderBy(desc(userTasksTable.assignedAt));
@@ -587,7 +609,11 @@ export const TaskService = {
       }
       const isSubscribed = await YouTubeService.verifySubscription(resolvedId, accessToken);
       if (!isSubscribed) {
-        return fail("Please subscribe to the YouTube channel to complete this task", 429);
+        await db
+          .update(userTasksTable)
+          .set({ status: "Pending Verification" })
+          .where(eq(userTasksTable.id, userTask.id));
+        return ok({ message: "Subscription could not be verified automatically. Upload a screenshot as proof.", requiresScreenshot: true });
       }
     } else if (taskType === "VIDEO_LIKE") {
       const videoId = task.socialPostId || extractVideoId(task.postUrl);
@@ -646,15 +672,27 @@ export const TaskService = {
         }
         const isSubscribed = await YouTubeService.verifySubscription(resolvedId, accessToken);
         if (!isSubscribed) {
-          return fail("Please subscribe to the YouTube channel to complete this task", 429);
+          await db
+            .update(userTasksTable)
+            .set({ status: "Pending Verification" })
+            .where(eq(userTasksTable.id, userTask.id));
+          return ok({ message: "Subscription could not be verified automatically. Upload a screenshot as proof.", requiresScreenshot: true });
         }
       } else {
         return fail("Could not determine the YouTube task type from the URL or title", 400);
       }
     }
 
-    // Watch duration check (skip for subscribe tasks)
-    if (taskType !== "VIDEO_SUBSCRIBE") {
+    // Watch duration check (skip for subscribe tasks — both exact and heuristic)
+    const isSubscribeByUrl =
+      (task.postUrl ?? "").includes("youtube.com/channel") ||
+      (task.postUrl ?? "").includes("youtube.com/@") ||
+      (task.postUrl ?? "").includes("youtube.com/c/") ||
+      (task.postUrl ?? "").includes("youtube.com/user/") ||
+      ((task.postUrl ?? "").startsWith("UC") && !(task.postUrl ?? "").includes("/")) ||
+      (task.title ?? "").toLowerCase().includes("subscri");
+
+    if (taskType !== "VIDEO_SUBSCRIBE" && !isSubscribeByUrl) {
       const requiredSeconds = task.watchDuration ?? 30;
 
       // Server-authoritative session cross-validation
@@ -765,7 +803,7 @@ export const TaskService = {
         and(
           eq(userTasksTable.userId, userId),
           gte(userTasksTable.completedAt, todayStart),
-          sql`${userTasksTable.status} IN ('Completed', 'Verified')`,
+          sql`LOWER(${userTasksTable.status}) IN ('completed', 'verified')`,
         ),
       );
 
@@ -957,7 +995,7 @@ export const TaskService = {
         count: sql<number>`count(${userTasksTable.id})::int`,
       })
       .from(userTasksTable)
-      .where(sql`${userTasksTable.status} IN ('Completed', 'Verified')`)
+      .where(sql`LOWER(${userTasksTable.status}) IN ('completed', 'verified')`)
       .groupBy(userTasksTable.taskId);
 
     const countsMap = new Map(completedCounts.map((c) => [c.taskId, c.count]));
@@ -995,6 +1033,9 @@ export const TaskService = {
     videoUrl?: string | null;
     platform?: string | null;
     socialPostId?: string | null;
+    socialPlatform?: string | null;
+    targetUrl?: string | null;
+    isActive?: boolean;
     watchDuration?: number | null;
     difficulty?: string;
     isFlash?: boolean;
@@ -1012,6 +1053,9 @@ export const TaskService = {
         postUrl: input.socialPostUrl || input.videoUrl || null,
         platform: input.platform || null,
         socialPostId: input.socialPostId || null,
+        socialPlatform: input.socialPlatform || null,
+        targetUrl: input.targetUrl || input.videoUrl || null,
+        isActive: input.isActive ?? true,
         watchDuration: input.platform === "youtube" && input.watchDuration ? Number(input.watchDuration) : null,
         difficulty: input.difficulty || "easy",
         isFlash: input.isFlash || false,
@@ -1034,6 +1078,9 @@ export const TaskService = {
       videoUrl?: string | null;
       platform?: string | null;
       socialPostId?: string | null;
+      socialPlatform?: string | null;
+      targetUrl?: string | null;
+      isActive?: boolean;
       watchDuration?: number | null;
       difficulty?: string;
       isFlash?: boolean;
@@ -1052,6 +1099,9 @@ export const TaskService = {
         postUrl: input.socialPostUrl || input.videoUrl || null,
         platform: input.platform || null,
         socialPostId: input.socialPostId || null,
+        socialPlatform: input.socialPlatform || null,
+        targetUrl: input.targetUrl || input.videoUrl || null,
+        isActive: input.isActive ?? true,
         watchDuration: input.platform === "youtube" && input.watchDuration ? Number(input.watchDuration) : null,
         difficulty: input.difficulty || "easy",
         isFlash: input.isFlash || false,
@@ -1264,9 +1314,15 @@ function extractVideoId(url: string | null): string | null {
 
 function extractChannelId(url: string | null): string | null {
   if (!url) return null;
+  // Raw channel ID (starts with UC and no path separators)
+  const rawMatch = url.match(/^(UC[\w-]{22})$/);
+  if (rawMatch) return rawMatch[1];
+
   const patterns = [
     /youtube\.com\/channel\/(UC[\w-]{22})/,
     /youtube\.com\/@([\w.-]+)/,
+    /youtube\.com\/c\/([\w.-]+)/,
+    /youtube\.com\/user\/([\w.-]+)/,
   ];
   for (const pattern of patterns) {
     const match = url.match(pattern);

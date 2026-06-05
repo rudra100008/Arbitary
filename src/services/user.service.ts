@@ -4,6 +4,7 @@ import { eq, desc, sql, aliasedTable } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { toDateStr } from "@/src/lib/streak-helper";
 import { ReferralService } from "./referral.service";
+import { checkRankUpdate } from "./rank.service";
 import { ServiceResult, ok, fail } from "./result";
 import type { User } from "@/src/types/db";
 
@@ -164,10 +165,13 @@ export const UserService = {
         .update(usersTable)
         .set({
           points: (user.points || 0) + taskPoints,
+          lifetimePoints: sql`${usersTable.lifetimePoints} + ${taskPoints}`,
           completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
         })
         .where(eq(usersTable.id, userId));
     });
+
+    await checkRankUpdate(userId);
 
     return ok({ pointsAwarded: taskPoints });
   },
@@ -214,6 +218,7 @@ export const UserService = {
         .update(usersTable)
         .set({
           points: (user.points || 0) + totalReferralPoints,
+          lifetimePoints: sql`${usersTable.lifetimePoints} + ${totalReferralPoints}`,
           completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
         })
         .where(eq(usersTable.id, userId));
@@ -225,6 +230,8 @@ export const UserService = {
           .where(eq(referralsTable.id, ref.id));
       }
     });
+
+    await checkRankUpdate(userId);
 
     return ok({ pointsAwarded: totalReferralPoints, referralCount: unclaimedReferrals.length });
   },

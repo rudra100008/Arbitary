@@ -17,13 +17,13 @@ export async function getTopUsers(limit: number = 100): Promise<TopUser[]> {
       id: usersTable.id,
       name: usersTable.name,
       image: usersTable.image,
-      points: usersTable.points,
+      points: usersTable.lifetimePoints,
       tasks: usersTable.completedTasksCount,
       referrals: sql<number>`(select count(*) from ${referralsTable} where ${referralsTable.referrerId} = ${usersTable.id})`,
     })
     .from(usersTable)
     .where(eq(usersTable.role, 'user'))
-    .orderBy(desc(usersTable.points))
+    .orderBy(desc(usersTable.lifetimePoints))
     .limit(limit);
 
   return result.map((user) => ({

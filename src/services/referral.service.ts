@@ -74,7 +74,7 @@ export const ReferralService = {
           .where(
             and(
               eq(userTasksTable.userId, userId),
-              inArray(userTasksTable.status, ["Completed", "Verified"]),
+              sql`LOWER(${userTasksTable.status}) IN ('completed', 'verified')`,
             ),
           )
           .limit(1);

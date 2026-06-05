@@ -48,21 +48,26 @@ function ProofDisplay({ sub }: { sub: Submission }) {
 
   if (imageUrl) {
     return (
-      <a
-        href={imageUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 mt-2"
-      >
-        <img
-          src={imageUrl}
-          alt="Proof screenshot"
-          className="w-24 h-16 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
-        />
-        <span className="text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors">
-          View Full Size
+      <div className="flex items-center gap-2 mt-2">
+        <span className="text-[10px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+          Image Proof
         </span>
-      </a>
+        <a
+          href={imageUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2"
+        >
+          <img
+            src={imageUrl}
+            alt="Proof screenshot"
+            className="w-24 h-16 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
+          />
+          <span className="text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors">
+            View Full Size
+          </span>
+        </a>
+      </div>
     );
   }
 
@@ -83,17 +88,22 @@ function ProofDisplay({ sub }: { sub: Submission }) {
   if (!safeUrl) return null;
 
   return (
-    <a
-      href={safeUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
-    >
-      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-      </svg>
-      View User Proof
-    </a>
+    <div className="inline-flex items-center gap-2 mt-2">
+      <span className="text-[10px] font-bold uppercase text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
+        URL Proof
+      </span>
+      <a
+        href={safeUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+        View User Proof
+      </a>
+    </div>
   );
 }
 

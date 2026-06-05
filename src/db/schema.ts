@@ -125,7 +125,9 @@ export const tasksTable = pgTable("tasks", {
     postUrl: text("post_url"),
     platform: varchar("platform", { length: 100 }),
     socialPostId: varchar("social_post_id", { length: 255 }),
-    // ✅ NEW: how many seconds a user must watch (YouTube tasks only). null = not applicable.
+    socialPlatform: varchar("social_platform", { length: 50 }),
+    targetUrl: text("target_url"),
+    isActive: boolean("is_active").default(true),
     watchDuration: integer("watch_duration"),
     difficulty: varchar("difficulty", { length: 20 }).notNull().default("easy"),
     expiresAt: timestamp("expires_at"),

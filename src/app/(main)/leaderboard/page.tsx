@@ -28,7 +28,7 @@ export default async function LeaderboardPage() {
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-zinc-500 max-w-2xl leading-relaxed italic">
-              "The top 100 arbiters ranked by influence. Rise through the ranks."
+              "The top 100 arbiters ranked by lifetime earnings. Rise through the ranks."
             </p>
           </div>
         </section>
@@ -47,7 +47,7 @@ export default async function LeaderboardPage() {
                 {users.reduce((s, u) => s + u.points, 0).toLocaleString()}
               </p>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mt-1">
-                Total Points
+                Lifetime Points
               </p>
             </div>
             <div className="p-6 bg-zinc-50 rounded-2xl border border-black/5">

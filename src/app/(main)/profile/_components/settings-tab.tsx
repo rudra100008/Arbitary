@@ -111,17 +111,16 @@ export default function SettingsTab({
                   </p>
                 </div>
               </div>
-              <span
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
-                                ${
-                                  facebookId
-                                    ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                                    : "bg-gray-100 text-gray-400"
-                                }`}
-              >
-                {facebookId ? "Connected" : "Not linked"}
-              </span>
-            </div>
+ <span
+    className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                    ${
+                      facebookId
+                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+  >
+    {facebookId ? "Connected" : "Not linked"}
+  </span>            </div>
 
             {/* Placeholder for more providers */}
             <div

@@ -80,21 +80,31 @@ export const YouTubeService = {
 
   async verifyComment(
     videoId: string,
-    userId: number,
-    taskId: number,
+    _userId: number,
+    _taskId: number,
     accessToken: string,
   ): Promise<boolean> {
     try {
-      const code = getVerificationCode(userId, taskId);
-      const res = await fetch(
+      const meRes = await fetch(
+        "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!meRes.ok) return false;
+      const meData = await meRes.json();
+      const myChannelId = meData.items?.[0]?.id;
+      if (!myChannelId) return false;
+
+      const commentsRes = await fetch(
         `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=100`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      if (!res.ok) return false;
-      const data = await res.json();
-      return data.items?.some((item: any) =>
-        item.snippet.topLevelComment.snippet.textDisplay.includes(code),
-      );
+      if (!commentsRes.ok) return false;
+      const commentsData = await commentsRes.json();
+
+      return commentsData.items?.some(
+        (item: any) =>
+          item.snippet?.topLevelComment?.snippet?.authorChannelId?.value === myChannelId,
+      ) ?? false;
     } catch {
       return false;
     }

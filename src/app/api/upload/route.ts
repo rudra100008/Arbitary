@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
+import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
@@ -24,7 +25,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File size must be under 5MB" }, { status: 400 });
   }
 
-  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  if (!cloudName || !apiKey || !apiSecret) {
     return NextResponse.json({ error: "Upload service not configured" }, { status: 500 });
   }
 
@@ -32,16 +36,34 @@ export async function POST(req: NextRequest) {
   const base64 = buffer.toString("base64");
   const dataUri = `data:${file.type};base64,${base64}`;
 
+  const timestamp = Math.floor(Date.now() / 1000);
+  const publicId = `${auth.data.id}_${Date.now()}`;
+  const folder = `arbitary/${type}`;
+
+  // Build sorted param string for Cloudinary signed upload signature
+  const params: Record<string, string> = {
+    folder,
+    public_id: publicId,
+    timestamp: String(timestamp),
+  };
+  const paramString = Object.keys(params)
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&");
+  const signature = crypto.createHash("sha1").update(`${paramString}${apiSecret}`).digest("hex");
+
   const uploadRes = await fetch(
-    `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`,
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         file: dataUri,
-        upload_preset: "ml_default",
-        folder: `arbitary/${type}`,
-        public_id: `${auth.data.id}_${Date.now()}`,
+        folder,
+        public_id: publicId,
+        timestamp,
+        api_key: apiKey,
+        signature,
       }),
     },
   );

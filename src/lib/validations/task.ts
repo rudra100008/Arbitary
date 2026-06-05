@@ -1,5 +1,13 @@
 import z from "zod";
 
+const socialProfileRegex =
+  /^(https?:\/\/)?(www\.)?(twitter\.com|x\.com|facebook\.com|instagram\.com)\/[a-zA-Z0-9_.]+\/?$/i;
+
+export const socialProfileUrlSchema = z
+  .string()
+  .url("Must be a valid URL")
+  .regex(socialProfileRegex, "Must be a valid social media profile URL (Twitter/X, Facebook, Instagram)")
+  .max(2048, "URL too long");
 
 export const TaskStatusEnum = z.enum(["In Progress", "Pending Verification", "Completed", "Cancelled"]);
 export const VerifyStatusEnum = z.enum(["Verified", "Rejected", "In Progress"]);
@@ -83,6 +91,9 @@ export const adminTaskSchema = z.object({
     videoUrl: z.string().url().max(2048).nullable().optional(),
     platform: PlatformEnum,
     socialPostId: z.string().max(255).nullable().optional(),
+    socialPlatform: z.string().max(50).nullable().optional(),
+    targetUrl: z.string().url().max(2048).nullable().optional(),
+    isActive: z.boolean().optional().default(true),
     watchDuration: z.number().int().min(5).max(86400).nullable().optional(),
     difficulty: DifficultyEnum.optional().default("easy"),
     isFlash: z.boolean().optional().default(false),

@@ -20,6 +20,9 @@ export type TaskFormPayload = {
   platform: Platform | null;
   socialPostId: string | null;
   socialPostUrl: string | null;
+  socialPlatform?: string | null;
+  targetUrl?: string | null;
+  isActive?: boolean;
   watchDuration: number | null;
   difficulty: "easy" | "medium" | "hard";
   isFlash: boolean;
@@ -106,6 +109,9 @@ export function TaskFormModal({
         : isDailyLogin
           ? null
           : (formData.get("manualUrl") as string) || null,
+      socialPlatform: isYoutube ? "youtube" : null,
+      targetUrl: (formData.get("videoUrl") as string) || null,
+      isActive: true,
       watchDuration: isDailyLogin ? null : watchDuration,
       difficulty: (formData.get("difficulty") as "easy" | "medium" | "hard") || "easy",
       isFlash,

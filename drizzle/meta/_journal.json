@@ -57,6 +57,20 @@
       "when": 1756848000000,
       "tag": "0007_add_deals_watch_sessions_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1756849000000,
+      "tag": "0008_align_to_destination",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1760000000000,
+      "tag": "0009_add_social_platform_target_url_is_active",
+      "breakpoints": true
     }
   ]
 }

@@ -18,7 +18,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
             authorization: {
                 params: {
-                    scope: 'openid email profile',
+                    scope: 'openid email profile https://www.googleapis.com/auth/youtube.force-ssl',
                     access_type: 'offline',
                     prompt: 'consent',
                 },
@@ -230,7 +230,6 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                 session.user.googleId = token.googleId as string;
                 session.facebookAccessToken = token.facebookAccessToken as string;
                 session.facebookId = token.facebookId as string;
-                session.googleAccessToken = token.googleAccessToken as string;
                 session.googleTokenExpiry = token.googleTokenExpiry as number;
             }
             return session;
