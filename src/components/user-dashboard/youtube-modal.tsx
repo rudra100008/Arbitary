@@ -9,6 +9,7 @@ type YoutubeModalProps = {
   onClose: () => void;
   onComplete: (watchedSeconds: number) => void;
   requiredSeconds?: number;
+  taskId: number;
 };
 
 function getYoutubeId(url: string): string | null {
@@ -18,9 +19,26 @@ function getYoutubeId(url: string): string | null {
   return match && match[2].length === 11 ? match[2] : null;
 }
 
+interface YTPlayer {
+  destroy(): void;
+  playVideo(): void;
+  stopVideo(): void;
+  pauseVideo(): void;
+}
+
 declare global {
   interface Window {
-    YT: any;
+    YT: {
+      Player: any;
+      PlayerState: {
+        OFF: number;
+        UNSTARTED: number;
+        PLAYING: number;
+        PAUSED: number;
+        BUFFERING: number;
+        CUED: number;
+      };
+    };
     onYouTubeIframeAPIReady: () => void;
   }
 }
@@ -31,18 +49,28 @@ export function YoutubeModal({
   onClose,
   onComplete,
   requiredSeconds = 60,
+  taskId,
 }: YoutubeModalProps) {
   const [watchedSeconds, setWatchedSeconds] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [showChallenge, setShowChallenge] = useState(false);
+  const [pendingChallengeToken, setPendingChallengeToken] = useState<string | null>(null);
+  const [isSessionReady, setIsSessionReady] = useState(false);
 
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const completedRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const watchedSecondsRef = useRef(0);
+  const sessionTokenRef = useRef<string>("");
+  const expectedHeartbeatsRef = useRef(0);
+  const lastSentHeartbeatRef = useRef(-1);
+  const isSendingRef = useRef(false);
+  const isPausedByVisibilityRef = useRef(false);
 
   const videoId = getYoutubeId(url);
 
@@ -64,23 +92,146 @@ export function YoutubeModal({
     };
   }, [isOpen]);
 
+  // Session pickup on modal open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setWatchedSeconds(0);
+    watchedSecondsRef.current = 0;
+    setIsPlaying(false);
+    setIsCompleted(false);
+    setPlayerReady(false);
+    completedRef.current = false;
+    setSessionError(null);
+    setShowChallenge(false);
+    setPendingChallengeToken(null);
+    setIsSessionReady(false);
+    lastSentHeartbeatRef.current = -1;
+    sessionTokenRef.current = "";
+    expectedHeartbeatsRef.current = 0;
+
+    fetch("/api/user/tasks/youtube-pickup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to start session");
+        return data;
+      })
+      .then((data) => {
+        sessionTokenRef.current = data.sessionToken;
+        expectedHeartbeatsRef.current = data.expectedHeartbeats;
+        setIsSessionReady(true);
+      })
+      .catch((err) => {
+        setSessionError(err.message);
+      });
+  }, [isOpen, taskId]);
+
+  async function sendHeartbeat(index: number) {
+    if (isSendingRef.current) return;
+    isSendingRef.current = true;
+
+    try {
+      const body: Record<string, any> = {
+        taskId,
+        heartbeatIndex: index,
+        sessionToken: sessionTokenRef.current,
+      };
+
+      if (pendingChallengeTokenRef.current) {
+        body.responseToken = pendingChallengeTokenRef.current;
+        pendingChallengeTokenRef.current = null;
+      }
+
+      const res = await fetch("/api/user/tasks/youtube-heartbeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setSessionError(data.error || "Heartbeat failed");
+        return;
+      }
+
+      if (data.completed) {
+        handleComplete();
+        return;
+      }
+
+      if (data.promptRequired && data.challengeToken) {
+        setShowChallenge(true);
+        setPendingChallengeToken(data.challengeToken);
+      }
+    } catch {
+      setSessionError("Network error");
+    } finally {
+      isSendingRef.current = false;
+    }
+  }
+
+  // We store the pending token in a ref too so sendHeartbeat can read it
+  const pendingChallengeTokenRef = useRef<string | null>(null);
+
+  // Sync the state into the ref so sendHeartbeat can read it
+  useEffect(() => {
+    pendingChallengeTokenRef.current = pendingChallengeToken;
+  }, [pendingChallengeToken]);
+
+  // Trigger heartbeat when watchedSeconds crosses a 10s boundary
+  useEffect(() => {
+    if (!isSessionReady || completedRef.current || sessionError) return;
+
+    const currentIdx = Math.floor(watchedSeconds / 10);
+    if (currentIdx > lastSentHeartbeatRef.current) {
+      lastSentHeartbeatRef.current = currentIdx;
+      sendHeartbeat(currentIdx);
+    }
+  }, [watchedSeconds, isSessionReady, sessionError]);
+
   const handleComplete = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
     setIsCompleted(true);
     if (timerRef.current) clearInterval(timerRef.current);
-    // Small delay so the user sees "Completed!" before the modal closes
     const finalSeconds = watchedSecondsRef.current;
     setTimeout(() => {
       onComplete(finalSeconds);
     }, 1200);
   }, [onComplete]);
 
+  const handleChallengeResponse = useCallback(() => {
+    setShowChallenge(false);
+  }, []);
+
+  // Page Visibility API
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        if (playerRef.current) {
+          try { playerRef.current.pauseVideo(); } catch (_) {}
+        }
+        isPausedByVisibilityRef.current = true;
+        setIsPlaying(false);
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      isPausedByVisibilityRef.current = false;
+    };
+  }, []);
+
   // Init / destroy YouTube player
   useEffect(() => {
     if (!isOpen || !videoId) return;
 
-    // Reset state
     setWatchedSeconds(0);
     watchedSecondsRef.current = 0;
     setIsPlaying(false);
@@ -108,7 +259,7 @@ export function YoutubeModal({
         },
         events: {
           onReady: () => setPlayerReady(true),
-          onStateChange: (event: any) => {
+          onStateChange: (event: { data: number }) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
               setIsPlaying(true);
             } else {
@@ -123,7 +274,6 @@ export function YoutubeModal({
       if (window.YT && window.YT.Player) {
         initPlayer();
       } else {
-        // Script not yet loaded — attach to the global callback
         const prev = window.onYouTubeIframeAPIReady;
         window.onYouTubeIframeAPIReady = () => {
           if (prev) prev();
@@ -139,16 +289,13 @@ export function YoutubeModal({
       }
     };
 
-    // Small timeout to let the DOM node render inside the portal
     const t = setTimeout(tryInit, 80);
 
     return () => {
       clearTimeout(t);
       if (timerRef.current) clearInterval(timerRef.current);
       if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (_) {}
+        try { playerRef.current.destroy(); } catch (_) {}
         playerRef.current = null;
       }
       setPlayerReady(false);
@@ -156,7 +303,7 @@ export function YoutubeModal({
     };
   }, [isOpen, videoId]);
 
-  // Countdown timer — only runs while playing & not yet completed
+  // Countdown timer
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -166,7 +313,6 @@ export function YoutubeModal({
           const next = prev + 1;
           watchedSecondsRef.current = next;
           if (next >= requiredSeconds) {
-            handleComplete();
             return requiredSeconds;
           }
           return next;
@@ -177,7 +323,7 @@ export function YoutubeModal({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, requiredSeconds, handleComplete]);
+  }, [isPlaying, requiredSeconds]);
 
   if (!isOpen || !mounted) return null;
 
@@ -196,7 +342,7 @@ export function YoutubeModal({
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/85 backdrop-blur-md"
-        onClick={() => !isCompleted && onClose()}
+        onClick={() => !isCompleted && !showChallenge && onClose()}
         style={{ zIndex: 0 }}
       />
 
@@ -220,7 +366,6 @@ export function YoutubeModal({
           style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
         >
           <div className="flex items-center gap-2.5">
-            {/* YouTube red dot */}
             <span
               className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"
               style={{ boxShadow: "0 0 6px rgba(239,68,68,0.7)" }}
@@ -243,7 +388,6 @@ export function YoutubeModal({
             </span>
           </div>
 
-          {/* X button — always visible */}
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
@@ -284,13 +428,11 @@ export function YoutubeModal({
           className="w-full relative bg-black"
           style={{ aspectRatio: "16/9" }}
         >
-          {/* The div that YT replaces with an iframe */}
           <div
             id="yt-player-container"
             className="absolute inset-0 w-full h-full"
           />
 
-          {/* Loading shimmer until player is ready */}
           {!playerReady && (
             <div
               className="absolute inset-0 flex items-center justify-center"
@@ -305,6 +447,81 @@ export function YoutubeModal({
                   Loading video…
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* Session error overlay */}
+          {sessionError && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6"
+              style={{
+                background: "rgba(0,0,0,0.8)",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              <span className="text-red-400 text-sm text-center font-medium">
+                {sessionError}
+              </span>
+              <button
+                onClick={onClose}
+                className="text-xs font-bold text-black bg-[#FACC15] hover:bg-[#eab308] px-4 py-2 rounded-full transition-all duration-200"
+              >
+                Close
+              </button>
+            </div>
+          )}
+
+          {/* Challenge prompt overlay */}
+          {showChallenge && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6"
+              style={{
+                background: "rgba(0,0,0,0.85)",
+                backdropFilter: "blur(6px)",
+                animation: "fadeIn 0.3s ease forwards",
+              }}
+            >
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(135deg,#f59e0b,#d97706)",
+                  boxShadow: "0 0 24px rgba(245,158,11,0.5)",
+                }}
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+              </div>
+              <p
+                className="text-white font-bold text-lg text-center"
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
+                Are you still watching?
+              </p>
+              <p
+                className="text-white/50 text-sm text-center max-w-sm"
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
+                Click the button below to confirm you&apos;re still watching the
+                video.
+              </p>
+              <button
+                onClick={handleChallengeResponse}
+                className="text-sm font-bold text-black bg-[#FACC15] hover:bg-[#eab308] px-6 py-2.5 rounded-full transition-all duration-200 active:scale-95"
+              >
+                I&apos;m watching
+              </button>
             </div>
           )}
 
@@ -358,7 +575,6 @@ export function YoutubeModal({
 
         {/* ── Footer / Progress ── */}
         <div className="px-5 py-4 flex flex-col gap-3">
-          {/* Status row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isCompleted ? (
@@ -406,7 +622,6 @@ export function YoutubeModal({
               )}
             </div>
 
-            {/* Countdown */}
             {!isCompleted && (
               <span
                 className="text-sm font-bold tabular-nums"
@@ -423,7 +638,6 @@ export function YoutubeModal({
             )}
           </div>
 
-          {/* Progress bar */}
           <div
             className="w-full rounded-full overflow-hidden"
             style={{ height: "5px", background: "rgba(255,255,255,0.08)" }}
@@ -445,7 +659,6 @@ export function YoutubeModal({
             />
           </div>
 
-          {/* Hint */}
           {!isCompleted && (
             <p
               className="text-center text-xs"

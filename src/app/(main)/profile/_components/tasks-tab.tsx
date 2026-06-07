@@ -35,6 +35,9 @@ export default function TasksTab({
   const inProgressCount = tasks.filter(
     (t) => t.status === "in progress",
   ).length;
+  const completedInListCount = tasks.filter(
+    (t) => t.status === "completed" || t.status === "verified",
+  ).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -80,12 +83,12 @@ export default function TasksTab({
               <div className="mt-4">
                 <div className="flex items-center justify-between text-[10px] text-white/40 mb-1.5">
                   <span>Task completion</span>
-                  <span className="font-semibold text-white/60">{completedCount}/{tasks.length}</span>
+                  <span className="font-semibold text-white/60">{completedInListCount}/{tasks.length}</span>
                 </div>
                 <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-emerald-400 to-emerald-300 rounded-full transition-all duration-700 ease-out"
-                    style={{ width: `${(completedCount / tasks.length) * 100}%` }}
+                    style={{ width: `${(completedInListCount / tasks.length) * 100}%` }}
                   />
                 </div>
               </div>

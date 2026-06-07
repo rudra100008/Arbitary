@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { UserTaskItem } from "@/src/services/task.service";
 
 type Props = {
-    task: any;
+    task: UserTaskItem;
     onCancel: (taskId: number) => void;
     cancelPending: boolean;
     cancelVariable: number | undefined;

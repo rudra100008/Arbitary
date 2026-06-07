@@ -2,21 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { TaskService } from "@/src/services/task.service";
 import { pickUpTaskSchema, updateTaskSchema, cancelTaskSchema } from "@/src/lib/validations/task";
+import { toNextResponse } from "@/src/lib/api-response";
 
-function toNextResponse<T>(result: import("@/src/services/result").ServiceResult<T>): NextResponse {
-  if (result.success) {
-    return NextResponse.json(result.data, { status: 200 });
-  }
-  return NextResponse.json(
-    { error: result.error, details: (result as any).details },
-    { status: (result as any).status ?? 400 },
-  );
-}
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) return toNextResponse(auth);
-  const result = await TaskService.getUserTasks(auth.data.id);
+
+  const { searchParams } = new URL(req.url);
+  const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "10", 10) || 10, 1), 50);
+  const cursorRaw = searchParams.get("cursor");
+  const cursor: { createdAt: string; id: number } | null = cursorRaw
+    ? (JSON.parse(cursorRaw) as { createdAt: string; id: number })
+    : null;
+  const filter = searchParams.get("filter") as 'available' | 'completed' | null;
+  const taskType = searchParams.get("taskType") || undefined;
+
+  const result = await TaskService.getUserTasks(auth.data.id, limit, cursor, filter ?? undefined, taskType);
   return toNextResponse(result);
 }
 

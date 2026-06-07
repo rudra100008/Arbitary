@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/services/auth.service";
 import { TicketService } from "@/src/services/ticket.service";
+import { toNextResponse } from "@/src/lib/api-response";
 import { z } from "zod";
 
 const redeemSchema = z.object({
@@ -22,9 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await TicketService.verifyAndRedeemTicket(parsed.data.token, auth.data.id);
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: (result as any).status ?? 400 });
-  }
+  if (!result.success) return toNextResponse(result);
 
   return NextResponse.json(result.data);
 }

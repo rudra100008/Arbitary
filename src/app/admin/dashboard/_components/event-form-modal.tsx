@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { ChevronDown } from "lucide-react";
 import type { ContentSection, AccessType, TimelineItem } from "./types";
 import ContentSectionEditor from "./content-section-editor";
@@ -19,7 +20,7 @@ interface EventFormModalProps {
   fieldErrors: Record<string, string>;
   onClose: () => void;
   onSave: () => void;
-  setFieldErrors: (e: Record<string, string>) => void;
+  setFieldErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
 
   eventTitle: string;
   setEventTitle: (v: string) => void;
@@ -49,15 +50,52 @@ interface EventFormModalProps {
 }
 
 const clearFieldError = (
-  fieldErrors: Record<string, string>,
-  setFieldErrors: (e: Record<string, string>) => void,
+  setFieldErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>,
   key: string,
 ) => {
-  if (fieldErrors[key]) {
-    const next = { ...fieldErrors };
+  setFieldErrors((prev) => {
+    if (!prev[key]) return prev;
+    const next = { ...prev };
     delete next[key];
-    setFieldErrors(next);
+    return next;
+  });
+};
+
+const formatFieldName = (field: string): string => {
+  const topLabels: Record<string, string> = {
+    title: "Title",
+    eventType: "Event Type",
+    status: "Status",
+    date: "Event Date",
+    venue: "Venue",
+    description: "Description",
+    heroImageUrl: "Hero Image",
+    accessTypes: "Access Types",
+    contentSections: "Content Sections",
+    timelineItems: "Timeline",
+  };
+  if (topLabels[field]) return topLabels[field];
+
+  const nestedMediaMatch = field.match(/^contentSections\.(.+)\.mediaItems\.(.+)\.(.+)$/);
+  if (nestedMediaMatch) {
+    const labels: Record<string, string> = { url: "Media URL", id: "Media Item" };
+    return labels[nestedMediaMatch[3]] || `Media Item: ${nestedMediaMatch[3]}`;
   }
+
+  const nestedMatch = field.match(/^(accessTypes|contentSections|timelineItems)\.(.+)\.(.+)$/);
+  if (nestedMatch) {
+    const sectionLabels: Record<string, string> = {
+      accessTypes: "Access Type", contentSections: "Content Section", timelineItems: "Timeline",
+    };
+    const fieldLabels: Record<string, string> = {
+      title: "Title", price: "Price", pointCost: "Points Cost",
+      type: "Section Type", content: "Content",
+      time: "Time", description: "Description",
+    };
+    return `${sectionLabels[nestedMatch[1]] || nestedMatch[1]}: ${fieldLabels[nestedMatch[3]] || nestedMatch[3]}`;
+  }
+
+  return field;
 };
 
 const EventFormModal = ({
@@ -133,7 +171,7 @@ const EventFormModal = ({
                     key={field}
                     className="text-[11px] bg-white border border-red-200 rounded-lg px-3 py-1 text-red-600 font-bold"
                   >
-                    <strong>{field}:</strong> {error}
+                    <strong>{formatFieldName(field)}:</strong> {error}
                   </div>
                 ))}
               </div>
@@ -249,6 +287,8 @@ const EventFormModal = ({
 
               <ContentSectionEditor
                 sections={contentSections}
+                fieldErrors={fieldErrors}
+                onClearError={(key) => clearFieldError(setFieldErrors, key)}
                 onAdd={() =>
                   setContentSections([
                     ...contentSections,
@@ -352,7 +392,7 @@ const EventFormModal = ({
                   onAdd={() =>
                     setAccessTypes([
                       ...accessTypes,
-                      { id: Math.random().toString(), title: "", price: "" },
+                      { id: Math.random().toString(), title: "", price: "", pointCost: 0 },
                     ])
                   }
                   onRemove={(id) =>
@@ -366,7 +406,7 @@ const EventFormModal = ({
                     )
                   }
                   onClearError={(key) =>
-                    clearFieldError(fieldErrors, setFieldErrors, key)
+                    clearFieldError(setFieldErrors, key)
                   }
                 />
                 <TimelineEditor
@@ -389,7 +429,7 @@ const EventFormModal = ({
                     )
                   }
                   onClearError={(key) =>
-                    clearFieldError(fieldErrors, setFieldErrors, key)
+                    clearFieldError(setFieldErrors, key)
                   }
                 />
               </div>

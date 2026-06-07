@@ -1,17 +1,19 @@
 "use client";
 
+import type { Event } from "@/src/types/db";
+
 interface OverviewTabProps {
   stats: { label: string; value: string; growth: string }[];
-  events: any[];
+  events: Event[];
   onViewAllEvents: () => void;
 }
 
 const OverviewTab = ({ stats, events, onViewAllEvents }: OverviewTabProps) => (
   <div className="animate-fade-in">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-      {stats.map((stat) => (
+      {stats.map((stat, index) => (
         <div
-          key={stat.label}
+          key={index}
           className="bg-white p-8 rounded-[2rem] border border-black/5 shadow-sm hover:shadow-xl transition-all duration-500 group"
         >
           <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-4">
@@ -41,7 +43,7 @@ const OverviewTab = ({ stats, events, onViewAllEvents }: OverviewTabProps) => (
           </button>
         </div>
         <div className="space-y-6">
-          {events.slice(0, 3).map((event: any) => (
+          {events.slice(0, 3).map((event: Event) => (
             <div
               key={event.id}
               className="flex items-center justify-between p-4 rounded-2xl hover:bg-zinc-50 transition-all border border-transparent hover:border-black/5 group"
@@ -53,7 +55,7 @@ const OverviewTab = ({ stats, events, onViewAllEvents }: OverviewTabProps) => (
                     {event.title}
                   </p>
                   <p className="text-[10px] text-zinc-400 font-bold uppercase">
-                    {event.date}
+                    {event.eventDate instanceof Date ? event.eventDate.toLocaleDateString() : String(event.eventDate)}
                   </p>
                 </div>
               </div>
@@ -75,8 +77,8 @@ const OverviewTab = ({ stats, events, onViewAllEvents }: OverviewTabProps) => (
           System Status
         </h3>
         <p className="text-zinc-500 text-sm font-medium leading-relaxed mb-8">
-          All systems are operational. The database is synchronized and the
-          API is serving requests at optimal speeds.
+          All systems are operational. The database is synchronized and the API
+          is serving requests at optimal speeds.
         </p>
         <div className="space-y-4">
           <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest">

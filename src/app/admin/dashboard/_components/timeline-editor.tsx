@@ -6,8 +6,8 @@ interface TimelineEditorProps {
   timelines: TimelineItem[];
   fieldErrors: Record<string, string>;
   onAdd: () => void;
-  onRemove: (id: string) => void;
-  onUpdate: (id: string, field: "time" | "description", value: string) => void;
+  onRemove: (id: string | number) => void;
+  onUpdate: (id: string | number, field: "time" | "description", value: string) => void;
   onClearError: (field: string) => void;
 }
 

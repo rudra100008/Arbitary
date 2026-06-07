@@ -103,7 +103,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                     });
 
                     if (existingUser) {
-                        const updateData: Record<string, any> = {
+                        const updateData: Record<string, string | Date | null | undefined> = {
                             name: user.name,
                             image: user.image,
                             lastLoginAt: new Date(),

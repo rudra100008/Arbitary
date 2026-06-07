@@ -126,7 +126,7 @@ const ProfileDropdown = ({ redirectUrl }: { redirectUrl: string }) => {
         </button>
 
         {/* Points badge on avatar */}
-        {points !== null && session?.user?.role !== "admin" && (
+        {points !== null && session?.user?.role !== "ADMIN" && (
           <span className="absolute -top-2 -right-3 text-[10px] font-bold text-white bg-blue-600 px-2 py-0.5 rounded-full shadow-sm shadow-blue-500/30 whitespace-nowrap">
             {points} pts
           </span>
@@ -173,7 +173,7 @@ const ProfileDropdown = ({ redirectUrl }: { redirectUrl: string }) => {
               </div>
 
               <div className="relative z-10 mt-3">
-                {session?.user?.role !== "admin" && (
+                {session?.user?.role !== "ADMIN" && (
                   <span className="text-[10px] font-bold text-white/70 bg-white/10 px-2.5 py-1 rounded-full">
                     ✦ {points ?? 0} Total Points
                   </span>

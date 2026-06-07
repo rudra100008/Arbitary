@@ -35,6 +35,7 @@ export const accessTypesTable = pgTable("access_types", {
     eventId: integer("event_id").notNull().references(() => eventsTable.id, { onDelete: 'cascade' }),
     title: varchar("title", { length: 255 }).notNull(),
     price: varchar("price", { length: 100 }).notNull(),
+    pointCost: integer("point_cost").notNull().default(0),
     order: integer("order").notNull(),
 });
 
@@ -44,6 +45,132 @@ export const timelineItemsTable = pgTable("timeline_items", {
     time: varchar("time", { length: 100 }).notNull(),
     description: text("description").notNull(),
     order: integer("order").notNull(),
+});
+
+// --- User Table ----
+
+export const usersTable = pgTable("users", {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 255 }),
+    email: varchar("email", { length: 255 }).unique().notNull(),
+    password: text("password"),
+    image: text("image"),
+    phoneNumber: varchar("phone_number", { length: 255 }).unique(),
+    bio: text("bio"),
+    location: text("Location"),
+    provider: text("provider").notNull().default("credentials"),
+    googleId: varchar("google_id", { length: 255 }).unique(),
+    facebookId: varchar("facebook_id", { length: 255 }),
+    role: varchar("role", { length: 50 }).notNull().default("USER"),
+    points: integer("points").notNull().default(0),
+    completedTasksCount: integer("completed_tasks_count").notNull().default(0),
+    referralCode: varchar("referral_code", { length: 20 }).unique(),
+    dailyLoginDate: timestamp("daily_login_date"),
+    currentStreak: integer("current_streak").notNull().default(0),
+    longestStreak: integer("longest_streak").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    lastLoginAt: timestamp("last_login_at"),
+    fraudRiskScore: integer("fraud_risk_score").notNull().default(0),
+    isFlagged: boolean("is_flagged").notNull().default(false),
+})
+
+// --- Task Table -----
+export const tasksTable = pgTable("tasks", {
+    id: serial("id").primaryKey(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    taskType: varchar("task_type", { length: 50 }),
+    points: integer("points").notNull().default(10),
+    postUrl: text("post_url"),
+    platform: varchar("platform", { length: 100 }),
+    socialPostId: varchar("social_post_id", { length: 255 }),
+    watchDuration: integer("watch_duration"),
+    difficulty: varchar("difficulty", { length: 20 }).notNull().default("easy"),
+    expiresAt: timestamp("expires_at"),
+    isFlash: boolean("is_flash").default(false).notNull(),
+    isShare: boolean("is_share").default(false).notNull(),
+    shareThreshold: integer("share_threshold").default(3),
+    createdAt: timestamp("created_at").defaultNow(),
+    createdByAdminId: integer("admin_id").references(() => usersTable.id),
+})
+
+export const userTasksTable = pgTable("user_tasks", {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => usersTable.id),
+    taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 50 }).notNull().default("pending"),
+    proofImageUrl: text("proof_image_url"),
+    proofUrl: text("proof_url"),
+    assignedAt: timestamp("assigned_at").defaultNow(),
+    completedAt: timestamp("completed_at"),
+    submissionFingerprint: varchar("submission_fingerprint", { length: 255 }),
+    completionDurationSeconds: integer("completion_duration_seconds"),
+}, (table) => ({
+    userIdIdx: index("idx_user_tasks_user_id").on(table.userId),
+    taskIdIdx: index("idx_user_tasks_task_id").on(table.taskId),
+    statusIdx: index("idx_user_tasks_status").on(table.status),
+}))
+
+export const userTicketsTable = pgTable("user_tickets", {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+    eventId: integer("event_id").references(() => eventsTable.id, { onDelete: "cascade" }),
+    accessTypeId: integer("access_type_id").references(() => accessTypesTable.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 50 }).notNull().default("active"),
+    redeemedAt: timestamp("redeemed_at"),
+    redemptionToken: varchar("redemption_token", { length: 255 }).notNull().unique().$defaultFn(() => crypto.randomUUID()),
+    redeemedBy: integer("redeemed_by").references(() => usersTable.id),
+}, (table) => ({
+    userIdIdx: index("idx_user_tickets_user_id").on(table.userId),
+    eventIdIdx: index("idx_user_tickets_event_id").on(table.eventId),
+}));
+
+export const youtubeSessionsTable = pgTable("youtube_sessions", {
+    id: serial("id").primaryKey(),
+    userTaskId: integer("user_task_id").references(() => userTasksTable.id, { onDelete: "cascade" }).notNull(),
+    userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }).notNull(),
+    sessionToken: varchar("session_token", { length: 255 }).notNull(),
+    lastHeartbeatAt: timestamp("last_heartbeat_at").defaultNow().notNull(),
+    expectedHeartbeats: integer("expected_heartbeats").notNull(),
+    heartbeatCount: integer("heartbeat_count").default(0).notNull(),
+    challengeSecond: integer("challenge_second").notNull(),
+    challengeCompleted: boolean("challenge_completed").default(false).notNull(),
+    consecutiveFailures: integer("consecutive_failures").default(0).notNull(),
+    status: varchar("status", { length: 50 }).default("active").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+});
+
+export const referralsTable = pgTable("referrals", {
+    id: serial("id").primaryKey(),
+    referrerId: integer("referrer_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    referredId: integer("referred_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    pointsAwarded: integer("points_awarded").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const shareTasksTable = pgTable("share_tasks", {
+    id: serial("id").primaryKey(),
+    taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+    shareCode: varchar("share_code", { length: 20 }).notNull().unique(),
+    targetUrl: text("target_url").notNull().default(""),
+    shareUrl: text("share_url").notNull(),
+    ownerFingerprint: varchar("owner_fingerprint", { length: 255 }),
+    clickCount: integer("click_count").notNull().default(0),
+    uniqueClicks: integer("unique_clicks").notNull().default(0),
+    pointsAwarded: boolean("points_awarded").notNull().default(false),
+    clickThreshold: integer("click_threshold").notNull().default(3),
+    createdAt: timestamp("created_at").defaultNow(),
+    completedAt: timestamp("completed_at"),
+});
+
+export const shareClicksTable = pgTable("share_clicks", {
+    id: serial("id").primaryKey(),
+    shareCode: varchar("share_code", { length: 20 }).notNull(),
+    visitorIp: varchar("visitor_ip", { length: 50 }),
+    fingerprint: varchar("fingerprint", { length: 255 }),
+    userAgent: varchar("user_agent", { length: 500 }),
+    clickedAt: timestamp("clicked_at").defaultNow(),
 });
 
 // --- Relations ---
@@ -84,94 +211,11 @@ export const timelineItemsRelations = relations(timelineItemsTable, ({ one }) =>
     }),
 }));
 
-
-// --- User Table ----
-
-export const usersTable = pgTable("users", {
-    id: serial("id").primaryKey(),
-    name: varchar("name", { length: 255 }),
-    email: varchar("email", { length: 255 }).unique().notNull(),
-    password: text("password"),
-    image: text("image"),
-    phoneNumber: varchar("phone_number", { length: 255 }).unique(),
-    bio: text("bio"),
-    location: text("location"),
-    provider: text("provider").notNull().default("credentials"),
-    googleId: varchar("google_id", { length: 255 }).unique(),
-    facebookId: varchar("facebook_id", { length: 255 }),
-    role: varchar("role", { length: 50 }).notNull().default("user"),
-    points: integer("points").notNull().default(0),
-    completedTasksCount: integer("completed_tasks_count").notNull().default(0),
-    referralCode: varchar("referral_code", { length: 20 }).unique(),
-    dailyLoginDate: timestamp("daily_login_date"),
-    currentStreak: integer("current_streak").notNull().default(0),
-    longestStreak: integer("longest_streak").notNull().default(0),
-    createdAt: timestamp("created_at").defaultNow(),
-    lastLoginAt: timestamp("last_login_at"),
-})
-
-// --- Task Table -----
-export const tasksTable = pgTable("tasks", {
-    id: serial("id").primaryKey(),
-    title: varchar("title", { length: 255 }).notNull(),
-    description: text("description"),
-    taskType: varchar("task_type", { length: 50 }),
-    points: integer("points").notNull().default(10),
-    postUrl: text("post_url"),
-    platform: varchar("platform", { length: 100 }),
-    socialPostId: varchar("social_post_id", { length: 255 }),
-    // ✅ NEW: how many seconds a user must watch (YouTube tasks only). null = not applicable.
-    watchDuration: integer("watch_duration"),
-    difficulty: varchar("difficulty", { length: 20 }).notNull().default("easy"),
-    expiresAt: timestamp("expires_at"),
-    isFlash: boolean("is_flash").default(false).notNull(),
-    isShare: boolean("is_share").default(false).notNull(),
-    shareThreshold: integer("share_threshold").default(3),
-    createdAt: timestamp("created_at").defaultNow(),
-    createdByAdminId: integer("admin_id").references(() => usersTable.id),
-})
-
-export const userTasksTable = pgTable("user_tasks", {
-    id: serial("id").primaryKey(),
-    userId: integer("user_id").references(() => usersTable.id),
-    taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
-    status: varchar("status", { length: 50 }).notNull().default("pending"),
-    proofImageUrl: text("proof_image_url"),
-    proofUrl: text("proof_url"),
-    assignedAt: timestamp("assigned_at").defaultNow(),
-    completedAt: timestamp("completed_at"),
-}, (table) => ({
-    userIdIdx: index("idx_user_tasks_user_id").on(table.userId),
-    taskIdIdx: index("idx_user_tasks_task_id").on(table.taskId),
-    statusIdx: index("idx_user_tasks_status").on(table.status),
-}))
-
-export const userTicketsTable = pgTable("user_tickets", {
-    id: serial("id").primaryKey(),
-    userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
-    eventId: integer("event_id").references(() => eventsTable.id, { onDelete: "cascade" }),
-    accessTypeId: integer("access_type_id").references(() => accessTypesTable.id, { onDelete: "set null" }),
-    status: varchar("status", { length: 50 }).notNull().default("active"),
-    redeemedAt: timestamp("redeemed_at"),
-    redemptionToken: varchar("redemption_token", { length: 255 }).notNull().unique().$defaultFn(() => crypto.randomUUID()),
-    redeemedBy: integer("redeemed_by").references(() => usersTable.id),
-}, (table) => ({
-    userIdIdx: index("idx_user_tickets_user_id").on(table.userId),
-    eventIdIdx: index("idx_user_tickets_event_id").on(table.eventId),
-}));
-
-export const referralsTable = pgTable("referrals", {
-    id: serial("id").primaryKey(),
-    referrerId: integer("referrer_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-    referredId: integer("referred_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-    pointsAwarded: integer("points_awarded").default(0),
-    createdAt: timestamp("created_at").defaultNow(),
-});
-
 export const usersRelations = relations(usersTable, ({ many }) => ({
     userTasks: many(userTasksTable),
     userTickets: many(userTicketsTable),
 }));
+
 export const tasksRelations = relations(tasksTable, ({ many, one }) => ({
     userTasks: many(userTasksTable),
     creator: one(usersTable, {
@@ -179,6 +223,7 @@ export const tasksRelations = relations(tasksTable, ({ many, one }) => ({
         references: [usersTable.id]
     })
 }));
+
 export const userTasksRelations = relations(userTasksTable, ({ one }) => ({
     user: one(usersTable, {
         fields: [userTasksTable.userId],
@@ -208,31 +253,6 @@ export const userTicketsRelations = relations(userTicketsTable, ({ one }) => ({
         references: [usersTable.id],
     }),
 }));
-
-export const shareTasksTable = pgTable("share_tasks", {
-    id: serial("id").primaryKey(),
-    taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
-    userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
-    shareCode: varchar("share_code", { length: 20 }).notNull().unique(),
-    targetUrl: text("target_url").notNull().default(""),
-    shareUrl: text("share_url").notNull(),
-    ownerFingerprint: varchar("owner_fingerprint", { length: 255 }),
-    clickCount: integer("click_count").notNull().default(0),
-    uniqueClicks: integer("unique_clicks").notNull().default(0),
-    pointsAwarded: boolean("points_awarded").notNull().default(false),
-    clickThreshold: integer("click_threshold").notNull().default(3),
-    createdAt: timestamp("created_at").defaultNow(),
-    completedAt: timestamp("completed_at"),
-});
-
-export const shareClicksTable = pgTable("share_clicks", {
-    id: serial("id").primaryKey(),
-    shareCode: varchar("share_code", { length: 20 }).notNull(),
-    visitorIp: varchar("visitor_ip", { length: 50 }),
-    fingerprint: varchar("fingerprint", { length: 255 }),
-    userAgent: varchar("user_agent", { length: 500 }),
-    clickedAt: timestamp("clicked_at").defaultNow(),
-});
 
 export const referralsRelations = relations(referralsTable, ({ one }) => ({
     referrer: one(usersTable, {

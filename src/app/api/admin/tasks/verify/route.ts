@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/services/auth.service";
 import { TaskService } from "@/src/services/task.service";
 import { verifySubmissionSchema } from "@/src/lib/validations/task";
+import { toNextResponse } from "@/src/lib/api-response";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -33,9 +34,7 @@ export async function PATCH(req: NextRequest) {
 
   const { userTaskId, status } = parsed.data;
   const result = await TaskService.verifySubmission(userTaskId, status);
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: (result as any).status ?? 400 });
-  }
+  if (!result.success) return toNextResponse(result);
 
   return NextResponse.json({ message: result.data.message }, { status: 200 });
 }

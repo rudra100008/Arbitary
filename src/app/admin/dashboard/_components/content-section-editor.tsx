@@ -5,18 +5,21 @@ import type { ContentSection } from "./types";
 
 interface ContentSectionEditorProps {
   sections: ContentSection[];
+  fieldErrors: Record<string, string>;
   onAdd: () => void;
-  onRemove: (id: string) => void;
-  onUpdateType: (id: string, type: "content" | "media") => void;
-  onAddMedia: (sectionId: string) => void;
-  onRemoveMedia: (sectionId: string, itemId: string) => void;
-  onUpdateMediaFile: (sectionId: string, itemId: string, file: File) => void;
-  onUpdateMediaUrl: (sectionId: string, itemId: string, url: string) => void;
-  onUpdateContent: (id: string, content: string) => void;
+  onRemove: (id: string | number) => void;
+  onUpdateType: (id: string | number, type: "content" | "media") => void;
+  onAddMedia: (sectionId: string | number) => void;
+  onRemoveMedia: (sectionId: string | number, itemId: string | number) => void;
+  onUpdateMediaFile: (sectionId: string | number, itemId: string | number, file: File) => void;
+  onUpdateMediaUrl: (sectionId: string | number, itemId: string | number, url: string) => void;
+  onUpdateContent: (id: string | number, content: string) => void;
+  onClearError: (field: string) => void;
 }
 
 const ContentSectionEditor = ({
   sections,
+  fieldErrors,
   onAdd,
   onRemove,
   onUpdateType,
@@ -25,6 +28,7 @@ const ContentSectionEditor = ({
   onUpdateMediaFile,
   onUpdateMediaUrl,
   onUpdateContent,
+  onClearError,
 }: ContentSectionEditorProps) => (
   <div className="space-y-8">
     <div className="flex justify-between items-center px-4">
@@ -60,13 +64,19 @@ const ContentSectionEditor = ({
             <div className="relative">
               <select
                 value={section.type}
-                onChange={(e) =>
+                onChange={(e) => {
                   onUpdateType(
                     section.id,
                     e.target.value as "content" | "media",
-                  )
-                }
-                className="w-full px-4 py-4 bg-zinc-50 border border-black/5 rounded-2xl focus:outline-none font-bold text-xs appearance-none cursor-pointer"
+                  );
+                  const key = `contentSections.${section.id}.type`;
+                  if (fieldErrors[key]) onClearError(key);
+                }}
+                className={`w-full px-4 py-4 bg-zinc-50 border rounded-2xl focus:outline-none font-bold text-xs appearance-none cursor-pointer ${
+                  fieldErrors[`contentSections.${section.id}.type`]
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-black/5 focus:border-[#FACC15]"
+                }`}
               >
                 <option value="content">Content Block</option>
                 <option value="media">Media Collection</option>
@@ -168,15 +178,21 @@ const ContentSectionEditor = ({
                         <input
                           type="text"
                           value={item.url}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             onUpdateMediaUrl(
                               section.id,
                               item.id,
                               e.target.value,
-                            )
-                          }
+                            );
+                            const key = `contentSections.${section.id}.mediaItems.${item.id}.url`;
+                            if (fieldErrors[key]) onClearError(key);
+                          }}
                           placeholder="https://..."
-                          className="w-full px-4 py-3 bg-white border border-black/5 rounded-xl focus:outline-none font-medium text-xs shadow-sm"
+                          className={`w-full px-4 py-3 bg-white border rounded-xl focus:outline-none font-medium text-xs shadow-sm ${
+                            fieldErrors[`contentSections.${section.id}.mediaItems.${item.id}.url`]
+                              ? "border-red-500 focus:border-red-500"
+                              : "border-black/5 focus:border-[#FACC15]"
+                          }`}
                         />
                       </div>
                     </div>

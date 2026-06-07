@@ -41,6 +41,8 @@ export const cancelTaskSchema = z.object({
 });
 
 
+export const UserTaskStatusUpdateEnum = z.enum(["In Progress", "Pending Verification"]);
+
 export const updateTaskSchema = z.object({
     taskId: z
         .number({
@@ -54,7 +56,7 @@ export const updateTaskSchema = z.object({
         })
         .int("Task id must be a integer")
         .positive("Task id must be positive"),
-    status: TaskStatusEnum,
+    status: UserTaskStatusUpdateEnum,
     proofUrl: z
         .string()
         .url("proofUrl must be a valid URL")
@@ -92,36 +94,16 @@ export const verifySubmissionSchema = z.object({
 export const youtubeCompleteSchema = z.object({
     taskId: z.number("taskId must be a number").int().positive(),
     watchedSeconds: z.number("watchedSeconds must be a number").int().min(0),
+    fingerprint: z.string().max(255).optional(),
 }).strict();
 
+export const youtubePickupSchema = z.object({
+    taskId: z.number("taskId must be a number").int().positive(),
+}).strict();
 
-// export const baseTaskSchema = z.object({
-//     title: z.string().min(1).max(255),
-//     description: z.string().min(1).max(1000),
-//     tasktype: z.enum(["daily", "monthly"]),
-//     rewardPoint: z.number().min(1).max(1000),
-//     platform: z.enum(["youtube", "facebook", "tiktok", "instagram"]).nullable(),
-// })
-
-// export const youtubeTaskSchema = baseTaskSchema.extend({
-//     platform: z.literal("youtube"),
-//     watchDuration: z.number().min(30).max(3600),
-// }).strict()
-
-// export const socialTaskSchema = baseTaskSchema.extend({
-//     platform: z.enum(["facebook", "tiktok", "instagram"]),
-//     socialPostId: z.string().min(1),
-//     socialPostUrl: z.string().url(),
-// }).strict();
-
-
-// const manualTaskSchema = baseTaskSchema.extend({
-//     platform: z.null(),
-//     watchDuration: z.null(),
-// }).strict();
-
-// const taskSchema = z.discriminatedUnion("platform", [
-//     youtubeTaskSchema,
-//     socialTaskSchema,
-//     manualTaskSchema,
-// ])
+export const youtubeHeartbeatSchema = z.object({
+    taskId: z.number("taskId must be a number").int().positive(),
+    heartbeatIndex: z.number("heartbeatIndex must be a number").int().min(0),
+    sessionToken: z.string("sessionToken is required").min(1),
+    responseToken: z.string().optional(),
+}).strict();

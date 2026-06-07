@@ -4,6 +4,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import bcrypt from "bcryptjs";
 import { toDateStr } from "@/src/lib/streak-helper";
+import { getUserTier, getStreakMultiplier } from "@/src/lib/gamification";
 import { ServiceResult, ok, fail } from "./result";
 import type { User } from "@/src/types/db";
 
@@ -18,12 +19,13 @@ export type UserPointsResult = {
   currentStreak: number;
   longestStreak: number;
   claimedToday: boolean;
+  tier: string;
 };
 
 export type UserProfile = Pick<
   User,
   "id" | "name" | "email" | "image" | "bio" | "location" | "phoneNumber" | "referralCode" | "points"
->;
+> & { tier: string };
 
 export const UserService = {
   async getUserPoints(userId: number): Promise<ServiceResult<UserPointsResult>> {
@@ -48,6 +50,7 @@ export const UserService = {
       currentStreak: user.currentStreak || 0,
       longestStreak: user.longestStreak || 0,
       claimedToday: dailyLoginStr === today,
+      tier: getUserTier(user.completedTasksCount ?? 0),
     });
   },
 
@@ -79,12 +82,13 @@ export const UserService = {
         phoneNumber: usersTable.phoneNumber,
         referralCode: usersTable.referralCode,
         points: usersTable.points,
+        completedTasksCount: usersTable.completedTasksCount,
       })
       .from(usersTable)
       .where(eq(usersTable.id, userId));
 
     if (!user) return fail("User not found", 404);
-    return ok(user);
+    return ok({ ...user, tier: getUserTier(user.completedTasksCount ?? 0) });
   },
 
   async generateReferralCode(userId: number): Promise<ServiceResult<{ referralCode: string }>> {
@@ -174,7 +178,8 @@ export const UserService = {
       );
     if (existing.length > 0) return fail("You already completed this task", 429);
 
-    const taskPoints = task.points ?? 0;
+    const multiplier = getStreakMultiplier(user.currentStreak || 0);
+    const taskPoints = Math.round((task.points ?? 0) * multiplier);
 
     await db.transaction(async (tx) => {
       await tx
@@ -185,7 +190,7 @@ export const UserService = {
       await tx
         .update(usersTable)
         .set({
-          points: (user.points || 0) + taskPoints,
+          points: sql`${usersTable.points} + ${taskPoints}`,
           completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
         })
         .where(eq(usersTable.id, userId));
@@ -224,7 +229,8 @@ export const UserService = {
       return fail("No referrals found. Share your referral code to invite friends!", 400);
     }
 
-    const totalReferralPoints = unclaimedReferrals.length * taskPoints;
+    const multiplier = getStreakMultiplier(user.currentStreak || 0);
+    const totalReferralPoints = unclaimedReferrals.length * Math.round(taskPoints * multiplier);
 
     await db.transaction(async (tx) => {
       await tx
@@ -235,7 +241,7 @@ export const UserService = {
       await tx
         .update(usersTable)
         .set({
-          points: (user.points || 0) + totalReferralPoints,
+          points: sql`${usersTable.points} + ${totalReferralPoints}`,
           completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
         })
         .where(eq(usersTable.id, userId));

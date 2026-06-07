@@ -1,15 +1,27 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import Header from "@/src/components/ui/header";
 import Footer from "@/src/components/ui/footer";
 import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, MapPin } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Minus, Plus, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import type { Event, AccessType, TimelineItem, ContentSection, MediaItem } from "@/src/types/db";
+import { useState, useMemo, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
+import type {
+  Event,
+  AccessType,
+  TimelineItem,
+  ContentSection,
+  MediaItem,
+} from "@/src/types/db";
+
+const DownloadTicketButton = dynamic(
+  () => import("@/src/components/tickets/DownloadTicketButton"),
+  { ssr: false },
+);
 
 interface EventWithRelations extends Event {
   accessTypes: AccessType[];
@@ -17,13 +29,15 @@ interface EventWithRelations extends Event {
   contentSections: (ContentSection & { mediaItems: MediaItem[] })[];
 }
 
+interface TicketData {
+  id: number;
+  redemptionToken: string;
+}
+
 const EventContentPage = () => {
   const params = useParams();
   const eventId = params.id as string;
   const { data: session } = useSession();
-  const [event, setEvent] = React.useState<EventWithRelations | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-
   // Fetch user points
   const { data: pointsData } = useQuery<{ points: number }>({
     queryKey: ["user-points"],
@@ -37,13 +51,57 @@ const EventContentPage = () => {
   const totalPoints = pointsData?.points ?? 0;
   const queryClient = useQueryClient();
 
+  const { data: event, isLoading } = useQuery<EventWithRelations>({
+    queryKey: ["event", eventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}`);
+      const data = await res.json();
+      if (!data.success) throw new Error("Event not found");
+      return data.event;
+    },
+    enabled: !!eventId,
+  });
+
+  const [selection, setSelection] = useState<{ eventId: number; accessTypeId: number | null }>({ eventId: 0, accessTypeId: null });
+  const selectedAccessTypeId = useMemo(() => {
+    if (!event?.accessTypes?.length) return null;
+    if (selection.eventId === event.id) return selection.accessTypeId;
+    const general = event.accessTypes.find((at) =>
+      at.title.toLowerCase().includes("general"),
+    );
+    return general ? general.id : event.accessTypes[0].id;
+  }, [event, selection]);
+
+  const [showQuantityModal, setShowQuantityModal] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [purchasedTickets, setPurchasedTickets] = useState<TicketData[] | null>(null);
+  const modalOverlayRef = useRef<HTMLDivElement>(null);
+
+  const selectedTier = useMemo(() => {
+    if (!selectedAccessTypeId || !event?.accessTypes) return null;
+    return event.accessTypes.find((t) => t.id === selectedAccessTypeId) || null;
+  }, [event, selectedAccessTypeId]);
+
+  const selectedCost = selectedTier?.pointCost ?? 0;
+  const totalCost = selectedCost * quantity;
+  const canAfford = totalPoints >= totalCost;
+  const maxQuantity = selectedCost > 0 ? Math.min(10, Math.floor(totalPoints / selectedCost)) : 1;
+
   // Mutation for redeeming ticket
   const { mutate: redeemTicket, isPending: isRedeeming } = useMutation({
-    mutationFn: async (eventId: number) => {
+    mutationFn: async ({
+      eventId,
+      accessTypeId,
+      quantity: qty,
+    }: {
+      eventId: number;
+      accessTypeId: number;
+      quantity: number;
+    }) => {
       const res = await fetch("/api/tickets/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: String(eventId) }),
+        body: JSON.stringify({ eventId: String(eventId), accessTypeId: String(accessTypeId), quantity: qty }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -51,40 +109,36 @@ const EventContentPage = () => {
       }
       return res.json();
     },
-    onSuccess: () => {
-      toast.success("Ticket added to your profile! Check My Tickets.", {
-        duration: 5000,
-      });
+    onSuccess: (data) => {
+      setShowQuantityModal(false);
+      setPurchasedTickets(data.tickets);
+      toast.success(
+        data.tickets?.length > 1
+          ? `${data.tickets.length} tickets added to your profile!`
+          : "Ticket added to your profile!",
+        { duration: 5000 },
+      );
       queryClient.invalidateQueries({ queryKey: ["user-tickets"] });
       queryClient.invalidateQueries({ queryKey: ["user-points"] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || "Redemption failed");
     },
   });
 
-  React.useEffect(() => {
-    if (eventId) {
-      fetchEvent(eventId);
-    } else {
-      setIsLoading(false);
-    }
-  }, [eventId]);
+  const handleOpenModal = useCallback(() => {
+    setQuantity(1);
+    setShowQuantityModal(true);
+  }, []);
 
-  const fetchEvent = async (id: string) => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/events/${id}`);
-      const data = await res.json();
-      if (data.success) {
-        setEvent(data.event);
-      }
-    } catch (error) {
-      console.error("Error fetching event details:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const handleModalBackdrop = useCallback((e: React.MouseEvent) => {
+    if (e.target === modalOverlayRef.current) setShowQuantityModal(false);
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    if (!selectedAccessTypeId || !event) return;
+    redeemTicket({ eventId: event.id, accessTypeId: selectedAccessTypeId, quantity });
+  }, [selectedAccessTypeId, event, quantity, redeemTicket]);
 
   if (isLoading) {
     return (
@@ -211,57 +265,183 @@ const EventContentPage = () => {
                     SECURE YOUR ACCESS
                   </h3>
                   <div className="space-y-4 mb-8">
-                    {event.accessTypes.map((type: any, i: number) => (
-                      <div
-                        key={i}
-                        className="flex justify-between items-center border-b border-white/10 pb-3"
-                      >
-                        <span className="text-zinc-400 font-bold uppercase text-[10px] tracking-widest">
-                          {type.title}
-                        </span>
-                        <span className="text-xl font-black text-[#FACC15]">
-                          {type.price}
-                        </span>
-                      </div>
-                    ))}
+                    {event.accessTypes.map((type: AccessType) => {
+                      const isSelected = selectedAccessTypeId === type.id;
+                      const pointCost = type.pointCost;
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => setSelection({ eventId: event.id, accessTypeId: type.id })}
+                          className={`w-full flex justify-between items-center p-4 rounded-xl border transition-all duration-300 ${
+                            isSelected
+                              ? "border-[#FACC15] bg-[#FACC15]/10 text-white"
+                              : "border-white/10 bg-white/5 text-zinc-400 hover:border-white/30"
+                          }`}
+                        >
+                          <div className="flex flex-col text-left">
+                            <span className="font-bold uppercase text-[11px] tracking-widest">
+                              {type.title}
+                            </span>
+                            <span className="text-[9px] text-zinc-500 mt-1">
+                              {type.price}
+                            </span>
+                          </div>
+                          <span className="text-lg font-black text-[#FACC15]">
+                            {pointCost} Pts
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <button
-                    onClick={() => {
-                      if (totalPoints >= 100) {
-                        redeemTicket(event.id);
-                      } else {
-                        toast.error("You need 100 points to redeem a free ticket!");
-                      }
-                    }}
-                    disabled={isRedeeming}
-                    className="w-full py-4 bg-[#FACC15] text-black font-black uppercase tracking-[0.2em] rounded-xl hover:bg-white transition-all duration-500 hover:scale-[1.02] text-sm"
-                  >
-                    {isRedeeming ? "Processing..." : "Book Now / Redeem"}
-                  </button>
+
+                  {/* Purchase / Download section */}
                   <div className="mt-4 p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest text-center">
                       Rewards Member
                     </p>
-                    <button
-                      onClick={() => redeemTicket(event.id)}
-                      disabled={isRedeeming || totalPoints < 100}
-                      className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all duration-300
-                        ${
-                          isRedeeming || totalPoints < 100
-                            ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                            : "bg-white text-black hover:bg-[#FACC15] hover:scale-[1.02]"
-                        }`}
-                    >
-                      {isRedeeming
-                        ? "Processing..."
-                        : totalPoints < 100
-                          ? "Insufficient Points (100 Req.)"
-                          : "Redeem for 100 Pts"}
-                    </button>
+
+                    {purchasedTickets ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-emerald-400 font-bold text-center">
+                          {purchasedTickets.length} ticket{purchasedTickets.length > 1 ? "s" : ""} purchased
+                        </p>
+                        <DownloadTicketButton
+                          tickets={purchasedTickets}
+                          event={{
+                            title: event.title,
+                            eventDate: event.eventDate instanceof Date ? event.eventDate.toISOString() : String(event.eventDate),
+                            venue: event.venue,
+                            description: event.description,
+                            heroImageUrl: event.heroImageUrl,
+                          }}
+                          user={{
+                            name: session?.user?.name || null,
+                            email: session?.user?.email || "",
+                          }}
+                          accessType={selectedTier?.title || "General Admission"}
+                          label={`Download ${purchasedTickets.length > 1 ? `All (${purchasedTickets.length})` : "PDF"}`}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleOpenModal}
+                        disabled={!selectedAccessTypeId}
+                        className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all duration-300
+                          ${
+                            !selectedAccessTypeId
+                              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                              : "bg-white text-black hover:bg-[#FACC15] hover:scale-[1.02]"
+                          }`}
+                      >
+                        {selectedCost > 0 ? `Redeem for ${selectedCost} Pts` : "Redeem"}
+                      </button>
+                    )}
                   </div>
                   <p className="text-[9px] text-zinc-500 text-center mt-4 uppercase tracking-widest font-bold">
                     Limited capacity
                   </p>
+                </div>
+              )}
+
+              {/* ── Quantity Modal ── */}
+              {showQuantityModal && (
+                <div
+                  ref={modalOverlayRef}
+                  onClick={handleModalBackdrop}
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                >
+                  <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-fade-in">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                        Select Quantity
+                      </h3>
+                      <button
+                        onClick={() => setShowQuantityModal(false)}
+                        className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition-colors"
+                      >
+                        <X className="w-4 h-4 text-zinc-500" />
+                      </button>
+                    </div>
+
+                    {selectedTier && (
+                      <div className="mb-6 p-3 rounded-2xl bg-zinc-50 border border-zinc-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-zinc-600 uppercase tracking-wider">
+                            {selectedTier.title}
+                          </span>
+                          <span className="text-sm font-black text-slate-900">
+                            {selectedCost} pts each
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-400">
+                          Your balance: <span className="font-bold text-slate-900">{totalPoints} pts</span>
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Quantity selector */}
+                    <div className="flex items-center justify-center gap-6 mb-6">
+                      <button
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        disabled={quantity <= 1}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
+                          ${quantity <= 1
+                            ? "border-zinc-100 text-zinc-300 cursor-not-allowed"
+                            : "border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white"
+                          }`}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="text-4xl font-black text-slate-900 w-12 text-center">
+                        {quantity}
+                      </span>
+                      <button
+                        onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
+                        disabled={quantity >= maxQuantity}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
+                          ${quantity >= maxQuantity
+                            ? "border-zinc-100 text-zinc-300 cursor-not-allowed"
+                            : "border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white"
+                          }`}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Total */}
+                    <div className="p-4 rounded-2xl bg-black text-white mb-6">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-bold">
+                          Total
+                        </span>
+                        <span className="text-lg font-black text-[#FACC15]">
+                          {totalCost} pts
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-zinc-500">
+                        {quantity} × {selectedCost} pts
+                      </p>
+                      <div className={`mt-2 text-[9px] font-bold uppercase tracking-wider ${canAfford ? "text-emerald-400" : "text-red-400"}`}>
+                        {canAfford ? "Sufficient points" : `Need ${totalCost - totalPoints} more points`}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleConfirm}
+                      disabled={isRedeeming || !canAfford}
+                      className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all duration-300
+                        ${isRedeeming || !canAfford
+                          ? "bg-zinc-200 text-zinc-400 cursor-not-allowed"
+                          : "bg-black text-white hover:bg-slate-800 active:scale-[0.97]"
+                        }`}
+                    >
+                      {isRedeeming
+                        ? "Processing..."
+                        : !canAfford
+                          ? "Insufficient Points"
+                          : `Confirm Purchase (${quantity})`}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -271,16 +451,18 @@ const EventContentPage = () => {
                     EVENT TIMELINE
                   </h3>
                   <div className="space-y-6">
-                    {event.timelineItems.map((item: any, i: number) => (
-                      <div key={i} className="flex gap-4 items-start">
-                        <span className="text-[10px] font-black text-[#FACC15] bg-black px-2 py-1 rounded-md min-w-[60px] text-center">
-                          {item.time}
-                        </span>
-                        <p className="text-[11px] font-bold text-zinc-800 uppercase tracking-tight leading-tight">
-                          {item.description}
-                        </p>
-                      </div>
-                    ))}
+                    {event.timelineItems.map(
+                      (item: TimelineItem, i: number) => (
+                        <div key={i} className="flex gap-4 items-start">
+                          <span className="text-[10px] font-black text-[#FACC15] bg-black px-2 py-1 rounded-md min-w-[60px] text-center">
+                            {item.time}
+                          </span>
+                          <p className="text-[11px] font-bold text-zinc-800 uppercase tracking-tight leading-tight">
+                            {item.description}
+                          </p>
+                        </div>
+                      ),
+                    )}
                   </div>
                 </div>
               )}

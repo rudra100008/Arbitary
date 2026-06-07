@@ -10,21 +10,12 @@ interface LeaderboardListProps {
 }
 
 // ─── Tier System ──────────────────────────────────────────────
-type Tier = { label: string; icon: string; min: number; color: string };
-
-const TIERS: Tier[] = [
-  { label: "Diamond", icon: "💎", min: 1000, color: "#6366f1" },
-  { label: "Gold", icon: "🥇", min: 500, color: "#FACC15" },
-  { label: "Silver", icon: "🥈", min: 200, color: "#A8A8A8" },
-  { label: "Bronze", icon: "🥉", min: 0, color: "#CD7F32" },
-];
-
-function getTier(points: number): Tier {
-  for (const t of TIERS) {
-    if (points >= t.min) return t;
-  }
-  return TIERS[TIERS.length - 1];
-}
+const TIER_META: Record<string, { label: string; icon: string; color: string }> = {
+  bronze: { label: "Bronze", icon: "🥉", color: "#CD7F32" },
+  silver: { label: "Silver", icon: "🥈", color: "#A8A8A8" },
+  gold: { label: "Gold", icon: "🥇", color: "#FACC15" },
+  elite: { label: "Arbitrary Elite", icon: "💎", color: "#6366f1" },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────
 function getInitials(name: string | null): string {
@@ -88,19 +79,19 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-function TierBadge({ points }: { points: number }) {
-  const tier = getTier(points);
+function TierBadge({ tier }: { tier: string }) {
+  const meta = TIER_META[tier] ?? TIER_META.bronze;
   return (
     <span
       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border flex-shrink-0"
-      style={{
-        backgroundColor: `${tier.color}12`,
-        borderColor: `${tier.color}30`,
-        color: tier.color,
-      }}
-    >
-      <span className="text-xs">{tier.icon}</span>
-      {tier.label}
+        style={{
+          backgroundColor: `${meta.color}12`,
+          borderColor: `${meta.color}30`,
+          color: meta.color,
+        }}
+      >
+        <span className="text-xs">{meta.icon}</span>
+        {meta.label}
     </span>
   );
 }
@@ -240,7 +231,7 @@ function LeaderboardRow({
               </span>
             )}
           </span>
-          <TierBadge points={user.points} />
+          <TierBadge tier={user.tier} />
         </div>
         <span className="text-xs font-bold text-zinc-400 flex items-center gap-1">
           <span className="text-[#FACC15]">✦</span>
@@ -287,7 +278,7 @@ function CurrentUserStickyRow({
               (You)
             </span>
           </span>
-          <TierBadge points={user.points} />
+          <TierBadge tier={user.tier} />
         </div>
         <span className="text-xs font-bold text-zinc-400 flex items-center gap-1">
           <span className="text-[#FACC15]">✦</span>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UserService } from "@/src/services/user.service";
+import { toNextResponse } from "@/src/lib/api-response";
 import { z } from "zod";
 
 const signupSchema = z.object({
@@ -23,9 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await UserService.signup(parsed.data);
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: (result as any).status ?? 400 });
-    }
+    if (!result.success) return toNextResponse(result);
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {

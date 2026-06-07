@@ -35,16 +35,29 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
+  const page = Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1);
+  const limit = Math.min(
+    Math.max(parseInt(searchParams.get("limit") || "10", 10) || 10, 1),
+    100,
+  );
   const taskType = searchParams.get("taskType");
 
-  const result = await TaskService.getAllTasks();
+  const result = await TaskService.getAllTasks(page, limit);
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
   const tasks = taskType
-    ? result.data.filter((t) => t.taskType === taskType)
-    : result.data;
+    ? result.data.tasks.filter((t) => t.taskType === taskType)
+    : result.data.tasks;
 
-  return NextResponse.json(tasks, { status: 200 });
+  return NextResponse.json(
+    {
+      tasks,
+      totalCount: result.data.totalCount,
+      totalPages: result.data.totalPages,
+      currentPage: result.data.currentPage,
+    },
+    { status: 200 },
+  );
 }

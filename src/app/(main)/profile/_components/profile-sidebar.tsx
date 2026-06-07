@@ -18,6 +18,8 @@ interface ProfileSidebarProps {
   completedCount: number;
   completedToday: number;
   totalTasks: number;
+  tier: string;
+  currentStreak: number;
 }
 
 const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -117,8 +119,24 @@ export default function ProfileSidebar({
   completedCount,
   completedToday,
   totalTasks,
+  tier,
+  currentStreak,
 }: ProfileSidebarProps) {
-  const completionPct = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+  const DAILY_LIMIT = 5;
+  const completionPct = Math.min(Math.round((completedToday / DAILY_LIMIT) * 100), 100);
+
+  const streakMultiplier =
+    currentStreak >= 30 ? 1.5
+    : currentStreak >= 7 ? 1.2
+    : 1.0;
+
+  const TIER_META: Record<string, { label: string; icon: string; color: string }> = {
+    bronze: { label: "Bronze", icon: "🥉", color: "#CD7F32" },
+    silver: { label: "Silver", icon: "🥈", color: "#A8A8A8" },
+    gold: { label: "Gold", icon: "🥇", color: "#FACC15" },
+    elite: { label: "Arbitrary Elite", icon: "💎", color: "#6366f1" },
+  };
+  const tierMeta = TIER_META[tier] ?? TIER_META.bronze;
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,12 +183,25 @@ export default function ProfileSidebar({
             </p>
           </div>
 
-          <span
-            className="text-[10px] font-bold text-white/60 bg-white/10
-                               px-2.5 py-1 rounded-full uppercase tracking-wider"
-          >
-            {user?.role || "Member"}
-          </span>
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            <span
+              className="text-[10px] font-bold text-white/60 bg-white/10
+                                 px-2.5 py-1 rounded-full uppercase tracking-wider"
+            >
+              {user?.role || "Member"}
+            </span>
+            <span
+              className="text-[10px] font-bold rounded-full uppercase tracking-wider px-2.5 py-1 border"
+              style={{
+                backgroundColor: `${tierMeta.color}20`,
+                borderColor: `${tierMeta.color}40`,
+                color: tierMeta.color,
+              }}
+            >
+              <span className="mr-1">{tierMeta.icon}</span>
+              {tierMeta.label}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -254,6 +285,14 @@ export default function ProfileSidebar({
               style={{ width: `${completionPct}%` }}
             />
           </div>
+        </div>
+
+        {/* Multiplier */}
+        <div className="flex items-center justify-between text-[10px] text-gray-400 mt-3 pt-3 border-t border-gray-100">
+          <span>Streak Multiplier</span>
+          <span className="font-black text-sm" style={{ color: streakMultiplier > 1 ? '#22c55e' : '#a1a1aa' }}>
+            {streakMultiplier}×
+          </span>
         </div>
       </div>
     </div>

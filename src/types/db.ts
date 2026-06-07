@@ -12,6 +12,7 @@ import {
   referralsTable,
   shareTasksTable,
   shareClicksTable,
+  youtubeSessionsTable,
 } from "@/src/db/schema";
 
 export type Event = InferSelectModel<typeof eventsTable>;
@@ -37,3 +38,5 @@ export type NewUserTicket = InferInsertModel<typeof userTicketsTable>;
 export type Referral = InferSelectModel<typeof referralsTable>;
 export type ShareTask = InferSelectModel<typeof shareTasksTable>;
 export type ShareClick = InferSelectModel<typeof shareClicksTable>;
+export type YoutubeSession = InferSelectModel<typeof youtubeSessionsTable>;
+export type NewYoutubeSession = InferInsertModel<typeof youtubeSessionsTable>;

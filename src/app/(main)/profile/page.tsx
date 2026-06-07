@@ -56,7 +56,7 @@ export default function ProfilePage() {
   const initials = user?.name?.[0]?.toUpperCase() || "U";
 
   // ── Fetch the logged-in user's points and total completed tasks from DB ──
-  const { data: pointsData } = useQuery<{ points: number; completedTasksCount: number }>({
+  const { data: pointsData } = useQuery<{ points: number; completedTasksCount: number; currentStreak: number; tier: string }>({
     queryKey: ["user-points"],
     queryFn: async () => {
       const res = await fetch("/api/user/points");
@@ -67,17 +67,20 @@ export default function ProfilePage() {
   });
   const totalPoints = pointsData?.points ?? 0;
   const totalCompleted = pointsData?.completedTasksCount ?? 0;
+  const currentStreak = pointsData?.currentStreak ?? 0;
+  const tier = pointsData?.tier ?? "bronze";
 
   // ── Fetch the logged-in user's tasks ──
-  const { data: apiTasks = [], isLoading: tasksLoading } = useQuery<ApiTask[]>({
+  const { data: apiTasksData, isLoading: tasksLoading } = useQuery<{ tasks: ApiTask[] }>({
     queryKey: ["profile-user-tasks"],
     queryFn: async () => {
-      const res = await fetch("/api/user/tasks");
+      const res = await fetch("/api/user/tasks?limit=100");
       if (!res.ok) throw new Error("Failed to fetch tasks");
       return res.json();
     },
     enabled: !!session?.user,
   });
+  const apiTasks = apiTasksData?.tasks ?? [];
 
   // Filter to tasks the user has actually interacted with and map to ProfileTask
   const tasks: ProfileTask[] = useMemo(
@@ -190,6 +193,8 @@ export default function ProfilePage() {
             completedCount={completedCount}
             completedToday={completedToday}
             totalTasks={tasks.length}
+            tier={tier}
+            currentStreak={currentStreak}
           />
 
           {/* ── Right content ── */}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/services/auth.service";
 import { TicketService } from "@/src/services/ticket.service";
+import { toNextResponse } from "@/src/lib/api-response";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin();
@@ -14,9 +15,7 @@ export async function GET(req: NextRequest) {
   }
 
   const result = await TicketService.lookupTicket(token);
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: (result as any).status ?? 404 });
-  }
+  if (!result.success) return toNextResponse(result);
 
   return NextResponse.json({ ticket: result.data });
 }

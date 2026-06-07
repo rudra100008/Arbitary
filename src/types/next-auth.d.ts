@@ -16,6 +16,7 @@ declare module "next-auth" {
             bio?: string | null;
             location?: string | null;
             googleId?: string | null;
+            facebookId?: string;
         } & DefaultSession["user"];
         facebookAccessToken?: string;
         facebookId?: string;

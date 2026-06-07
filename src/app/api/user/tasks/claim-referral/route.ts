@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { UserService } from "@/src/services/user.service";
+import { toNextResponse } from "@/src/lib/api-response";
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
@@ -14,9 +15,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await UserService.claimReferralReward(auth.data.id, Number(taskId));
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: (result as any).status ?? 400 });
-  }
+  if (!result.success) return toNextResponse(result);
 
   return NextResponse.json({
     message: `Reward claimed for ${result.data.referralCount} referral(s)!`,

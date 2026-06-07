@@ -19,7 +19,7 @@ const AdminLoginPage = () => {
   useEffect(() => {
     if (
       status === "authenticated" &&
-      (session?.user as any)?.role === "admin"
+      session?.user?.role === "ADMIN"
     ) {
       router.replace("/admin/dashboard");
     }
@@ -48,7 +48,7 @@ const AdminLoginPage = () => {
         const res = await fetch("/api/auth/session");
         const sessionData = await res.json();
 
-        if (sessionData?.user?.role !== "admin") {
+        if (sessionData?.user?.role !== "ADMIN") {
           // Not an admin — sign them out and show error
           await signIn("credentials", { redirect: false }); // this won't do anything harmful
           setError("Access denied. This portal is for administrators only.");

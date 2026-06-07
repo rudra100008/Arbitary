@@ -5,7 +5,7 @@ import {
   eventsTable,
   accessTypesTable,
 } from "@/src/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { and, eq, desc, gte, sql } from "drizzle-orm";
 import { sendEmail } from "@/src/lib/email";
 import { ServiceResult, ok, fail } from "./result";
 import type { UserTicket } from "@/src/types/db";
@@ -40,84 +40,126 @@ export const TicketService = {
   async redeemTicket(
     userId: number,
     eventId: number,
+    accessTypeId: number,
     userEmail?: string,
     userName?: string,
+    quantity: number = 1,
   ): Promise<
     ServiceResult<{
       success: true;
       message: string;
       newPoints: number;
+      tickets: Array<{ id: number; redemptionToken: string }>;
     }>
   > {
+    if (quantity < 1) return fail("Quantity must be at least 1", 400);
+    if (quantity > 10) return fail("Maximum 10 tickets per purchase", 400);
+
+    // 1. Fetch user
     const user = await db.query.usersTable.findFirst({
       where: eq(usersTable.id, userId),
     });
     if (!user) return fail("User not found", 404);
 
-    if (user.points < 100) {
+    // 2. Retrieve the specific access type
+    const accessType = await db.query.accessTypesTable.findFirst({
+      where: and(
+        eq(accessTypesTable.id, accessTypeId),
+        eq(accessTypesTable.eventId, eventId),
+      ),
+    });
+    if (!accessType) {
+      return fail("Selected access type does not belong to this event", 400);
+    }
+
+    const pointCost = accessType.pointCost;
+    const totalCost = pointCost * quantity;
+
+    if (user.points < totalCost) {
       return fail(
-        "Insufficient points. You need 100 points to redeem a ticket.",
+        `Insufficient points. You need ${totalCost} points to redeem ${quantity} ticket(s).`,
         400,
       );
     }
 
-    const allAccessTypes = await db.query.accessTypesTable.findMany({
-      where: eq(accessTypesTable.eventId, eventId),
-    });
-    const generalType = allAccessTypes.find((at) =>
-      at.title.toLowerCase().includes("general"),
-    );
-    const accessTypeId = generalType?.id || allAccessTypes[0]?.id;
+    // 3. Atomic points deduction and ticket inserts
+    let updatedPoints: number;
 
-    if (!accessTypeId) {
-      return fail("No available access types for this event", 400);
-    }
+    try {
+      const transactionResult = await db.transaction(async (tx) => {
+        const [updatedUser] = await tx
+          .update(usersTable)
+          .set({ points: sql`${usersTable.points} - ${totalCost}` })
+          .where(
+            and(
+              eq(usersTable.id, user.id),
+              gte(usersTable.points, totalCost),
+            ),
+          )
+          .returning({ points: usersTable.points });
 
-    let newTicketId: number;
+        if (!updatedUser) {
+          throw new Error("Insufficient points");
+        }
 
-    await db.transaction(async (tx) => {
-      await tx
-        .update(usersTable)
-        .set({ points: user.points - 100 })
-        .where(eq(usersTable.id, user.id));
-
-      const [ticket] = await tx
-        .insert(userTicketsTable)
-        .values({
+        const ticketsToInsert = Array.from({ length: quantity }, () => ({
           userId: user.id,
           eventId: eventId,
           accessTypeId: accessTypeId,
-          status: "active",
-        })
-        .returning();
+          status: "active" as const,
+        }));
 
-      newTicketId = ticket.id;
-    });
+        const inserted = await tx
+          .insert(userTicketsTable)
+          .values(ticketsToInsert)
+          .returning({
+            id: userTicketsTable.id,
+            redemptionToken: userTicketsTable.redemptionToken,
+          });
 
-    if (userEmail) {
-      const event = await db.query.eventsTable.findFirst({
-        where: eq(eventsTable.id, Number(eventId)),
+        return {
+          newPoints: updatedUser.points,
+          tickets: inserted.map((t) => ({ id: t.id, redemptionToken: t.redemptionToken })),
+        };
       });
 
-      if (event) {
-        sendEmail({
-          to: userEmail,
-          subject: `Ticket Confirmed for ${event.title} – Arbitary`,
-          html: bookingConfirmationHtml(
-            userName || "there",
-            event.title,
-            newTicketId!,
-            event.eventDate,
-          ),
-        }).catch((err) => console.error("Failed to send booking email:", err));
-      }
-    }
+      updatedPoints = transactionResult.newPoints;
 
-    return ok({
-      success: true,
-      message: "Ticket redeemed successfully!",
-      newPoints: user.points - 100,
-    });
+      // 4. Send confirmation email (silent on failure)
+      if (userEmail) {
+        const event = await db.query.eventsTable.findFirst({
+          where: eq(eventsTable.id, Number(eventId)),
+        });
+
+        if (event && transactionResult.tickets.length > 0) {
+          sendEmail({
+            to: userEmail,
+            subject: `${quantity > 1 ? `${quantity}x Tickets` : "Ticket"} Confirmed for ${event.title} – Arbitary`,
+            html: bookingConfirmationHtml(
+              userName || "there",
+              event.title,
+              transactionResult.tickets.map((t) => t.id),
+              event.eventDate,
+              quantity,
+            ),
+          }).catch((err) => console.error("Silent error: Failed to send booking email:", err));
+        }
+      }
+
+      return ok({
+        success: true,
+        message: quantity > 1
+          ? `${quantity} tickets redeemed successfully!`
+          : "Ticket redeemed successfully!",
+        newPoints: updatedPoints,
+        tickets: transactionResult.tickets,
+      });
+    } catch (error: any) {
+      if (error.message === "Insufficient points") {
+        return fail("Insufficient points to complete this transaction.", 400);
+      }
+      throw error;
+    }
   },
 
   async lookupTicket(
@@ -136,10 +178,10 @@ export const TicketService = {
       redemptionToken: ticket.redemptionToken,
       event: ticket.event
         ? {
-            title: ticket.event.title,
-            eventDate: formatDate(ticket.event.eventDate),
-            venue: ticket.event.venue,
-          }
+          title: ticket.event.title,
+          eventDate: formatDate(ticket.event.eventDate),
+          venue: ticket.event.venue,
+        }
         : null,
       user: {
         name: ticket.user?.name || null,
@@ -154,7 +196,7 @@ export const TicketService = {
   async verifyAndRedeemTicket(
     token: string,
     adminId: number,
-  ): Promise<ServiceResult<{ message: string }>> {
+  ): Promise<ServiceResult<{ message: string; alreadyRedeemed?: boolean; redeemedAt?: string }>> {
     const ticket = await db.query.userTicketsTable.findFirst({
       where: eq(userTicketsTable.redemptionToken, token),
       with: { event: true, user: true, accessType: true },
@@ -162,7 +204,11 @@ export const TicketService = {
 
     if (!ticket) return fail("Ticket not found", 404);
     if (ticket.status === "used") {
-      return fail("Ticket has already been redeemed", 409);
+      return ok({
+        message: "Ticket has already been redeemed",
+        alreadyRedeemed: true,
+        redeemedAt: ticket.redeemedAt ? ticket.redeemedAt.toISOString() : undefined,
+      });
     }
 
     await db
@@ -215,9 +261,13 @@ export const TicketService = {
 function bookingConfirmationHtml(
   name: string,
   eventTitle: string,
-  ticketId: number,
+  ticketIds: number[],
   eventDate: Date | string,
+  quantity: number,
 ): string {
+  const ticketList = ticketIds
+    .map((id) => `<li>Ticket #${id.toString().padStart(6, "0")}</li>`)
+    .join("");
   return `
     <html>
       <head>
@@ -234,14 +284,15 @@ function bookingConfirmationHtml(
         <div class="container">
           <div class="header">
             <h1>ARBITARY</h1>
-            <p>Ticket Confirmed</p>
+            <p>Ticket${quantity > 1 ? "s" : ""} Confirmed</p>
           </div>
           <div class="content">
             <p>Hi ${name},</p>
-            <p>Your ticket for <strong>${eventTitle}</strong> is confirmed!</p>
-            <p><strong>Ticket #${ticketId.toString().padStart(6, "0")}</strong></p>
+            <p>Your ticket${quantity > 1 ? "s" : ""} for <strong>${eventTitle}</strong> ${quantity > 1 ? "are" : "is"} confirmed!</p>
+            <p><strong>Quantity:</strong> ${quantity}</p>
+            <ul>${ticketList}</ul>
             <p><strong>Date:</strong> ${new Date(eventDate).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
-            <p>You can view your ticket anytime in your profile.</p>
+            <p>You can view your tickets anytime in your profile.</p>
             <p><a href="${process.env.NEXTAUTH_URL}/profile" class="button">View My Tickets</a></p>
           </div>
           <div class="footer">
@@ -286,7 +337,7 @@ function expiredTicketHtml(
               <li>You can view your ticket history in your profile</li>
               <li>Earn more points to redeem tickets for upcoming events!</li>
             </ul>
-            <p><a href="${process.env.NEXTAUTH_URL}/profile/tickets" class="button">View My Tickets</a></p>
+            <p><a href="${process.env.NEXTAUTH_URL}/profile" class="button">View My Tickets</a></p>
           </div>
           <div class="footer">
             <p>© 2026 Arbitary. All rights reserved.</p>

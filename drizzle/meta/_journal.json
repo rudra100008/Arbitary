@@ -50,6 +50,20 @@
       "when": 1749072000000,
       "tag": "0006_schema_refactoring",
       "breakpoints": true
-    }
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780573627019,
+      "tag": "0007_flimsy_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780639666065,
+      "tag": "0008_certain_scarecrow",
+      "breakpoints": true
+    },
   ]
 }

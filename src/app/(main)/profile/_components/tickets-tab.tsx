@@ -319,10 +319,10 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
         <div className="flex items-center gap-2">
           {ticket.status === "active" && ticket.redemptionToken && (
             <DownloadTicketButton
-              ticket={{
+              tickets={[{
                 id: ticket.id,
                 redemptionToken: ticket.redemptionToken,
-              }}
+              }]}
               event={{
                 title: ticket.event.title,
                 eventDate: ticket.event.eventDate,

@@ -50,7 +50,8 @@ export default function UserSubmissions() {
       queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to update submission");
+      const error = err instanceof Error ? err : new Error(String(err));
+      toast.error(error.message || "Failed to update submission");
     },
   });
 

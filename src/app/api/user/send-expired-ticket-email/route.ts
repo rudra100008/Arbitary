@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     auth.data.name ?? undefined,
   );
   if (!result.success) {
-    return NextResponse.json({ success: false, message: result.error }, { status: (result as any).status ?? 400 });
+    return NextResponse.json({ success: false, message: result.error }, { status: result.status });
   }
 
   return NextResponse.json({ success: result.data.success, message: result.data.message });

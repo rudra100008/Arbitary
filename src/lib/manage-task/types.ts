@@ -17,6 +17,13 @@ export type Task = {
     platform?: import("@/src/lib/social/type").Platform;
     socialPostId?: string;
     socialPostUrl?: string;
+    // Flash / share task fields
+    isFlash?: boolean;
+    isShare?: boolean;
+    watchDuration?: number;
+    difficulty?: "easy" | "medium" | "hard";
+    expiresAt?: string;
+    shareThreshold?: number;
 };
 
 export type ModalMode = "add" | "edit";

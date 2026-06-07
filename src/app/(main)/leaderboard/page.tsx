@@ -7,7 +7,7 @@ import { authOptions } from "@/src/auth";
 
 export default async function LeaderboardPage() {
   const session = await getServerSession(authOptions);
-  const currentUserId = (session?.user as any)?.id as number | undefined;
+  const currentUserId = session?.user?.id as number | undefined;
   const users = await getTopUsers(100);
 
   return (

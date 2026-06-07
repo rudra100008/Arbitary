@@ -9,20 +9,19 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { taskId } = body as { taskId?: number };
+  const { taskId, fingerprint } = body as { taskId?: number; fingerprint?: string };
 
   if (!taskId) {
     return NextResponse.json({ error: "Task ID is required" }, { status: 400 });
   }
 
-  const result = await TaskService.completeFacebookTask(auth.data.id, Number(taskId), (auth.data as any).facebookId);
+  const result = await TaskService.completeFacebookTask(auth.data.id, Number(taskId), auth.data.facebookId, fingerprint);
   if (!result.success) {
-    const status = (result as any).status ?? 400;
     const response: Record<string, unknown> = { error: result.error };
-    if (status === 429) {
+    if (result.status === 429) {
       response.verificationCode = await TaskService.getVerificationCode(auth.data.id, Number(taskId));
     }
-    return NextResponse.json(response, { status });
+    return NextResponse.json(response, { status: result.status });
   }
 
   return NextResponse.json(result.data, { status: 200 });

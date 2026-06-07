@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
+import { UserTaskItem } from "@/src/services/task.service";
 
 type FacebookModalProps = {
-  task: any;
+  task: UserTaskItem;
   isOpen: boolean;
   onClose: () => void;
   onComplete: (taskId: number) => void;
+  fingerprint?: string;
 };
 
 export function FacebookModal({
@@ -16,6 +18,7 @@ export function FacebookModal({
   isOpen,
   onClose,
   onComplete,
+  fingerprint,
 }: FacebookModalProps) {
   const { data: session } = useSession();
   const [verifying, setVerifying] = useState(false);
@@ -24,7 +27,7 @@ export function FacebookModal({
   const [verificationCode, setVerificationCode] = useState("");
   const [codeLoading, setCodeLoading] = useState(false);
 
-  const isConnected = !!(session as any)?.facebookAccessToken;
+  const isConnected = !!session?.facebookAccessToken;
 
   useEffect(() => {
     if (isOpen && isConnected && task.id) {
@@ -82,7 +85,7 @@ export function FacebookModal({
       const res = await fetch("/api/user/tasks/facebook-complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId: task.id }),
+        body: JSON.stringify({ taskId: task.id, fingerprint }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -93,8 +96,9 @@ export function FacebookModal({
         onComplete(task.id);
         onClose();
       }, 1500);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(error.message);
     } finally {
       setVerifying(false);
     }

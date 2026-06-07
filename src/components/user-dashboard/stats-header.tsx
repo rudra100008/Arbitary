@@ -1,4 +1,5 @@
 // stats-header.tsx — cleaner, more refined dark header
+import { AnimatedCounter } from "@/src/components/rewards/animated-counter";
 
 type StatsHeaderProps = {
   activeTab: string;
@@ -45,9 +46,10 @@ export function StatsHeader({
           {[
             {
               label: "Points",
-              value: totalPoints.toLocaleString(),
+              value: totalPoints,
               color: "text-white",
               icon: "✦",
+              isAnimated: true,
             },
             {
               label: "In Progress",
@@ -61,7 +63,7 @@ export function StatsHeader({
               color: "text-emerald-300",
               icon: "✓",
             },
-          ].map(({ label, value, color, icon }) => (
+          ].map(({ label, value, color, icon, isAnimated }) => (
             <div
               key={label}
               className="bg-white/8 backdrop-blur-sm rounded-2xl px-4 py-3 border border-white/10"
@@ -75,7 +77,11 @@ export function StatsHeader({
                 </p>
               </div>
               <p className={`${color} text-xl font-black tabular-nums`}>
-                {value}
+                {isAnimated ? (
+                  <AnimatedCounter value={value} />
+                ) : (
+                  typeof value === "number" ? value.toLocaleString() : value
+                )}
               </p>
             </div>
           ))}

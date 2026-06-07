@@ -1,7 +1,10 @@
 // activity-sidebar.tsx — redesigned with better visual hierarchy
+import { AnimatedCounter } from "@/src/components/rewards/animated-counter";
+import { UserTaskItem } from "@/src/services/task.service";
 
 type ActivitySidebarProps = {
-  tasks: any[];
+  tasks: UserTaskItem[];
+  completedTasks: UserTaskItem[];
   isLoading: boolean;
   totalPoints: number;
   completedCount: number;
@@ -27,6 +30,7 @@ const statusGradients = [
 
 export function ActivitySidebar({
   tasks,
+  completedTasks,
   isLoading,
   totalPoints,
   completedCount,
@@ -38,18 +42,15 @@ export function ActivitySidebar({
   const activeTask = tasks.find(
     (t) => t.userStatus?.toLowerCase() === "in progress",
   );
-  const doneStatuses = new Set([
-    "completed",
-    "verified",
-    "pending verification",
-  ]);
-  const completedTasks = tasks.filter(
-    (t) => t.userStatus && doneStatuses.has(t.userStatus.toLowerCase()),
-  );
+
 
   const streak = pointsData?.currentStreak ?? 0;
   const longestStreak = pointsData?.longestStreak ?? 0;
   const totalEarned = pointsData?.points ?? totalPoints;
+  const multiplier =
+    streak >= 30 ? 1.5
+    : streak >= 7 ? 1.2
+    : 1.0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -87,7 +88,7 @@ export function ActivitySidebar({
                 Total Pts
               </p>
               <p className="text-white text-xl font-black tabular-nums">
-                {totalEarned.toLocaleString()}
+                <AnimatedCounter value={totalEarned} />
               </p>
             </div>
             <div className="bg-white/8 border border-white/10 rounded-2xl px-3.5 py-3">
@@ -140,6 +141,16 @@ export function ActivitySidebar({
               </div>
               <span className="text-[10px] font-bold text-emerald-400">
                 Daily login claimed
+              </span>
+            </div>
+          )}
+
+          {/* Streak multiplier indicator */}
+          {multiplier > 1 && (
+            <div className="mt-2 flex items-center gap-2 bg-amber-500/15 border border-amber-500/20 rounded-xl px-3 py-2">
+              <span className="text-xs">⚡</span>
+              <span className="text-[10px] font-bold text-amber-400">
+                {multiplier}× multiplier active
               </span>
             </div>
           )}

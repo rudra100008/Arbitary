@@ -6,8 +6,8 @@ interface AccessTypeEditorProps {
   types: AccessType[];
   fieldErrors: Record<string, string>;
   onAdd: () => void;
-  onRemove: (id: string) => void;
-  onUpdate: (id: string, field: "title" | "price", value: string) => void;
+  onRemove: (id: string | number) => void;
+  onUpdate: (id: string | number, field: "title" | "price" | "pointCost", value: string | number) => void;
   onClearError: (field: string) => void;
 }
 
@@ -78,6 +78,29 @@ const AccessTypeEditor = ({
                 placeholder="e.g. $150"
                 className={`w-full px-4 py-3 bg-white border rounded-xl focus:outline-none font-bold text-xs shadow-sm transition-colors ${
                   fieldErrors[`accessTypes.${access.id}.price`]
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-black/5 focus:border-[#FACC15]"
+                }`}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-2">
+                Points Cost
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={access.pointCost ? String(access.pointCost) : ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (!/^\d*$/.test(raw)) return;
+                  onUpdate(access.id, "pointCost", raw === "" ? 0 : parseInt(raw, 10));
+                  const key = `accessTypes.${access.id}.pointCost`;
+                  if (fieldErrors[key]) onClearError(key);
+                }}
+                placeholder="e.g. 1000"
+                className={`w-full px-4 py-3 bg-white border rounded-xl focus:outline-none font-bold text-xs shadow-sm transition-colors ${
+                  fieldErrors[`accessTypes.${access.id}.pointCost`]
                     ? "border-red-500 focus:border-red-500"
                     : "border-black/5 focus:border-[#FACC15]"
                 }`}

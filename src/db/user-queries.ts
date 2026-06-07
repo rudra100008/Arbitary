@@ -1,6 +1,7 @@
 import { db } from './index';
 import { usersTable, referralsTable } from './schema';
 import { eq, desc, sql } from 'drizzle-orm';
+import { getUserTier } from '@/src/lib/gamification';
 
 export type TopUser = {
   id: number;
@@ -9,6 +10,7 @@ export type TopUser = {
   points: number;
   tasks: number;
   referrals: number;
+  tier: string;
 };
 
 export async function getTopUsers(limit: number = 100): Promise<TopUser[]> {
@@ -22,7 +24,7 @@ export async function getTopUsers(limit: number = 100): Promise<TopUser[]> {
       referrals: sql<number>`(select count(*) from ${referralsTable} where ${referralsTable.referrerId} = ${usersTable.id})`,
     })
     .from(usersTable)
-    .where(eq(usersTable.role, 'user'))
+    .where(eq(usersTable.role, 'USER'))
     .orderBy(desc(usersTable.points))
     .limit(limit);
 
@@ -30,5 +32,6 @@ export async function getTopUsers(limit: number = 100): Promise<TopUser[]> {
     ...user,
     tasks: Number(user.tasks),
     referrals: Number(user.referrals),
+    tier: getUserTier(Number(user.tasks)),
   }));
 }

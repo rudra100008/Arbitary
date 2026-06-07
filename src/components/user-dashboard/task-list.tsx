@@ -3,12 +3,14 @@
 
 import { useState, useMemo } from "react";
 import { TaskCard } from "./task-card";
+import { UserTaskItem } from "@/src/services/task.service";
 
 type TaskListProps = {
-  availableTasks: any[];
-  inProgressTasks: any[];
-  completedTasks: any[];
-  systemTasks: any[];
+  availableTasks: UserTaskItem[];
+  inProgressTasks: UserTaskItem[];
+  completedTasks: UserTaskItem[];
+  rejectedTasks: UserTaskItem[];
+  systemTasks: UserTaskItem[];
   isLoading: boolean;
   activeTab: string;
   isAnimating: boolean;
@@ -25,6 +27,9 @@ type TaskListProps = {
   pickupVariable: number | undefined;
   cancelPending: boolean;
   cancelVariable: number | undefined;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 };
 
 function TaskSection({
@@ -32,17 +37,19 @@ function TaskSection({
   tasks,
   accent,
   ...cardProps
-}: { title: string; tasks: any[]; accent?: string } & Omit<
+}: { title: string; tasks: UserTaskItem[]; accent?: string } & Omit<
   TaskListProps,
   | "availableTasks"
   | "inProgressTasks"
   | "completedTasks"
+  | "rejectedTasks"
   | "systemTasks"
   | "isLoading"
   | "activeTab"
   | "isAnimating"
   | "slideDirection"
 >) {
+
   if (tasks.length === 0) return null;
   return (
     <div className="mb-5">
@@ -70,22 +77,27 @@ export function TaskList({
   availableTasks,
   inProgressTasks,
   completedTasks,
+  rejectedTasks,
   systemTasks,
   isLoading,
   activeTab,
   isAnimating,
   slideDirection,
+  onLoadMore,
+  hasMore,
+  loadingMore,
   ...cardProps
 }: TaskListProps) {
   const [difficultyFilter, setDifficultyFilter] = useState<string>("all");
   const hasAnyTasks =
     availableTasks.length > 0 ||
     inProgressTasks.length > 0 ||
-    completedTasks.length > 0;
+    completedTasks.length > 0 ||
+    rejectedTasks.length > 0;
 
   const filteredAvailable = useMemo(() => {
     if (difficultyFilter === "all") return availableTasks;
-    return availableTasks.filter((t: any) => t.difficulty === difficultyFilter);
+    return availableTasks.filter((t: UserTaskItem) => t.difficulty === difficultyFilter);
   }, [availableTasks, difficultyFilter]);
 
   const difficultyColors: Record<string, string> = {
@@ -169,10 +181,26 @@ export function TaskList({
               tasks={filteredAvailable}
               {...cardProps}
             />
+
+            {/* Load More */}
+            {hasMore && !isLoading && (
+              <div className="flex justify-center pt-2 pb-4">
+                <button
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-full
+                             bg-slate-900 text-white hover:bg-slate-800 transition-all
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingMore ? "Loading…" : "Load More"}
+                </button>
+              </div>
+            )}
+
             <TaskSection
-              title="Completed"
-              accent="bg-emerald-400"
-              tasks={completedTasks}
+              title="Rejected"
+              accent="bg-red-400"
+              tasks={rejectedTasks}
               {...cardProps}
             />
           </div>

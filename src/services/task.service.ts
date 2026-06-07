@@ -6,15 +6,18 @@ import {
   shareTasksTable,
   shareClicksTable,
 } from "@/src/db/schema";
-import { eq, and, desc, sql, or, gte } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, lt, inArray, not, type SQL } from "drizzle-orm";
 import { calculateStreak, getNextMilestone, toDateStr } from "@/src/lib/streak-helper";
+import { getStreakMultiplier } from "@/src/lib/gamification";
 import {
   findCodeInComments,
   checkUserCommentedOnPost,
   getVerificationCode,
 } from "@/src/lib/facebook";
+import { nanoid } from "nanoid";
 import { ServiceResult, ok, fail } from "./result";
-import type { Task, UserTask, ShareTask } from "@/src/types/db";
+import type { Task, UserTask } from "@/src/types/db";
+import { TASK_STATUS } from "@/src/lib/constants/task-status";
 
 export type UserTaskItem = {
   id: number;
@@ -39,6 +42,21 @@ export type UserTaskItem = {
   shareClickCount: number;
   shareClickThreshold: number;
   sharePointsAwarded: boolean;
+};
+
+export type UserTasksPage = {
+  tasks: UserTaskItem[];
+  nextCursor: string | null;
+};
+
+export type DashboardResponse = {
+  inProgress: UserTaskItem[];
+  available: UserTaskItem[];
+  rejected: UserTaskItem[];
+  completed: UserTaskItem[];
+  systemTasks: UserTaskItem[];
+  availableTaskTypes: string[];
+  availableNextCursor: string | null;
 };
 
 export type DailyLoginResult = {
@@ -86,6 +104,13 @@ export type AdminTaskItem = {
   completedUsers: number;
 };
 
+export type AdminTasksPage = {
+  tasks: AdminTaskItem[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+};
+
 export type SubmissionItem = {
   id: number;
   taskId: number;
@@ -101,7 +126,13 @@ export type SubmissionItem = {
 };
 
 export const TaskService = {
-  async getUserTasks(userId: number): Promise<ServiceResult<UserTaskItem[]>> {
+  async getUserTasks(
+    userId: number,
+    limit: number = 10,
+    cursor?: { createdAt: string; id: number } | null,
+    filter?: 'available' | 'completed',
+    taskType?: string,
+  ): Promise<ServiceResult<UserTasksPage>> {
     const [user] = await db
       .select({
         dailyLoginDate: usersTable.dailyLoginDate,
@@ -117,88 +148,454 @@ export const TaskService = {
     const todayStart = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
     );
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-
-    const tasksWithUserStatus = await db
-      .select({ task: tasksTable, userTask: userTasksTable })
-      .from(tasksTable)
-      .leftJoin(
-        userTasksTable,
-        and(
-          eq(userTasksTable.taskId, tasksTable.id),
-          eq(userTasksTable.userId, userId),
-          sql`(
-            ${tasksTable.taskType} NOT IN ('daily', 'monthly')
-            OR ${tasksTable.taskType} IS NULL
-            OR (${tasksTable.taskType} = 'daily' AND ${userTasksTable.assignedAt} >= ${todayStart})
-            OR (${tasksTable.taskType} = 'monthly' AND ${userTasksTable.assignedAt} >= ${monthStart})
-          )`,
-        ),
-      )
-      .orderBy(desc(tasksTable.createdAt), desc(userTasksTable.completedAt));
-
-    const seen = new Map<number, (typeof tasksWithUserStatus)[number]>();
-    for (const row of tasksWithUserStatus) {
-      if (!seen.has(row.task.id)) seen.set(row.task.id, row);
-    }
-    const unique = Array.from(seen.values());
-
     const today = new Date().toISOString().split("T")[0];
-
     const dailyLoginStr = toDateStr(user?.dailyLoginDate);
 
-    const shareTasks = await db
-      .select()
-      .from(shareTasksTable)
-      .where(eq(shareTasksTable.userId, userId));
+    // Build WHERE conditions
+    const conditions: (SQL | undefined)[] = [];
 
+    if (filter === 'available' || filter === 'completed') {
+      // Find tasks the user has Completed/Verified — with time-period awareness
+      // Uses shared helper — keep in sync with getCompletedTasks() inline filter
+      const completedIds = await getValidCompletedTaskIds(userId, todayStart);
+
+      if (filter === 'available') {
+        if (completedIds.length > 0) {
+          conditions.push(not(inArray(tasksTable.id, completedIds)));
+        }
+      } else if (filter === 'completed') {
+        if (completedIds.length > 0) {
+          conditions.push(inArray(tasksTable.id, completedIds));
+        } else {
+          return ok({ tasks: [], nextCursor: null });
+        }
+      }
+    }
+
+    if (cursor) {
+      conditions.push(
+        or(
+          lt(tasksTable.createdAt, new Date(cursor.createdAt)),
+          and(
+            eq(tasksTable.createdAt, new Date(cursor.createdAt)),
+            lt(tasksTable.id, cursor.id),
+          ),
+        ),
+      );
+    }
+
+    if (taskType && taskType !== "all") {
+      conditions.push(eq(tasksTable.taskType, taskType));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // ── Completed mode: fetch all, no pagination ──
+    if (filter === 'completed') {
+      const allTasks = await db
+        .select()
+        .from(tasksTable)
+        .where(whereClause)
+        .orderBy(desc(tasksTable.createdAt), desc(tasksTable.id));
+
+      const taskIds = allTasks.map((t) => t.id);
+      const userTasksRows = taskIds.length > 0
+        ? await db
+            .selectDistinctOn([userTasksTable.taskId], {
+              id: userTasksTable.id,
+              taskId: userTasksTable.taskId,
+              status: userTasksTable.status,
+              proofUrl: userTasksTable.proofUrl,
+              assignedAt: userTasksTable.assignedAt,
+              completedAt: userTasksTable.completedAt,
+            })
+            .from(userTasksTable)
+            .where(
+              and(
+                eq(userTasksTable.userId, userId),
+                inArray(userTasksTable.taskId, taskIds),
+              ),
+            )
+            .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
+        : [];
+      const userTasksMap = new Map(userTasksRows.map((ut) => [ut.taskId, ut]));
+
+      const shareTasks = taskIds.length > 0
+        ? await db
+            .select()
+            .from(shareTasksTable)
+            .where(
+              and(
+                eq(shareTasksTable.userId, userId),
+                inArray(shareTasksTable.taskId, taskIds),
+              ),
+            )
+        : [];
+      const shareTaskMap = new Map(shareTasks.map((st) => [st.taskId, st]));
+
+      const mappedTasks = mapTasksToItems({
+        tasks: allTasks,
+        userTasksMap,
+        shareTaskMap,
+        dailyLoginStr,
+        todayStart,
+        today,
+      });
+
+      return ok({ tasks: mappedTasks, nextCursor: null });
+    }
+
+    // ── Available (or unfiltered) mode: paginated ──
+    const paginatedTasks = await db
+      .select()
+      .from(tasksTable)
+      .where(whereClause)
+      .orderBy(desc(tasksTable.createdAt), desc(tasksTable.id))
+      .limit(limit + 1);
+
+    const hasNextPage = paginatedTasks.length > limit;
+    const tasksPage = hasNextPage ? paginatedTasks.slice(0, limit) : paginatedTasks;
+
+    const nextCursor: string | null = hasNextPage
+      ? JSON.stringify({
+          createdAt: tasksPage[tasksPage.length - 1].createdAt?.toISOString(),
+          id: tasksPage[tasksPage.length - 1].id,
+        })
+      : null;
+
+    const taskIds = tasksPage.map((t) => t.id);
+    const userTasksRows = taskIds.length > 0
+      ? await db
+          .selectDistinctOn([userTasksTable.taskId], {
+            id: userTasksTable.id,
+            taskId: userTasksTable.taskId,
+            status: userTasksTable.status,
+            proofUrl: userTasksTable.proofUrl,
+            assignedAt: userTasksTable.assignedAt,
+            completedAt: userTasksTable.completedAt,
+          })
+          .from(userTasksTable)
+          .where(
+            and(
+              eq(userTasksTable.userId, userId),
+              inArray(userTasksTable.taskId, taskIds),
+            ),
+          )
+          .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
+      : [];
+    const userTasksMap = new Map(userTasksRows.map((ut) => [ut.taskId, ut]));
+
+    const shareTasks = taskIds.length > 0
+      ? await db
+          .select()
+          .from(shareTasksTable)
+          .where(
+            and(
+              eq(shareTasksTable.userId, userId),
+              inArray(shareTasksTable.taskId, taskIds),
+            ),
+          )
+      : [];
     const shareTaskMap = new Map(shareTasks.map((st) => [st.taskId, st]));
 
-    const mappedTasks = unique.map((t) => {
-      const isDailyLogin = t.task.platform === "daily-login";
-      const claimedToday = dailyLoginStr === today;
-      const userStatus = isDailyLogin
-        ? claimedToday
-          ? "Completed"
-          : null
-        : t.userTask?.status || null;
-      const isExpiredFlash = !!(
-        t.task.isFlash &&
-        t.task.expiresAt &&
-        new Date(t.task.expiresAt) < new Date() &&
-        !userStatus
-      );
-      const shareInfo = shareTaskMap.get(t.task.id);
-
-      return {
-        id: t.task.id,
-        title: t.task.title,
-        description: t.task.description,
-        taskType: t.task.taskType,
-        points: t.task.points,
-        postUrl: t.task.postUrl,
-        platform: t.task.platform,
-        socialPostId: t.task.socialPostId ?? null,
-        created: t.task.createdAt
-          ? new Date(t.task.createdAt).toLocaleDateString()
-          : "N/A",
-        watchDuration: t.task.watchDuration ?? null,
-        difficulty: t.task.difficulty,
-        isFlash: t.task.isFlash,
-        isShare: t.task.isShare,
-        expiresAt: t.task.expiresAt ? t.task.expiresAt.toISOString() : null,
-        isExpired: isExpiredFlash,
-        userStatus,
-        userAssignedAt: isDailyLogin ? null : t.userTask?.assignedAt || null,
-        completedAt: isDailyLogin ? null : t.userTask?.completedAt || null,
-        shareLink: shareInfo?.shareUrl || null,
-        shareClickCount: shareInfo?.clickCount || 0,
-        shareClickThreshold: shareInfo?.clickThreshold || t.task.shareThreshold || 3,
-        sharePointsAwarded: shareInfo?.pointsAwarded || false,
-      };
+    const mappedTasks = mapTasksToItems({
+      tasks: tasksPage,
+      userTasksMap,
+      shareTaskMap,
+      dailyLoginStr,
+      todayStart,
+      today,
     });
 
-    return ok(mappedTasks);
+    return ok({ tasks: mappedTasks, nextCursor });
+  },
+
+  async getDashboardTasks(
+    userId: number,
+    taskType?: string,
+    cursor?: string,
+    limit: number = 10,
+  ): Promise<ServiceResult<DashboardResponse>> {
+    const [user] = await db
+      .select({
+        dailyLoginDate: usersTable.dailyLoginDate,
+        currentStreak: usersTable.currentStreak,
+        longestStreak: usersTable.longestStreak,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+
+    if (!user) return fail("User not found", 404);
+
+    const now = new Date();
+    const todayStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+    const today = new Date().toISOString().split("T")[0];
+    const dailyLoginStr = toDateStr(user?.dailyLoginDate);
+
+    // ── Completed task IDs (period-aware, using shared helper) ──
+    // Uses getValidCompletedTaskIds() for exclusion — keep in sync with getCompletedTasks() inline filter
+    const completedIds = await getValidCompletedTaskIds(userId, todayStart);
+
+    // ── Active user tasks (in-progress / pending-verification / rejected) ──
+    const activeUserTasksRows = await db
+      .select()
+      .from(userTasksTable)
+      .innerJoin(tasksTable, eq(userTasksTable.taskId, tasksTable.id))
+      .where(
+        and(
+          eq(userTasksTable.userId, userId),
+          inArray(userTasksTable.status, ['In Progress', 'Pending Verification', 'Rejected']),
+          taskType && taskType !== "all" ? eq(tasksTable.taskType, taskType) : undefined,
+        ),
+      );
+
+    const activeTaskIds = activeUserTasksRows
+      .map((r) => r.tasks.id)
+      .filter((id): id is number => id !== null);
+
+    // ── Available tasks (paginated) ──
+    const availableConditions: (SQL | undefined)[] = [];
+
+    if (taskType && taskType !== "all") {
+      availableConditions.push(eq(tasksTable.taskType, taskType));
+    }
+
+    if (completedIds.length > 0) {
+      availableConditions.push(not(inArray(tasksTable.id, completedIds)));
+    }
+
+    if (activeTaskIds.length > 0) {
+      availableConditions.push(not(inArray(tasksTable.id, activeTaskIds)));
+    }
+
+    if (cursor) {
+      const parsed = JSON.parse(cursor) as { createdAt: string; id: number };
+      availableConditions.push(
+        or(
+          lt(tasksTable.createdAt, new Date(parsed.createdAt)),
+          and(
+            eq(tasksTable.createdAt, new Date(parsed.createdAt)),
+            lt(tasksTable.id, parsed.id),
+          ),
+        ),
+      );
+    }
+
+    const availableWhere = availableConditions.length > 0
+      ? and(...availableConditions)
+      : undefined;
+
+    const availableRaw = await db
+      .select()
+      .from(tasksTable)
+      .where(availableWhere)
+      .orderBy(desc(tasksTable.createdAt), desc(tasksTable.id))
+      .limit(limit + 1);
+
+    const hasNextPage = availableRaw.length > limit;
+    const availablePage = hasNextPage ? availableRaw.slice(0, limit) : availableRaw;
+
+    const availableNextCursor: string | null = hasNextPage
+      ? JSON.stringify({
+          createdAt: availablePage[availablePage.length - 1].createdAt?.toISOString(),
+          id: availablePage[availablePage.length - 1].id,
+        })
+      : null;
+
+    // ── Fetch user_tasks & share_tasks for active + available tasks ──
+    const allTaskIds = [...new Set([...activeTaskIds, ...availablePage.map((t) => t.id)])];
+
+    const userTasksRows = allTaskIds.length > 0
+      ? await db
+          .selectDistinctOn([userTasksTable.taskId], {
+            id: userTasksTable.id,
+            taskId: userTasksTable.taskId,
+            status: userTasksTable.status,
+            proofUrl: userTasksTable.proofUrl,
+            assignedAt: userTasksTable.assignedAt,
+            completedAt: userTasksTable.completedAt,
+          })
+          .from(userTasksTable)
+          .where(
+            and(
+              eq(userTasksTable.userId, userId),
+              inArray(userTasksTable.taskId, allTaskIds),
+            ),
+          )
+          .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
+      : [];
+    const userTasksMap = new Map(userTasksRows.map((ut) => [ut.taskId, ut]));
+
+    const shareTaskRows = allTaskIds.length > 0
+      ? await db
+          .select()
+          .from(shareTasksTable)
+          .where(
+            and(
+              eq(shareTasksTable.userId, userId),
+              inArray(shareTasksTable.taskId, allTaskIds),
+            ),
+          )
+      : [];
+    const shareTaskMap = new Map(shareTaskRows.map((st) => [st.taskId, st]));
+
+    // ── Map active tasks through mapTasksToItems ──
+    const activeMapped = mapTasksToItems({
+      tasks: activeUserTasksRows.map((r) => r.tasks),
+      userTasksMap,
+      shareTaskMap,
+      dailyLoginStr,
+      todayStart,
+      today,
+    });
+
+    // ── Map available page tasks ──
+    const availableMapped = mapTasksToItems({
+      tasks: availablePage,
+      userTasksMap,
+      shareTaskMap,
+      dailyLoginStr,
+      todayStart,
+      today,
+    });
+
+    // ── Categorize active tasks ──
+    const inProgress: UserTaskItem[] = [];
+    const rejected: UserTaskItem[] = [];
+    const completed: UserTaskItem[] = [];
+    const systemTasks: UserTaskItem[] = [];
+
+    for (const task of activeMapped) {
+      if (task.platform === "system") {
+        systemTasks.push(task);
+        continue;
+      }
+      const s = task.userStatus?.toLowerCase();
+      if (s === TASK_STATUS.IN_PROGRESS || s === TASK_STATUS.PENDING_VERIFICATION) {
+        inProgress.push(task);
+      } else if (s === TASK_STATUS.REJECTED) {
+        rejected.push(task);
+      } else if (s === TASK_STATUS.COMPLETED || s === TASK_STATUS.VERIFIED) {
+        completed.push(task);
+      }
+    }
+
+    // Available page tasks (already filtered — not completed and not active)
+    const available: UserTaskItem[] = [];
+    for (const task of availableMapped) {
+      if (task.platform === "system") {
+        systemTasks.push(task);
+      } else {
+        available.push(task);
+      }
+    }
+
+    // ── Task types for tab generation ──
+    const typeRows = await db
+      .selectDistinct({ taskType: tasksTable.taskType })
+      .from(tasksTable)
+      .where(sql`${tasksTable.taskType} IS NOT NULL`);
+
+    const availableTaskTypes = typeRows
+      .map((r) => r.taskType)
+      .filter(Boolean) as string[];
+
+    return ok({
+      inProgress,
+      available,
+      rejected,
+      completed,
+      systemTasks,
+      availableTaskTypes,
+      availableNextCursor,
+    });
+  },
+
+  async getCompletedTasks(
+    userId: number,
+    limit: number = 50,
+  ): Promise<ServiceResult<UserTaskItem[]>> {
+    const now = new Date();
+    const todayStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+
+    // Inline filter: mirrors getValidCompletedTaskIds() logic for inclusion (vs exclusion in dashboard)
+    // Uses the same or() clause directly to avoid a second round-trip for completed data.
+    // Keep this condition in sync with getValidCompletedTaskIds().
+    const rows = await db
+      .select({
+        userTask: userTasksTable,
+        task: tasksTable,
+      })
+      .from(userTasksTable)
+      .innerJoin(tasksTable, eq(userTasksTable.taskId, tasksTable.id))
+      .where(
+        and(
+          eq(userTasksTable.userId, userId),
+          inArray(userTasksTable.status, ['Completed', 'Verified']),
+          or(
+            not(eq(tasksTable.taskType, 'daily')),
+            and(
+              eq(tasksTable.taskType, 'daily'),
+              gte(userTasksTable.assignedAt, todayStart),
+            ),
+          ),
+        ),
+      )
+      .orderBy(desc(userTasksTable.completedAt))
+      .limit(limit);
+
+    const taskIds = rows.map((r) => r.task.id);
+    const shareTasks = taskIds.length > 0
+      ? await db
+          .select()
+          .from(shareTasksTable)
+          .where(
+            and(
+              eq(shareTasksTable.userId, userId),
+              inArray(shareTasksTable.taskId, taskIds),
+            ),
+          )
+      : [];
+    const shareTaskMap = new Map(shareTasks.map((st) => [st.taskId, st]));
+
+    const seenTaskIds = new Set<number>();
+    const items: UserTaskItem[] = [];
+    for (const r of rows) {
+      if (seenTaskIds.has(r.task.id)) continue;
+      seenTaskIds.add(r.task.id);
+      const task = r.task;
+      const shareInfo = shareTaskMap.get(task.id);
+      items.push({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        taskType: task.taskType,
+        points: task.points,
+        postUrl: task.postUrl,
+        platform: task.platform,
+        socialPostId: task.socialPostId ?? null,
+        created: task.createdAt ? new Date(task.createdAt).toLocaleDateString() : "N/A",
+        watchDuration: task.watchDuration ?? null,
+        difficulty: task.difficulty,
+        isFlash: task.isFlash,
+        isShare: task.isShare,
+        expiresAt: task.expiresAt ? task.expiresAt.toISOString() : null,
+        isExpired: false,
+        userStatus: r.userTask.status,
+        userAssignedAt: r.userTask.assignedAt,
+        completedAt: r.userTask.completedAt,
+        shareLink: shareInfo?.shareUrl || null,
+        shareClickCount: shareInfo?.clickCount || 0,
+        shareClickThreshold: shareInfo?.clickThreshold || task.shareThreshold || 3,
+        sharePointsAwarded: shareInfo?.pointsAwarded || false,
+      });
+    }
+
+    return ok(items);
   },
 
   async pickUpTask(
@@ -228,7 +625,6 @@ export const TaskService = {
         user.currentStreak || 0,
       );
       const newLongest = Math.max(user.longestStreak || 0, newStreak);
-      const totalPoints = (user.points || 0) + (targetTask.points || 0) + bonus;
 
       await db.transaction(async (tx) => {
         await tx
@@ -237,7 +633,7 @@ export const TaskService = {
             dailyLoginDate: new Date(today),
             currentStreak: newStreak,
             longestStreak: newLongest,
-            points: totalPoints,
+            points: sql`${usersTable.points} + ${(targetTask.points || 0) + bonus}`,
             completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
             lastLoginAt: new Date(),
           })
@@ -287,7 +683,6 @@ export const TaskService = {
       .returning();
 
     if (targetTask.isShare) {
-      const { nanoid } = await import("nanoid");
       const shareCode = nanoid(10);
       const base =
         process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || "";
@@ -340,15 +735,29 @@ export const TaskService = {
     status: string,
     proofUrl?: string,
   ): Promise<ServiceResult<{ message: string }>> {
+    if (status !== "Pending Verification") {
+      return fail("You can only submit proof for verification", 400);
+    }
+
+    const [userTask] = await db
+      .select({ id: userTasksTable.id, status: userTasksTable.status })
+      .from(userTasksTable)
+      .where(
+        and(eq(userTasksTable.userId, userId), eq(userTasksTable.taskId, taskId)),
+      );
+    if (!userTask) return fail("Task not found", 404);
+
+    if (userTask.status === status) {
+      return fail("Task is already in this status", 400);
+    }
+
     const updateData: Record<string, unknown> = { status };
     if (proofUrl) updateData.proofUrl = proofUrl;
 
     const [updated] = await db
       .update(userTasksTable)
       .set(updateData)
-      .where(
-        and(eq(userTasksTable.userId, userId), eq(userTasksTable.taskId, taskId)),
-      )
+      .where(eq(userTasksTable.id, userTask.id))
       .returning();
 
     if (!updated) return fail("Task not found", 404);
@@ -382,7 +791,6 @@ export const TaskService = {
       user.currentStreak || 0,
     );
     const newLongest = Math.max(user.longestStreak || 0, newStreak);
-    const totalPoints = (user.points || 0) + (task.points || 0) + bonus;
 
     return await db.transaction(async (tx) => {
       await tx
@@ -392,7 +800,7 @@ export const TaskService = {
           lastLoginAt: new Date(),
           currentStreak: newStreak,
           longestStreak: newLongest,
-          points: totalPoints,
+          points: sql`${usersTable.points} + ${(task.points || 0) + bonus}`,
           completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
         })
         .where(eq(usersTable.id, userId));
@@ -430,7 +838,14 @@ export const TaskService = {
     userId: number,
     taskId: number,
     facebookId?: string,
+    fingerprint?: string,
   ): Promise<ServiceResult<FacebookCompleteResult>> {
+    const [user] = await db
+      .select({ currentStreak: usersTable.currentStreak })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+    const multiplier = getStreakMultiplier(user?.currentStreak || 0);
+
     const [userTaskWithTask] = await db
       .select({
         userTask: userTasksTable,
@@ -472,13 +887,13 @@ export const TaskService = {
     }
 
     if (codeResult.liked) {
-      return await awardFacebookPoints(userId, task, userTask);
+      return await awardFacebookPoints(userId, task, userTask, multiplier, fingerprint);
     }
 
     if (facebookId) {
       const asidResult = await checkUserCommentedOnPost(postId, "", facebookId);
       if (asidResult.liked) {
-        return await awardFacebookPoints(userId, task, userTask);
+        return await awardFacebookPoints(userId, task, userTask, multiplier, fingerprint);
       }
     }
 
@@ -492,7 +907,14 @@ export const TaskService = {
     userId: number,
     taskId: number,
     watchedSeconds: number,
+    fingerprint?: string,
   ): Promise<ServiceResult<YoutubeCompleteResult>> {
+    const [user] = await db
+      .select({ currentStreak: usersTable.currentStreak })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+    const multiplier = getStreakMultiplier(user?.currentStreak || 0);
+
     const [userTaskWithTask] = await db
       .select({
         userTask: userTasksTable,
@@ -536,29 +958,33 @@ export const TaskService = {
       }
     }
 
+    const completionDurationSeconds =
+      userTask.assignedAt
+        ? Math.round((Date.now() - new Date(userTask.assignedAt).getTime()) / 1000)
+        : null;
+
+    const taskPoints = Math.round((task.points || 0) * multiplier);
     await db.transaction(async (tx) => {
       await tx
         .update(userTasksTable)
-        .set({ status: "Completed", completedAt: new Date() })
+        .set({
+          status: "Completed",
+          completedAt: new Date(),
+          submissionFingerprint: fingerprint ?? null,
+          completionDurationSeconds: completionDurationSeconds ?? null,
+        })
         .where(eq(userTasksTable.id, userTask.id));
 
-      const [currentUser] = await tx
-        .select({ points: usersTable.points })
-        .from(usersTable)
+      await tx
+        .update(usersTable)
+        .set({
+          points: sql`${usersTable.points} + ${taskPoints}`,
+          completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
+        })
         .where(eq(usersTable.id, userId));
-
-      if (currentUser) {
-        await tx
-          .update(usersTable)
-          .set({
-            points: (currentUser.points || 0) + (task.points || 0),
-            completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
-          })
-          .where(eq(usersTable.id, userId));
-      }
     });
 
-    return ok({ message: "YouTube task completed and points awarded!" });
+    return ok({ message: "YouTube task completed and points awarded!", pointsAwarded: taskPoints });
   },
 
   async getCompletedTodayCount(
@@ -680,6 +1106,11 @@ export const TaskService = {
           ),
         );
 
+      const [task] = await db
+        .select({ points: tasksTable.points })
+        .from(tasksTable)
+        .where(eq(tasksTable.id, updated.taskId));
+
       if (userTask) {
         await db.transaction(async (tx) => {
           await tx
@@ -689,6 +1120,7 @@ export const TaskService = {
           await tx
             .update(usersTable)
             .set({
+              points: sql`${usersTable.points} + ${task?.points || 0}`,
               completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
             })
             .where(eq(usersTable.id, updated.userId!));
@@ -756,21 +1188,40 @@ export const TaskService = {
 
   // ─── Admin task CRUD ──────────────────────────────────────────────────────
 
-  async getAllTasks(): Promise<ServiceResult<AdminTaskItem[]>> {
+  async getAllTasks(
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<ServiceResult<AdminTasksPage>> {
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tasksTable);
+    const totalCount = countResult?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+
     const tasks = await db
       .select()
       .from(tasksTable)
-      .orderBy(desc(tasksTable.createdAt));
+      .orderBy(desc(tasksTable.createdAt))
+      .limit(limit)
+      .offset((page - 1) * limit);
 
-    const completedCounts = await db
-      .select({
-        taskId: userTasksTable.taskId,
-        count: sql<number>`count(${userTasksTable.id})::int`,
-      })
-      .from(userTasksTable)
-      .where(sql`${userTasksTable.status} IN ('Completed', 'Verified')`)
-      .groupBy(userTasksTable.taskId);
-
+    const taskIds = tasks.map((t) => t.id);
+    const completedCounts =
+      taskIds.length > 0
+        ? await db
+            .select({
+              taskId: userTasksTable.taskId,
+              count: sql<number>`count(${userTasksTable.id})::int`,
+            })
+            .from(userTasksTable)
+            .where(
+              and(
+                inArray(userTasksTable.taskId, taskIds),
+                sql`${userTasksTable.status} IN ('Completed', 'Verified')`,
+              ),
+            )
+            .groupBy(userTasksTable.taskId)
+        : [];
     const countsMap = new Map(completedCounts.map((c) => [c.taskId, c.count]));
 
     const mappedTasks = tasks.map((t) => ({
@@ -794,7 +1245,7 @@ export const TaskService = {
       completedUsers: countsMap.get(t.id) || 0,
     }));
 
-    return ok(mappedTasks);
+    return ok({ tasks: mappedTasks, totalCount, totalPages, currentPage: page });
   },
 
   async createTask(input: {
@@ -968,25 +1419,22 @@ export const TaskService = {
 
     const currentStatus = userTaskInfo.userTask.status;
     const taskPoints = userTaskInfo.task.points;
-    const currentPoints = userTaskInfo.user.points || 0;
-
-    let newPoints = currentPoints;
-    let countChange = 0;
 
     if (newStatus === "Verified" && currentStatus !== "Verified") {
-      newPoints += taskPoints;
-      countChange = 1;
+      await db.update(usersTable)
+        .set({
+          points: sql`${usersTable.points} + ${taskPoints}`,
+          completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
+        })
+        .where(eq(usersTable.id, userTaskInfo.user.id));
     } else if (newStatus !== "Verified" && currentStatus === "Verified") {
-      newPoints -= taskPoints;
-      countChange = -1;
+      await db.update(usersTable)
+        .set({
+          points: sql`${usersTable.points} - ${taskPoints}`,
+          completedTasksCount: sql`${usersTable.completedTasksCount} - 1`,
+        })
+        .where(eq(usersTable.id, userTaskInfo.user.id));
     }
-
-    await db.update(usersTable)
-      .set({
-        points: newPoints,
-        completedTasksCount: sql`${usersTable.completedTasksCount} + ${countChange}`,
-      })
-      .where(eq(usersTable.id, userTaskInfo.user.id));
 
     await db.update(userTasksTable)
       .set({ status: newStatus })
@@ -996,35 +1444,138 @@ export const TaskService = {
   },
 };
 
+async function getValidCompletedTaskIds(
+  userId: number,
+  todayStart: Date,
+): Promise<number[]> {
+  const rows = await db
+    .select({ taskId: userTasksTable.taskId })
+    .from(userTasksTable)
+    .innerJoin(tasksTable, eq(userTasksTable.taskId, tasksTable.id))
+    .where(
+      and(
+        eq(userTasksTable.userId, userId),
+        inArray(userTasksTable.status, ['Completed', 'Verified']),
+        or(
+          not(eq(tasksTable.taskType, 'daily')),
+          and(
+            eq(tasksTable.taskType, 'daily'),
+            gte(userTasksTable.assignedAt, todayStart),
+          ),
+        ),
+      ),
+    );
+
+  return rows
+    .map((r) => r.taskId)
+    .filter((id): id is number => id !== null);
+}
+
+type MapTasksContext = {
+  tasks: (typeof tasksTable.$inferSelect)[];
+  userTasksMap: Map<number | null, {
+    id: number;
+    taskId: number | null;
+    status: string | null;
+    proofUrl: string | null;
+    assignedAt: Date | null;
+    completedAt: Date | null;
+  }>;
+  shareTaskMap: Map<number | null, {
+    shareUrl: string | null;
+    clickCount: number;
+    clickThreshold: number;
+    pointsAwarded: boolean;
+  }>;
+  dailyLoginStr: string | null;
+  todayStart: Date;
+  today: string;
+};
+
+function mapTasksToItems(ctx: MapTasksContext): UserTaskItem[] {
+  return ctx.tasks.map((task) => {
+    const isDailyLogin = task.platform === "daily-login";
+    const claimedToday = ctx.dailyLoginStr === ctx.today;
+
+    const userTask = ctx.userTasksMap.get(task.id);
+    const effectiveUserTask = (() => {
+      if (!userTask?.id) return null;
+      if (task.taskType === "daily" && userTask.assignedAt && userTask.assignedAt < ctx.todayStart) return null;
+      return userTask;
+    })();
+
+    const userStatus = isDailyLogin
+      ? claimedToday ? "Completed" : null
+      : effectiveUserTask?.status || null;
+    const isExpiredFlash = !!(
+      task.isFlash &&
+      task.expiresAt &&
+      new Date(task.expiresAt) < new Date() &&
+      !userStatus
+    );
+    const shareInfo = ctx.shareTaskMap.get(task.id);
+
+    return {
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      taskType: task.taskType,
+      points: task.points,
+      postUrl: task.postUrl,
+      platform: task.platform,
+      socialPostId: task.socialPostId ?? null,
+      created: task.createdAt ? new Date(task.createdAt).toLocaleDateString() : "N/A",
+      watchDuration: task.watchDuration ?? null,
+      difficulty: task.difficulty,
+      isFlash: task.isFlash,
+      isShare: task.isShare,
+      expiresAt: task.expiresAt ? task.expiresAt.toISOString() : null,
+      isExpired: isExpiredFlash,
+      userStatus,
+      userAssignedAt: isDailyLogin ? null : effectiveUserTask?.assignedAt || null,
+      completedAt: isDailyLogin ? null : effectiveUserTask?.completedAt || null,
+      shareLink: shareInfo?.shareUrl || null,
+      shareClickCount: shareInfo?.clickCount || 0,
+      shareClickThreshold: shareInfo?.clickThreshold || task.shareThreshold || 3,
+      sharePointsAwarded: shareInfo?.pointsAwarded || false,
+    };
+  });
+}
+
 async function awardFacebookPoints(
   userId: number,
   task: Task,
   userTask: UserTask,
+  multiplier: number,
+  fingerprint?: string,
 ): Promise<ServiceResult<FacebookCompleteResult>> {
+  const taskPoints = Math.round((task.points || 0) * multiplier);
+  const completionDurationSeconds =
+    userTask.assignedAt
+      ? Math.round((Date.now() - new Date(userTask.assignedAt).getTime()) / 1000)
+      : null;
   await db.transaction(async (tx) => {
     await tx
       .update(userTasksTable)
-      .set({ status: "Completed", completedAt: new Date() })
+      .set({
+        status: "Completed",
+        completedAt: new Date(),
+        submissionFingerprint: fingerprint ?? null,
+        completionDurationSeconds: completionDurationSeconds ?? null,
+      })
       .where(eq(userTasksTable.id, userTask.id));
 
-    const [currentUser] = await tx
-      .select({ points: usersTable.points })
-      .from(usersTable)
+    await tx
+      .update(usersTable)
+      .set({
+        points: sql`${usersTable.points} + ${taskPoints}`,
+        completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
+      })
       .where(eq(usersTable.id, userId));
-
-    if (currentUser) {
-      await tx
-        .update(usersTable)
-        .set({
-          points: (currentUser.points || 0) + (task.points || 0),
-          completedTasksCount: sql`${usersTable.completedTasksCount} + 1`,
-        })
-        .where(eq(usersTable.id, userId));
-    }
   });
 
   return ok({
     message: "Facebook task completed and points awarded!",
-    pointsAwarded: task.points || 0,
+    pointsAwarded: taskPoints,
   });
 }
