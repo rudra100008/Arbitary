@@ -324,7 +324,7 @@ function TicketCard({
     year: "numeric",
   });
 
-  const ticketId = \`#\${ticket.id.toString().padStart(6, "0")}\`;
+  const ticketId = `#${ticket.id.toString().padStart(6, "0")}`;
 
   return (
     <View style={styles.card}>
@@ -414,7 +414,7 @@ function TicketCard({
         </View>
 
         <Text style={styles.scanHint}>
-          Present this QR code at the entrance{"\\n"}Non-transferable
+          Present this QR code at the entrance{"\n"}Non-transferable
         </Text>
       </View>
 
