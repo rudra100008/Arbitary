@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import Footer from "@/src/components/ui/footer";
 import Header from "@/src/components/ui/header";
@@ -59,7 +64,13 @@ function DashboardInner() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const pickupMutation = useMutation({
-    mutationFn: async ({ taskId, tab: _tab }: { taskId: number; tab: string }) => {
+    mutationFn: async ({
+      taskId,
+      tab: _tab,
+    }: {
+      taskId: number;
+      tab: string;
+    }) => {
       const res = await fetch("/api/user/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,14 +84,23 @@ function DashboardInner() {
     },
     onSuccess: (_data, variables) => {
       toast.success("Task picked up!");
-      queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard", variables.tab], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: ["user-tasks", "dashboard", variables.tab],
+        exact: true,
+      });
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to pick up task"),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: async ({ taskId, tab: _tab }: { taskId: number; tab: string }) => {
+    mutationFn: async ({
+      taskId,
+      tab: _tab,
+    }: {
+      taskId: number;
+      tab: string;
+    }) => {
       const res = await fetch(`/api/user/tasks?taskId=${taskId}`, {
         method: "DELETE",
       });
@@ -92,14 +112,25 @@ function DashboardInner() {
     },
     onSuccess: (_data, variables) => {
       toast.success("Task cancelled!");
-      queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard", variables.tab], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: ["user-tasks", "dashboard", variables.tab],
+        exact: true,
+      });
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to cancel task"),
   });
 
   const completeMutation = useMutation({
-    mutationFn: async ({ taskId, proofUrl, tab: _tab }: { taskId: number; proofUrl: string; tab: string }) => {
+    mutationFn: async ({
+      taskId,
+      proofUrl,
+      tab: _tab,
+    }: {
+      taskId: number;
+      proofUrl: string;
+      tab: string;
+    }) => {
       const res = await fetch("/api/user/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -117,14 +148,23 @@ function DashboardInner() {
     },
     onSuccess: (_data, variables) => {
       toast.success("Proof submitted! Pending verification.");
-      queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard", variables.tab], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: ["user-tasks", "dashboard", variables.tab],
+        exact: true,
+      });
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to submit proof"),
   });
 
   const claimDailyLogin = useMutation({
-    mutationFn: async ({ taskId, tab: _tab }: { taskId: number; tab: string }) => {
+    mutationFn: async ({
+      taskId,
+      tab: _tab,
+    }: {
+      taskId: number;
+      tab: string;
+    }) => {
       const res = await fetch("/api/user/tasks/daily-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,14 +191,23 @@ function DashboardInner() {
           500,
         );
       }
-      queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard", variables.tab], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: ["user-tasks", "dashboard", variables.tab],
+        exact: true,
+      });
       queryClient.invalidateQueries({ queryKey: ["user-points"], exact: true });
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
   const claimProfile = useMutation({
-    mutationFn: async ({ taskId, tab: _tab }: { taskId: number; tab: string }) => {
+    mutationFn: async ({
+      taskId,
+      tab: _tab,
+    }: {
+      taskId: number;
+      tab: string;
+    }) => {
       const res = await fetch("/api/user/tasks/claim-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -172,14 +221,23 @@ function DashboardInner() {
     },
     onSuccess: (data, variables) => {
       toast.success(`Profile reward claimed! +${data.pointsAwarded} pts`);
-      queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard", variables.tab], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: ["user-tasks", "dashboard", variables.tab],
+        exact: true,
+      });
       queryClient.invalidateQueries({ queryKey: ["user-points"], exact: true });
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
   const claimReferral = useMutation({
-    mutationFn: async ({ taskId, tab: _tab }: { taskId: number; tab: string }) => {
+    mutationFn: async ({
+      taskId,
+      tab: _tab,
+    }: {
+      taskId: number;
+      tab: string;
+    }) => {
       const res = await fetch("/api/user/tasks/claim-referral", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,7 +251,10 @@ function DashboardInner() {
     },
     onSuccess: (data, variables) => {
       toast.success(`Referral reward claimed! +${data.pointsAwarded} pts`);
-      queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard", variables.tab], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: ["user-tasks", "dashboard", variables.tab],
+        exact: true,
+      });
       queryClient.invalidateQueries({ queryKey: ["user-points"], exact: true });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -249,19 +310,17 @@ function DashboardInner() {
     refetchOnWindowFocus: true,
   });
 
-  // Tabs from first page — always complete regardless of pagination
-  const tabs = useMemo(
-    () => ["all", ...allTaskTypes],
-    [allTaskTypes]
-  );
-
-  // Cache taskTypes from first page — prevents tabs from flickering
   useEffect(() => {
-    const types = dashboardData?.pages[0]?.availableTaskTypes;
-    if (types && types.length > 0 && allTaskTypes.length === 0) {
-      setAllTaskTypes(types);
+    for (const page of dashboardData?.pages ?? []) {
+      if (page.availableTaskTypes && page.availableTaskTypes.length > 0) {
+        setAllTaskTypes(page.availableTaskTypes);
+        return;
+      }
     }
-  }, [dashboardData?.pages[0]?.availableTaskTypes?.length, allTaskTypes.length]);
+    // Don't reset to [] when pages is empty — preserves tabs during tab switch
+  }, [dashboardData?.pages]);
+
+  const tabs = ["all", ...allTaskTypes];
 
   // Only available is paginated — other buckets come from first page
   const firstPage = dashboardData?.pages[0];
@@ -279,11 +338,14 @@ function DashboardInner() {
   const filteredCompletedTasks = useMemo(() => {
     if (!completedData) return [];
     const now = new Date();
-    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const todayStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
     return completedData.filter((t) => {
-      if (t.taskType !== 'daily') return true;
-      if (!t.userAssignedAt) return false;
-      return t.userAssignedAt >= todayStart;
+      if (t.taskType !== "daily") return true;
+      const referenceDate = t.userAssignedAt ?? t.completedAt;
+      if (!referenceDate) return false;
+      return new Date(referenceDate) >= todayStart;
     });
   }, [completedData]);
 
@@ -297,7 +359,10 @@ function DashboardInner() {
 
   // Deduplicate filteredCompletedTasks for TaskList (safety: backend should already dedup)
   const uniqueCompletedTasks = useMemo(
-    () => Array.from(new Map(filteredCompletedTasks.map(t => [t.id, t])).values()),
+    () =>
+      Array.from(
+        new Map(filteredCompletedTasks.map((t) => [t.id, t])).values(),
+      ),
     [filteredCompletedTasks],
   );
 
@@ -309,7 +374,8 @@ function DashboardInner() {
   );
 
   // Combined non-system task count for StatsHeader heading
-  const taskCount = inProgressTasks.length + availableTasks.length + rejectedTasks.length;
+  const taskCount =
+    inProgressTasks.length + availableTasks.length + rejectedTasks.length;
 
   // Sidebar gets non-completed tasks for activity/active display
   // Completed tasks are passed separately via completedTasks prop
@@ -443,14 +509,28 @@ function DashboardInner() {
                   slideDirection={slideDirection}
                   expandedTasks={expandedTasks}
                   onToggleExpand={toggleExpand}
-                  onPickup={(id) => pickupMutation.mutate({ taskId: id, tab: activeTab })}
-                  onCancel={(id) => cancelMutation.mutate({ taskId: id, tab: activeTab })}
-                  onComplete={(id, proofUrl) =>
-                    completeMutation.mutate({ taskId: id, proofUrl, tab: activeTab })
+                  onPickup={(id) =>
+                    pickupMutation.mutate({ taskId: id, tab: activeTab })
                   }
-                  onClaimDailyLogin={(id) => claimDailyLogin.mutate({ taskId: id, tab: activeTab })}
-                  onClaimProfile={(id) => claimProfile.mutate({ taskId: id, tab: activeTab })}
-                  onClaimReferral={(id) => claimReferral.mutate({ taskId: id, tab: activeTab })}
+                  onCancel={(id) =>
+                    cancelMutation.mutate({ taskId: id, tab: activeTab })
+                  }
+                  onComplete={(id, proofUrl) =>
+                    completeMutation.mutate({
+                      taskId: id,
+                      proofUrl,
+                      tab: activeTab,
+                    })
+                  }
+                  onClaimDailyLogin={(id) =>
+                    claimDailyLogin.mutate({ taskId: id, tab: activeTab })
+                  }
+                  onClaimProfile={(id) =>
+                    claimProfile.mutate({ taskId: id, tab: activeTab })
+                  }
+                  onClaimReferral={(id) =>
+                    claimReferral.mutate({ taskId: id, tab: activeTab })
+                  }
                   pickupPending={pickupMutation.isPending}
                   pickupVariable={pickupMutation.variables?.taskId ?? undefined}
                   cancelPending={cancelMutation.isPending}
@@ -475,7 +555,9 @@ function DashboardInner() {
                 totalPoints={totalPoints}
                 completedCount={completedCount}
                 pointsData={pointsData}
-                onCancel={(id) => cancelMutation.mutate({ taskId: id, tab: activeTab })}
+                onCancel={(id) =>
+                  cancelMutation.mutate({ taskId: id, tab: activeTab })
+                }
                 cancelPending={cancelMutation.isPending}
                 cancelVariable={cancelMutation.variables?.taskId ?? undefined}
               />

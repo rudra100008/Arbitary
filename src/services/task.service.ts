@@ -6,7 +6,7 @@ import {
   shareTasksTable,
   shareClicksTable,
 } from "@/src/db/schema";
-import { eq, and, desc, sql, or, gte, lt, inArray, not, type SQL } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, lt, inArray, not, type SQL, isNotNull } from "drizzle-orm";
 import { calculateStreak, getNextMilestone, toDateStr } from "@/src/lib/streak-helper";
 import { getStreakMultiplier } from "@/src/lib/gamification";
 import {
@@ -201,35 +201,35 @@ export const TaskService = {
       const taskIds = allTasks.map((t) => t.id);
       const userTasksRows = taskIds.length > 0
         ? await db
-            .selectDistinctOn([userTasksTable.taskId], {
-              id: userTasksTable.id,
-              taskId: userTasksTable.taskId,
-              status: userTasksTable.status,
-              proofUrl: userTasksTable.proofUrl,
-              assignedAt: userTasksTable.assignedAt,
-              completedAt: userTasksTable.completedAt,
-            })
-            .from(userTasksTable)
-            .where(
-              and(
-                eq(userTasksTable.userId, userId),
-                inArray(userTasksTable.taskId, taskIds),
-              ),
-            )
-            .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
+          .selectDistinctOn([userTasksTable.taskId], {
+            id: userTasksTable.id,
+            taskId: userTasksTable.taskId,
+            status: userTasksTable.status,
+            proofUrl: userTasksTable.proofUrl,
+            assignedAt: userTasksTable.assignedAt,
+            completedAt: userTasksTable.completedAt,
+          })
+          .from(userTasksTable)
+          .where(
+            and(
+              eq(userTasksTable.userId, userId),
+              inArray(userTasksTable.taskId, taskIds),
+            ),
+          )
+          .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
         : [];
       const userTasksMap = new Map(userTasksRows.map((ut) => [ut.taskId, ut]));
 
       const shareTasks = taskIds.length > 0
         ? await db
-            .select()
-            .from(shareTasksTable)
-            .where(
-              and(
-                eq(shareTasksTable.userId, userId),
-                inArray(shareTasksTable.taskId, taskIds),
-              ),
-            )
+          .select()
+          .from(shareTasksTable)
+          .where(
+            and(
+              eq(shareTasksTable.userId, userId),
+              inArray(shareTasksTable.taskId, taskIds),
+            ),
+          )
         : [];
       const shareTaskMap = new Map(shareTasks.map((st) => [st.taskId, st]));
 
@@ -258,43 +258,43 @@ export const TaskService = {
 
     const nextCursor: string | null = hasNextPage
       ? JSON.stringify({
-          createdAt: tasksPage[tasksPage.length - 1].createdAt?.toISOString(),
-          id: tasksPage[tasksPage.length - 1].id,
-        })
+        createdAt: tasksPage[tasksPage.length - 1].createdAt?.toISOString(),
+        id: tasksPage[tasksPage.length - 1].id,
+      })
       : null;
 
     const taskIds = tasksPage.map((t) => t.id);
     const userTasksRows = taskIds.length > 0
       ? await db
-          .selectDistinctOn([userTasksTable.taskId], {
-            id: userTasksTable.id,
-            taskId: userTasksTable.taskId,
-            status: userTasksTable.status,
-            proofUrl: userTasksTable.proofUrl,
-            assignedAt: userTasksTable.assignedAt,
-            completedAt: userTasksTable.completedAt,
-          })
-          .from(userTasksTable)
-          .where(
-            and(
-              eq(userTasksTable.userId, userId),
-              inArray(userTasksTable.taskId, taskIds),
-            ),
-          )
-          .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
+        .selectDistinctOn([userTasksTable.taskId], {
+          id: userTasksTable.id,
+          taskId: userTasksTable.taskId,
+          status: userTasksTable.status,
+          proofUrl: userTasksTable.proofUrl,
+          assignedAt: userTasksTable.assignedAt,
+          completedAt: userTasksTable.completedAt,
+        })
+        .from(userTasksTable)
+        .where(
+          and(
+            eq(userTasksTable.userId, userId),
+            inArray(userTasksTable.taskId, taskIds),
+          ),
+        )
+        .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
       : [];
     const userTasksMap = new Map(userTasksRows.map((ut) => [ut.taskId, ut]));
 
     const shareTasks = taskIds.length > 0
       ? await db
-          .select()
-          .from(shareTasksTable)
-          .where(
-            and(
-              eq(shareTasksTable.userId, userId),
-              inArray(shareTasksTable.taskId, taskIds),
-            ),
-          )
+        .select()
+        .from(shareTasksTable)
+        .where(
+          and(
+            eq(shareTasksTable.userId, userId),
+            inArray(shareTasksTable.taskId, taskIds),
+          ),
+        )
       : [];
     const shareTaskMap = new Map(shareTasks.map((st) => [st.taskId, st]));
 
@@ -399,9 +399,9 @@ export const TaskService = {
 
     const availableNextCursor: string | null = hasNextPage
       ? JSON.stringify({
-          createdAt: availablePage[availablePage.length - 1].createdAt?.toISOString(),
-          id: availablePage[availablePage.length - 1].id,
-        })
+        createdAt: availablePage[availablePage.length - 1].createdAt?.toISOString(),
+        id: availablePage[availablePage.length - 1].id,
+      })
       : null;
 
     // ── Fetch user_tasks & share_tasks for active + available tasks ──
@@ -409,35 +409,35 @@ export const TaskService = {
 
     const userTasksRows = allTaskIds.length > 0
       ? await db
-          .selectDistinctOn([userTasksTable.taskId], {
-            id: userTasksTable.id,
-            taskId: userTasksTable.taskId,
-            status: userTasksTable.status,
-            proofUrl: userTasksTable.proofUrl,
-            assignedAt: userTasksTable.assignedAt,
-            completedAt: userTasksTable.completedAt,
-          })
-          .from(userTasksTable)
-          .where(
-            and(
-              eq(userTasksTable.userId, userId),
-              inArray(userTasksTable.taskId, allTaskIds),
-            ),
-          )
-          .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
+        .selectDistinctOn([userTasksTable.taskId], {
+          id: userTasksTable.id,
+          taskId: userTasksTable.taskId,
+          status: userTasksTable.status,
+          proofUrl: userTasksTable.proofUrl,
+          assignedAt: userTasksTable.assignedAt,
+          completedAt: userTasksTable.completedAt,
+        })
+        .from(userTasksTable)
+        .where(
+          and(
+            eq(userTasksTable.userId, userId),
+            inArray(userTasksTable.taskId, allTaskIds),
+          ),
+        )
+        .orderBy(userTasksTable.taskId, desc(userTasksTable.assignedAt))
       : [];
     const userTasksMap = new Map(userTasksRows.map((ut) => [ut.taskId, ut]));
 
     const shareTaskRows = allTaskIds.length > 0
       ? await db
-          .select()
-          .from(shareTasksTable)
-          .where(
-            and(
-              eq(shareTasksTable.userId, userId),
-              inArray(shareTasksTable.taskId, allTaskIds),
-            ),
-          )
+        .select()
+        .from(shareTasksTable)
+        .where(
+          and(
+            eq(shareTasksTable.userId, userId),
+            inArray(shareTasksTable.taskId, allTaskIds),
+          ),
+        )
       : [];
     const shareTaskMap = new Map(shareTaskRows.map((st) => [st.taskId, st]));
 
@@ -540,6 +540,7 @@ export const TaskService = {
             not(eq(tasksTable.taskType, 'daily')),
             and(
               eq(tasksTable.taskType, 'daily'),
+              isNotNull(userTasksTable.assignedAt),
               gte(userTasksTable.assignedAt, todayStart),
             ),
           ),
@@ -551,14 +552,14 @@ export const TaskService = {
     const taskIds = rows.map((r) => r.task.id);
     const shareTasks = taskIds.length > 0
       ? await db
-          .select()
-          .from(shareTasksTable)
-          .where(
-            and(
-              eq(shareTasksTable.userId, userId),
-              inArray(shareTasksTable.taskId, taskIds),
-            ),
-          )
+        .select()
+        .from(shareTasksTable)
+        .where(
+          and(
+            eq(shareTasksTable.userId, userId),
+            inArray(shareTasksTable.taskId, taskIds),
+          ),
+        )
       : [];
     const shareTaskMap = new Map(shareTasks.map((st) => [st.taskId, st]));
 
@@ -645,6 +646,7 @@ export const TaskService = {
             userId,
             taskId,
             status: "Completed",
+            assignedAt: new Date(today),
             completedAt: new Date(),
           })
           .returning();
@@ -811,6 +813,7 @@ export const TaskService = {
           userId,
           taskId: Number(taskId),
           status: "Completed",
+          assignedAt: new Date(),
           completedAt: new Date(),
         })
         .returning();
@@ -1209,18 +1212,18 @@ export const TaskService = {
     const completedCounts =
       taskIds.length > 0
         ? await db
-            .select({
-              taskId: userTasksTable.taskId,
-              count: sql<number>`count(${userTasksTable.id})::int`,
-            })
-            .from(userTasksTable)
-            .where(
-              and(
-                inArray(userTasksTable.taskId, taskIds),
-                sql`${userTasksTable.status} IN ('Completed', 'Verified')`,
-              ),
-            )
-            .groupBy(userTasksTable.taskId)
+          .select({
+            taskId: userTasksTable.taskId,
+            count: sql<number>`count(${userTasksTable.id})::int`,
+          })
+          .from(userTasksTable)
+          .where(
+            and(
+              inArray(userTasksTable.taskId, taskIds),
+              sql`${userTasksTable.status} IN ('Completed', 'Verified')`,
+            ),
+          )
+          .groupBy(userTasksTable.taskId)
         : [];
     const countsMap = new Map(completedCounts.map((c) => [c.taskId, c.count]));
 
@@ -1460,6 +1463,7 @@ async function getValidCompletedTaskIds(
           not(eq(tasksTable.taskType, 'daily')),
           and(
             eq(tasksTable.taskType, 'daily'),
+            isNotNull(userTasksTable.assignedAt),
             gte(userTasksTable.assignedAt, todayStart),
           ),
         ),

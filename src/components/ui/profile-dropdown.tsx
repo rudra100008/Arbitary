@@ -114,6 +114,7 @@ const ProfileDropdown = ({ redirectUrl }: { redirectUrl: string }) => {
               src={session.user.image}
               alt={session.user.name || "User"}
               fill
+              sizes="40px"
               className="object-cover"
             />
           ) : (
@@ -151,6 +152,7 @@ const ProfileDropdown = ({ redirectUrl }: { redirectUrl: string }) => {
                       src={session.user.image}
                       alt={session.user.name || "User"}
                       fill
+                      sizes="40px"
                       className="object-cover"
                     />
                   ) : (
