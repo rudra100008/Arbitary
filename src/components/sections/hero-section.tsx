@@ -60,14 +60,19 @@ const HeroSection = () => {
               Elevating the underground to a global stage. Explore our curated
               roster of boundary-pushing artists.
             </p>
-            <motion.button
+            <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.97 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              className="px-12 py-5 bg-[#FACC15] text-black font-black uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(250,204,21,0.3)]"
+              className="inline-block"
             >
-              Explore Catalog
-            </motion.button>
+              <Link
+                href="/records"
+                className="px-12 py-5 bg-[#FACC15] text-black font-black uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(250,204,21,0.3)] inline-block"
+              >
+                Explore Catalog
+              </Link>
+            </motion.div>
           </div>
         </div>
       </div>

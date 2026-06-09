@@ -1668,7 +1668,12 @@ export const TaskService = {
 
       await tx
         .update(userTasksTable)
-        .set({ status: newStatus })
+        .set({
+          status: newStatus,
+          ...(newStatus === "Verified" || newStatus === "Rejected"
+            ? { proofImageUrl: null, proofUrl: null }
+            : {}),
+        })
         .where(eq(userTasksTable.id, userTaskId));
 
       if (countChange > 0) {
@@ -1682,6 +1687,13 @@ export const TaskService = {
 
       if (newStatus === "Verified" && currentStatus !== "Verified") {
         await ReferralService.awardReferralBonusIfEligible(userTaskInfo.user.id);
+      }
+
+      if (newStatus === "Verified" || newStatus === "Rejected") {
+        const proofUrl = userTaskInfo.userTask.proofImageUrl;
+        if (proofUrl) {
+          deleteCloudinaryImage(proofUrl);
+        }
       }
 
       return ok({ message: "Submission updated" });
