@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef,useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Script from "next/script";
 import {
   X,
@@ -12,7 +12,6 @@ import {
   SkipForward,
   Play,
   Pause,
-  Maximize2,
 } from "lucide-react";
 import {
   type Song,
@@ -27,13 +26,6 @@ import "./recordsCatalog.css";
 
 const MONITOR_W = 272;
 const MONITOR_H = 210;
-const POPUP_SCALE = 2.2;
-const POPUP_W = Math.round(MONITOR_W * POPUP_SCALE);
-const POPUP_H = Math.round(MONITOR_H * POPUP_SCALE);
-const POPUP_VID_X = Math.round(14 * POPUP_SCALE);
-const POPUP_VID_Y = Math.round(10 * POPUP_SCALE);
-const POPUP_VID_W = Math.round((MONITOR_W - 28) * POPUP_SCALE);
-const POPUP_VID_H = Math.round((MONITOR_H - 44) * POPUP_SCALE);
 
 type Group = { key: string; label: string; items: Song[] };
 
@@ -71,7 +63,6 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     scrollBlockVisible: false,
     scrollY0: 0,
     scrollGuardActive: false,
-    popupOpen: false,
   });
   const initRef = useRef(false);
 
@@ -338,61 +329,6 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     loadAudio(s.currentTrack);
   };
 
-  /* ── popup video ── */
-  const [popupTrackId, setPopupTrackId] = useState<string | null>(null);
-  const [popupAutoplay, setPopupAutoplay] = useState(true);
-
-  const openPopup = () => {
-    const s = S.current;
-    if (!s.currentTrack) return;
-    s.popupOpen = true;
-    s.ytVideoPlayer?.pauseVideo();
-    setPopupAutoplay(true);
-    setPopupTrackId(s.currentTrack.ytId);
-    const svg = byId("popupMonitorSvg");
-    if (svg) svg.innerHTML = monitorFrameSVG(MONITOR_W, MONITOR_H, s.currentTrack.labelColor);
-    byId("popupPlayBtn")?.classList.add("rc-playing");
-    byId("popupOverlay")?.classList.add("rc-show");
-    document.body.style.overflow = "hidden";
-  };
-
-  const closePopup = () => {
-    S.current.popupOpen = false;
-    setPopupTrackId(null);
-    byId("popupOverlay")?.classList.remove("rc-show");
-    document.body.style.overflow = "";
-  };
-
-  const postToPopupIframe = (cmd: string) => {
-    const iframe = byId("popupIframe") as HTMLIFrameElement | null;
-    iframe?.contentWindow?.postMessage(
-      JSON.stringify({ event: "command", func: cmd, args: "" }),
-      "*",
-    );
-  };
-
-  const handlePopupTogglePlay = () => {
-    const s = S.current;
-    s.isPlaying = !s.isPlaying;
-    postToPopupIframe(s.isPlaying ? "playVideo" : "pauseVideo");
-    byId("popupPlayBtn")?.classList.toggle("rc-playing", s.isPlaying);
-  };
-
-  const handlePopupSkip = (dir: number) => {
-    const s = S.current;
-    s.ytVideoPlayer?.pauseVideo();
-    skip(dir);
-    s.ytVideoPlayer?.pauseVideo();
-    s.isPlaying = false;
-    setPopupAutoplay(false);
-    if (s.currentTrack) {
-      setPopupTrackId(s.currentTrack.ytId);
-      const svg = byId("popupMonitorSvg");
-      if (svg) svg.innerHTML = monitorFrameSVG(MONITOR_W, MONITOR_H, s.currentTrack.labelColor);
-    }
-    byId("popupPlayBtn")?.classList.remove("rc-playing");
-  };
-
   /* ── record swap / play / skip ── */
   const swapRecord = (song: Song) => {
     const old = byId("platterRecordG");
@@ -519,6 +455,25 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
       detachScrollGuard();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ── scale monitor content when container is resized ── */
+  useEffect(() => {
+    const fr = document.getElementById("monitorFrameWrap");
+    if (!fr) return;
+    const content = document.getElementById("monitorContent");
+    if (!content) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      const scale = Math.min(width / MONITOR_W, height / MONITOR_H);
+      const scaledW = MONITOR_W * scale;
+      const scaledH = MONITOR_H * scale;
+      content.style.left = `${(width - scaledW) / 2}px`;
+      content.style.top = `${(height - scaledH) / 2}px`;
+      content.style.transform = `scale(${scale})`;
+    });
+    ro.observe(fr);
+    return () => ro.disconnect();
   }, []);
 
   const totalLabel = `${songs.length} record${songs.length === 1 ? "" : "s"}`;
@@ -711,18 +666,18 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
               <button onClick={switchToAudio} title="Switch to audio">
                 <Headphones size={15} />
               </button>
-              <button onClick={openPopup} title="Pop up">
-                <Maximize2 size={17} />
-              </button>
+
               <button onClick={collapseMonitor} title="Collapse">
                 <ChevronDown size={15} />
               </button>
             </div>
           </div>
           <div className="rc-monitor-frame-wrap" id="monitorFrameWrap">
-            <svg id="monitorSvg" width={MONITOR_W} height={MONITOR_H} viewBox={`0 0 ${MONITOR_W} ${MONITOR_H}`} style={{ display: "block" }} />
-            <div className="rc-yt-iframe-wrap" id="ytIframeWrap">
-              <div id="ytPlayerVideo" />
+            <div className="monitor-content" id="monitorContent">
+              <svg id="monitorSvg" width={MONITOR_W} height={MONITOR_H} viewBox={`0 0 ${MONITOR_W} ${MONITOR_H}`} style={{ display: "block" }} />
+              <div className="rc-yt-iframe-wrap" id="ytIframeWrap">
+                <div id="ytPlayerVideo" />
+              </div>
             </div>
           </div>
           <div className="rc-monitor-track" id="monitorTrack" />
@@ -745,58 +700,6 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
         </div>
         <div className="rc-monitor-mini" id="monitorMini" onClick={expandMonitor} title="Open player">
           <svg id="monitorMiniSvg" width="68" height="60" viewBox="0 0 68 60" style={{ display: "block" }} />
-        </div>
-      </div>
-
-      {/* Popup video overlay */}
-      <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-sm flex-col items-center justify-center overflow-y-auto" id="popupOverlay">
-        <div className="flex flex-col items-center gap-6 p-4 max-w-full">
-          <div className="relative">
-            <button
-              onClick={closePopup}
-              className="absolute -top-3 -right-3 z-10 w-6 h-6 rounded-full bg-white/5 text-white/40 hover:text-white hover:bg-white/20 transition-all flex items-center justify-center"
-              aria-label="Close popup"
-            >
-              <X size={18} />
-            </button>
-            <div style={{ position: "relative", width: POPUP_W, height: POPUP_H }}>
-              <svg id="popupMonitorSvg" width={POPUP_W} height={POPUP_H} viewBox={`0 0 ${MONITOR_W} ${MONITOR_H}`} style={{ display: "block" }} />
-              <div style={{ position: "absolute", left: POPUP_VID_X, top: POPUP_VID_Y, width: POPUP_VID_W, height: POPUP_VID_H, borderRadius: 6, overflow: "hidden", background: "#000" }}>
-                {popupTrackId && (
-                  <iframe
-                    id="popupIframe"
-                    src={`https://www.youtube.com/embed/${popupTrackId}?autoplay=${popupAutoplay ? 1 : 0}&enablejsapi=1`}
-                    width="100%"
-                    height="100%"
-                    allow="autoplay; encrypted-media"
-                    style={{ border: 0 }}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          {S.current.currentTrack && (
-            <div className="text-white/80 text-sm text-center">
-              <div className="text-base font-bold">{S.current.currentTrack.title}</div>
-              <div className="text-zinc-400">{S.current.currentTrack.artist}</div>
-            </div>
-          )}
-          <div className="flex items-center gap-4">
-            <button className="rc-tt-btn text-white hover:text-[#FACC15] transition-colors" onClick={() => handlePopupSkip(-1)} aria-label="Previous">
-              <SkipBack size={14} />
-            </button>
-            <button className="rc-tt-btn rc-big text-white hover:text-[#FACC15] transition-colors" id="popupPlayBtn" onClick={handlePopupTogglePlay} aria-label="Play/Pause">
-              <span className="rc-ic rc-ic-play">
-                <Play size={17} />
-              </span>
-              <span className="rc-ic rc-ic-pause">
-                <Pause size={17} />
-              </span>
-            </button>
-            <button className="rc-tt-btn text-white hover:text-[#FACC15] transition-colors" onClick={() => handlePopupSkip(1)} aria-label="Next">
-              <SkipForward size={14} />
-            </button>
-          </div>
         </div>
       </div>
 
