@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const file = formData.get("file") as File | null;
   const rawType = (formData.get("type") as string) || "task-proofs";
-  const allowedFolders = ["task-proofs", "profile-pictures", "event-heroes", "record_cover"];
+  const allowedFolders = ["task-proofs", "profile-pictures", "event-heroes", "record_cover", "partner_logo", "member_photo", "about_hero"];
   const type = allowedFolders.includes(rawType) ? rawType : "task-proofs";
 
   if (!file) {

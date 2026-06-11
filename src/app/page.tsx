@@ -18,6 +18,18 @@ interface HomePageEvent {
 
 const HomePage = () => {
   const [events, setEvents] = React.useState<HomePageEvent[]>([]);
+  const [partners, setPartners] = React.useState<{ name: string; logoUrl: string | null }[]>([]);
+  const [teamMembers, setTeamMembers] = React.useState<{ name: string; role: string; photoUrl: string | null }[]>([]);
+  const [featuredRecords, setFeaturedRecords] = React.useState<{
+    id: number; title: string; artist: string; genre: string | null;
+    coverImageUrl: string | null; labelColor: string | null;
+  }[]>([]);
+  const [aboutContent, setAboutContent] = React.useState<{
+    tagline: string | null; heading: string | null; description: string | null;
+    heroImageUrl: string | null; projectsCount: string | null; projectsLabel: string | null;
+    awardsCount: string | null; awardsLabel: string | null;
+    motto: string | null; mottoAuthor: string | null;
+  } | null>(null);
 
   React.useEffect(() => {
     const fetchEvents = async () => {
@@ -31,7 +43,52 @@ const HomePage = () => {
         console.error("Error fetching events:", error);
       }
     };
+
+    const fetchPartners = async () => {
+      try {
+        const res = await fetch("/api/partners");
+        const data = await res.json();
+        if (data.success) setPartners(data.partners ?? []);
+      } catch {
+        // non-critical
+      }
+    };
+
+    const fetchTeamMembers = async () => {
+      try {
+        const res = await fetch("/api/team-members");
+        const data = await res.json();
+        if (data.success) setTeamMembers(data.teamMembers ?? []);
+      } catch {
+        // non-critical
+      }
+    };
+
+    const fetchFeaturedRecords = async () => {
+      try {
+        const res = await fetch("/api/records?latest=2");
+        const data = await res.json();
+        if (data.success) setFeaturedRecords(data.records ?? []);
+      } catch {
+        // non-critical
+      }
+    };
+
+    const fetchAboutContent = async () => {
+      try {
+        const res = await fetch("/api/about");
+        const data = await res.json();
+        if (data.success) setAboutContent(data.about);
+      } catch {
+        // non-critical
+      }
+    };
+
     fetchEvents();
+    fetchPartners();
+    fetchTeamMembers();
+    fetchFeaturedRecords();
+    fetchAboutContent();
   }, []);
 
   const formatDate = (dateStr: string) => {
@@ -145,145 +202,235 @@ const HomePage = () => {
         </section>
 
         {/* 4. Featured Work Section */}
-        <section className="py-32 bg-white">
-          <div className="container mx-auto px-6">
-            <div className="flex justify-between items-end mb-20">
-              <div>
-                <h2 className="text-4xl md:text-5xl font-black tracking-tight text-black">
-                  FEATURED WORK
-                </h2>
-              </div>
-              <button className="hidden md:block text-zinc-400 hover:text-black transition-colors uppercase tracking-[0.2em] font-bold border-b border-black/10 pb-2">
-                View All Projects
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              {[1, 2].map((id) => (
-                <div key={id} className="group cursor-pointer">
-                  <div className="aspect-[16/10] bg-zinc-100 rounded-2xl overflow-hidden mb-6 relative border border-black/5">
-                    <div className="absolute inset-0 bg-gradient-to-t from-white/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="absolute inset-0 flex items-center justify-center scale-110 group-hover:scale-100 transition-transform duration-700">
-                      <div className="w-full h-full bg-zinc-200" />
-                    </div>
-                    {/* Project Label */}
-                    <div className="absolute bottom-8 left-8 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-                      <span className="bg-[#FACC15] text-black px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg">
-                        {id === 1 ? "Visual Identity" : "Web Experience"}
-                      </span>
-                    </div>
-                  </div>
-                  <h4 className="text-2xl font-bold mb-2 group-hover:text-[#FACC15] transition-colors text-black uppercase">
-                    {id === 1 ? "NEON VERTIGO" : "CRYPTO SPHERE"}
-                  </h4>
-                  <p className="text-zinc-400 uppercase tracking-widest text-sm font-medium">
-                    {id === 1
-                      ? "Direction / 3D / Web"
-                      : "Product / UIUX / Branding"}
-                  </p>
+        {featuredRecords.length > 0 && (
+          <section className="py-32 bg-white">
+            <div className="container mx-auto px-6">
+              <div className="flex justify-between items-end mb-20">
+                <div>
+                  <h2 className="text-4xl md:text-5xl font-black tracking-tight text-black">
+                    FEATURED WORK
+                  </h2>
                 </div>
-              ))}
+                <Link
+                  href="/records"
+                  className="hidden md:block text-zinc-400 hover:text-black transition-colors uppercase tracking-[0.2em] font-bold border-b border-black/10 pb-2"
+                >
+                  View All Projects
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                {featuredRecords.map((r) => (
+                  <Link key={r.id} href="/records" className="group cursor-pointer">
+                    <div className="aspect-[16/10] bg-zinc-100 rounded-2xl overflow-hidden mb-6 relative border border-black/5">
+                      {r.coverImageUrl ? (
+                        <img
+                          src={r.coverImageUrl}
+                          alt={r.title}
+                          className="w-full h-full object-cover scale-110 group-hover:scale-100 transition-transform duration-700"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          style={{ backgroundColor: r.labelColor || "#e0e0e0" }}
+                        >
+                          <span className="text-2xl font-black text-white/40 uppercase">{r.title[0]}</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-white/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                      {r.genre && (
+                        <div className="absolute bottom-8 left-8 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
+                          <span className="bg-[#FACC15] text-black px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg">
+                            {r.genre}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <h4 className="text-2xl font-bold mb-2 group-hover:text-[#FACC15] transition-colors text-black uppercase">
+                      {r.title}
+                    </h4>
+                    <p className="text-zinc-400 uppercase tracking-widest text-sm font-medium">
+                      {r.artist}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+
+              <Link
+                href="/records"
+                className="md:hidden block text-center mt-12 text-zinc-400 hover:text-black transition-colors uppercase tracking-[0.2em] font-bold"
+              >
+                View All Projects
+              </Link>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* 5. About Us (Team) Section */}
-        <section className="py-32 bg-zinc-50">
-          <div className="container mx-auto px-6">
-            <div className="text-center mb-20">
-              <h3 className="text-[#FACC15] font-bold uppercase tracking-widest mb-4">
-                Our Team
-              </h3>
-              <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase text-black">
-                Meet the Minds
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {[1, 2, 3, 4].map((id) => (
-                <div key={id} className="group text-center">
-                  <div className="aspect-square bg-zinc-200 rounded-2xl mb-6 overflow-hidden border border-black/5 transition-all duration-500 group-hover:shadow-2xl">
-                    <div className="w-full h-full bg-zinc-300" />
+        {teamMembers.length > 0 && (
+          <section className="py-32 bg-zinc-50">
+            <div className="container mx-auto px-6">
+              <div className="text-center mb-20">
+                <h3 className="text-[#FACC15] font-bold uppercase tracking-widest mb-4">
+                  Our Team
+                </h3>
+                <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase text-black">
+                  Meet the Minds
+                </h2>
+              </div>
+              <div className={`flex gap-6 md:gap-8 ${teamMembers.length > 4 ? "overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin" : "flex-wrap justify-center"}`}>
+                {teamMembers.map((m) => (
+                  <div key={m.name} className={`group text-center ${teamMembers.length > 4 ? "min-w-[260px] md:min-w-[300px] snap-start" : "w-[260px] md:w-[300px]"}`}>
+                    <div className="aspect-square bg-zinc-200 rounded-2xl mb-6 overflow-hidden border border-black/5 transition-all duration-500 group-hover:shadow-2xl">
+                      {m.photoUrl ? (
+                        <img
+                          src={m.photoUrl}
+                          alt={m.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-zinc-300 flex items-center justify-center">
+                          <span className="text-4xl font-black text-zinc-400">{m.name[0]}</span>
+                        </div>
+                      )}
+                    </div>
+                    <h4 className="text-xl font-bold group-hover:text-[#FACC15] transition-colors uppercase text-black">
+                      {m.name}
+                    </h4>
+                    <p className="text-zinc-500 text-sm uppercase tracking-widest mt-1">
+                      {m.role}
+                    </p>
                   </div>
-                  <h4 className="text-xl font-bold group-hover:text-[#FACC15] transition-colors uppercase text-black">
-                    Team Member {id}
-                  </h4>
-                  <p className="text-zinc-500 text-sm uppercase tracking-widest mt-1">
-                    Creative Director
-                  </p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* 6. Clients Section */}
-        <section className="py-24 bg-white">
-          <div className="container mx-auto px-6 text-center">
-            <h3 className="text-zinc-400 font-bold uppercase tracking-[0.3em] text-sm mb-12">
-              TRUSTED BY WORLD CLASS BRANDS
-            </h3>
-            <div className="flex flex-wrap justify-center items-center gap-12 md:gap-20 opacity-20 hover:opacity-50 transition-opacity duration-500 grayscale">
-              {[1, 2, 3, 4, 5].map((id) => (
-                <div
-                  key={id}
-                  className="text-2xl font-black tracking-tighter text-black"
-                >
-                  LOGO_{id}
-                </div>
-              ))}
+        {partners.length > 0 && (
+          <section className="py-24 bg-white">
+            <div className="container mx-auto px-6 text-center">
+              <h3 className="text-zinc-400 font-bold uppercase tracking-[0.3em] text-sm mb-12">
+                TRUSTED BY WORLD CLASS BRANDS
+              </h3>
+              <div className="flex flex-wrap justify-center items-center gap-12 md:gap-20">
+                {partners.map((p) => (
+                  p.logoUrl ? (
+                    <img
+                      key={p.name}
+                      src={p.logoUrl}
+                      alt={p.name}
+                      className="h-16 md:h-20 object-contain grayscale opacity-40 hover:opacity-100 hover:grayscale-0 transition-all duration-300"
+                    />
+                  ) : (
+                    <div
+                      key={p.name}
+                      className="text-2xl md:text-3xl font-black tracking-tighter text-black grayscale opacity-40 hover:opacity-100 hover:grayscale-0 transition-all duration-300"
+                    >
+                      {p.name}
+                    </div>
+                  )
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* 7. About the Arbitrary Section */}
-        <section className="py-32 relative overflow-hidden bg-white">
-          <div className="container mx-auto px-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-              <div>
-                <h3 className="text-[#FACC15] font-bold uppercase tracking-widest mb-4">
-                  The Arbitrary
-                </h3>
-                <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-8 uppercase leading-tight text-black">
-                  DEFINING THE <br /> ARBITRARY
-                </h2>
-                <p className="text-lg text-zinc-600 mb-8 leading-relaxed italic">
-                  "In a world of structure, we find beauty in the unexpected.
-                  Our agency thrives at the intersection of chaos and design."
-                </p>
-                <div className="grid grid-cols-2 gap-8 mb-10">
-                  <div>
-                    <p className="text-3xl font-black text-black">150+</p>
-                    <p className="text-zinc-500 text-xs uppercase tracking-widest">
-                      Projects Completed
+        {aboutContent && (aboutContent.tagline || aboutContent.heading) && (
+          <section className="py-32 relative overflow-hidden bg-white">
+            <div className="container mx-auto px-6">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 lg:gap-20 items-center">
+                <div className="lg:col-span-3">
+                  {aboutContent.tagline && (
+                    <h3 className="text-[#FACC15] font-bold uppercase tracking-widest mb-4">
+                      {aboutContent.tagline}
+                    </h3>
+                  )}
+                  {aboutContent.heading && (() => {
+                    const firstSpace = aboutContent.heading!.indexOf(" ");
+                    const firstWord = firstSpace === -1 ? aboutContent.heading! : aboutContent.heading!.slice(0, firstSpace);
+                    const rest = firstSpace === -1 ? "" : aboutContent.heading!.slice(firstSpace + 1);
+                    return (
+                      <h2 className="text-4xl md:text-6xl font-black tracking-tighter uppercase leading-tight text-black mb-6">
+                        <span className="text-black">{firstWord}</span>
+                        {rest && (
+                          <>
+                            <br />
+                            <span className="text-transparent bg-clip-text bg-linear-to-r from-[#FACC15] to-zinc-800">
+                              {rest}
+                            </span>
+                          </>
+                        )}
+                      </h2>
+                    );
+                  })()}
+                  {aboutContent.description && (
+                    <p className="text-base md:text-lg text-zinc-500 leading-relaxed mb-8">
+                      {aboutContent.description.length > 120
+                        ? aboutContent.description.slice(0, 120).trimEnd() + "..."
+                        : aboutContent.description}
+                      <Link
+                        href="/about"
+                        className="inline ml-2 text-[#FACC15] hover:text-black font-bold transition-colors"
+                      >
+                        Read more →
+                      </Link>
                     </p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-black text-black">25+</p>
-                    <p className="text-zinc-500 text-xs uppercase tracking-widest">
-                      Awards Won
-                    </p>
-                  </div>
+                  )}
+                  {(aboutContent.projectsCount || aboutContent.awardsCount) && (
+                    <div className="grid grid-cols-2 gap-8 mb-10">
+                      {aboutContent.projectsCount && (
+                        <div>
+                          <p className="text-3xl font-black text-black">{aboutContent.projectsCount}</p>
+                          <p className="text-zinc-500 text-xs uppercase tracking-widest">
+                            {aboutContent.projectsLabel || "Projects Completed"}
+                          </p>
+                        </div>
+                      )}
+                      {aboutContent.awardsCount && (
+                        <div>
+                          <p className="text-3xl font-black text-black">{aboutContent.awardsCount}</p>
+                          <p className="text-zinc-500 text-xs uppercase tracking-widest">
+                            {aboutContent.awardsLabel || "Awards Won"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div className="relative">
-                <div className="aspect-square bg-zinc-50 rounded-3xl border border-black/5 flex items-center justify-center overflow-hidden shadow-sm">
-                  <div className="text-[15vw] font-black text-black/5 select-none">
-                    A
+                <div className="relative lg:col-span-2">
+                  <div className="rounded-3xl border border-black/5 overflow-hidden shadow-sm">
+                    {aboutContent.heroImageUrl ? (
+                      <img
+                        src={aboutContent.heroImageUrl}
+                        alt="About Arbitrary"
+                        className="w-full block"
+                      />
+                    ) : (
+                      <div className="text-[15vw] font-black text-black/5 select-none py-32 bg-zinc-50 flex items-center justify-center min-h-[200px]">
+                        A
+                      </div>
+                    )}
                   </div>
-                </div>
-                {/* Floating card */}
-                <div className="absolute -bottom-10 -left-10 bg-black p-8 rounded-2xl text-white max-w-[280px] hidden md:block shadow-2xl">
-                  <p className="font-bold text-xl mb-2 italic">
-                    "Vision without limits."
-                  </p>
-                  <p className="text-sm font-medium uppercase tracking-widest opacity-70 text-[#FACC15]">
-                    - Founding Philosophy
-                  </p>
+                  {aboutContent.motto && (
+                    <div className="absolute -bottom-10 -left-10 bg-black p-8 rounded-2xl text-white max-w-[280px] hidden md:block shadow-2xl">
+                      <p className="font-bold text-xl mb-2 italic">
+                        &ldquo;{aboutContent.motto}&rdquo;
+                      </p>
+                      {aboutContent.mottoAuthor && (
+                        <p className="text-sm font-medium uppercase tracking-widest opacity-70 text-[#FACC15]">
+                          {aboutContent.mottoAuthor}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Big CTA Section (Before Footer) */}
         <section className="py-32 relative overflow-hidden border-t border-black/5 bg-zinc-50">
@@ -292,9 +439,12 @@ const HomePage = () => {
               READY TO BUILD SOMETHING{" "}
               <span className="text-[#FACC15]">LEGENDARY?</span>
             </h2>
-            <button className="bg-black text-white px-12 py-6 rounded-full font-black text-xl uppercase tracking-widest hover:bg-[#FACC15] hover:text-black hover:scale-105 transition-all duration-300 shadow-2xl">
-              Let's Collaborate
-            </button>
+            <Link
+              href="/contact"
+              className="inline-block bg-black text-white px-12 py-6 rounded-full font-black text-xl uppercase tracking-widest hover:bg-[#FACC15] hover:text-black hover:scale-105 transition-all duration-300 shadow-2xl"
+            >
+              Let&rsquo;s Collaborate
+            </Link>
           </div>
           {/* Background Text Overlay */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[20vw] font-black text-black/[0.02] whitespace-nowrap pointer-events-none">

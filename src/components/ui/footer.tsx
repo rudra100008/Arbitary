@@ -41,9 +41,12 @@ const Footer = () => {
           <div className="space-y-6">
             <h4 className="text-[#FACC15] font-bold uppercase tracking-widest text-sm">Navigation</h4>
             <ul className="space-y-4">
-              {['Home', 'Work', 'Events', 'About', 'Contact'].map((item) => (
+              {['Home', 'Work', 'Events', 'Records', 'About', 'Contact'].map((item) => (
                 <li key={item}>
-                  <Link href={`/${item.toLowerCase()}`} className="text-zinc-500 hover:text-black transition-colors font-medium">
+                  <Link
+                    href={item === "Home" ? "/" : `/${item.toLowerCase()}`}
+                    className="text-zinc-500 hover:text-black transition-colors font-medium"
+                  >
                     {item}
                   </Link>
                 </li>
@@ -56,14 +59,18 @@ const Footer = () => {
             <h4 className="text-[#FACC15] font-bold uppercase tracking-widest text-sm">Get in Touch</h4>
             <ul className="space-y-4 text-zinc-500">
               <li>
-                <p className="text-black font-bold uppercase text-xs tracking-widest mb-1">Headquarters</p>
-                <p>123 Creative Street, Design District</p>
-                <p>New York, NY 10001</p>
+                <Link href="/contact" className="block group">
+                  <p className="text-black font-bold uppercase text-xs tracking-widest mb-1 group-hover:text-[#FACC15] transition-colors">Headquarters</p>
+                  <p>123 Creative Street, Design District</p>
+                  <p>New York, NY 10001</p>
+                </Link>
               </li>
               <li>
-                <p className="text-black font-bold uppercase text-xs tracking-widest mb-1">Inquiries</p>
-                <p>hello@arbitrary.com</p>
-                <p>+1 (555) 000-0000</p>
+                <Link href="/contact" className="block group">
+                  <p className="text-black font-bold uppercase text-xs tracking-widest mb-1 group-hover:text-[#FACC15] transition-colors">Inquiries</p>
+                  <p>hello@arbitrary.com</p>
+                  <p>+1 (555) 000-0000</p>
+                </Link>
               </li>
             </ul>
           </div>
@@ -91,7 +98,7 @@ const Footer = () => {
             © {currentYear} ARBITRARY AGENCY. ALL RIGHTS RESERVED.
           </p>
           <div className="flex gap-8 text-sm text-zinc-400 font-medium">
-            <a href="#" className="hover:text-black transition-colors">PRIVACY POLICY</a>
+            <Link href="/privacy-policy" className="hover:text-black transition-colors">PRIVACY POLICY</Link>
             <a href="#" className="hover:text-black transition-colors">TERMS OF SERVICE</a>
           </div>
         </div>

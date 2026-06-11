@@ -27,6 +27,16 @@ export const RecordService = {
     return ok(records);
   },
 
+  async getLatestRecords(limit: number): Promise<ServiceResult<RecordItem[]>> {
+    const records = await db
+      .select()
+      .from(recordsTable)
+      .orderBy(desc(recordsTable.createdAt))
+      .limit(limit);
+
+    return ok(records);
+  },
+
   async getRecordById(id: number): Promise<ServiceResult<RecordItem>> {
     const [record] = await db
       .select()

@@ -263,6 +263,48 @@ export const recordsTable = pgTable("records", {
     updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// --- Partners / Our Work ---
+export const partnersTable = pgTable("partners", {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    logoUrl: text("logo_url"),
+    description: text("description"),
+    websiteUrl: text("website_url"),
+    category: varchar("category", { length: 50 }),
+    sortOrder: integer("sort_order").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// --- Team Members ---
+export const teamMembersTable = pgTable("team_members", {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    role: varchar("role", { length: 255 }).notNull(),
+    photoUrl: text("photo_url"),
+    bio: text("bio"),
+    sortOrder: integer("sort_order").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// --- About Content (Singleton) ---
+export const aboutContentTable = pgTable("about_content", {
+    id: serial("id").primaryKey(),
+    tagline: varchar("tagline", { length: 255 }),
+    heading: varchar("heading", { length: 255 }),
+    description: text("description"),
+    heroImageUrl: text("hero_image_url"),
+    projectsCount: varchar("projects_count", { length: 50 }),
+    projectsLabel: varchar("projects_label", { length: 255 }),
+    awardsCount: varchar("awards_count", { length: 50 }),
+    awardsLabel: varchar("awards_label", { length: 255 }),
+    motto: text("motto"),
+    mottoAuthor: varchar("motto_author", { length: 255 }),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // --- Admin Activity Log ---
 export const adminActivityLogsTable = pgTable("admin_activity_logs", {
     id: serial("id").primaryKey(),

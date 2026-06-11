@@ -32,7 +32,7 @@
 }
 .rc-shelf {
   display: flex;
-  gap: 2.75rem;
+  gap: 3rem;
   flex-wrap: wrap;
   align-items: flex-end;
 }
@@ -54,7 +54,7 @@
 .rc-vslot {
   cursor: pointer;
   position: relative;
-  width: 150px;
+  width: 170px;
   user-select: none;
   transition: transform 0.25s ease;
 }
@@ -63,29 +63,29 @@
 }
 .rc-sleeve-wrap {
   position: relative;
-  width: 150px;
-  height: 150px;
+  width: 170px;
+  height: 170px;
 }
 .rc-disc-peek {
   position: absolute;
   top: 8px;
   left: 8px;
-  width: 134px;
-  height: 134px;
+  width: 154px;
+  height: 154px;
   border-radius: 50%;
   z-index: 2;
   transition: left 0.4s cubic-bezier(0.34, 1.4, 0.64, 1);
   pointer-events: none;
 }
 .rc-vslot:hover .rc-disc-peek {
-  left: 34px;
+  left: 38px;
 }
 .rc-sleeve-card {
   position: absolute;
   top: 0;
   left: 0;
-  width: 142px;
-  height: 142px;
+  width: 162px;
+  height: 162px;
   border-radius: 10px;
   z-index: 3;
   overflow: hidden;
@@ -109,7 +109,7 @@
   opacity: 0.07;
 }
 .rc-sleeve-title {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: -0.01em;
@@ -120,7 +120,7 @@
   z-index: 1;
 }
 .rc-sleeve-artist {
-  font-size: 9px;
+  font-size: 10px;
   text-align: center;
   padding: 0 8px;
   opacity: 0.75;
@@ -136,13 +136,13 @@
 }
 .rc-slot-label strong {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: -0.01em;
 }
 .rc-slot-label span {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -794,5 +794,13 @@
   display: none;
 }
 .rc-playing .rc-ic-pause {
+  display: flex;
+}
+
+/* Popup overlay */
+#popupOverlay {
+  display: none;
+}
+#popupOverlay.rc-show {
   display: flex;
 }

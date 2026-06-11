@@ -22,8 +22,9 @@ const sidebarItems: { label: string; href: string | null }[] = [
   { label: "User Submissions", href: "/admin/dashboard/submissions" },
   { label: "Fraud Detection", href: "/admin/dashboard/fraud" },
   { label: "Analytics", href: "/admin/dashboard/analytics" },
-  { label: "Our Work", href: null },
-  { label: "Team Members", href: null },
+  { label: "Our Work", href: "/admin/dashboard/partners" },
+  { label: "Team Members", href: "/admin/dashboard/team-members" },
+  { label: "About Content", href: "/admin/dashboard/about" },
   { label: "Settings", href: null },
 ];
 
