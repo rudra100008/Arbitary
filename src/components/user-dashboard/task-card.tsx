@@ -11,7 +11,10 @@ import { FlashCountdown } from "./flash-countdown";
 import { useReward } from "@/src/components/rewards/reward-context";
 import { UserTaskItem } from "@/src/services/task.service";
 import { TaskActionButtons } from "@/src/components/tasks/TaskActionButtons";
-import { useScreenshotUpload } from "@/src/hooks/useScreenshotUpload";
+import {
+  useScreenshotUpload,
+  type ImageAnalysis,
+} from "@/src/hooks/useScreenshotUpload";
 
 type TaskCardProps = {
   task: UserTaskItem;
@@ -24,6 +27,7 @@ type TaskCardProps = {
     taskId: number,
     proofUrl: string,
     proofImageUrl?: string,
+    imageAnalysis?: ImageAnalysis | null,
   ) => void;
   onClaimDailyLogin: (taskId: number) => void;
   onClaimProfile: (taskId: number) => void;
@@ -209,7 +213,9 @@ export function TaskCard({
     isUploading,
     handleFileSelect,
     handleSubmit: handleScreenshotSubmit,
-  } = useScreenshotUpload((url) => onComplete(task.id, url, url));
+  } = useScreenshotUpload((url, imageAnalysis) =>
+    onComplete(task.id, url, url, imageAnalysis),
+  );
 
   useEffect(() => {
     async function loadFp() {

@@ -1,4 +1,5 @@
 "use client";
+import { type ImageAnalysis } from "@/src/hooks/useScreenshotUpload";
 import { useEffect, useState, useRef, useMemo } from "react";
 import {
   useQuery,
@@ -166,11 +167,13 @@ function DashboardInner() {
       taskId,
       proofUrl,
       proofImageUrl,
+      imageAnalysis,
       tab: _tab,
     }: {
       taskId: number;
       proofUrl: string;
       proofImageUrl?: string;
+      imageAnalysis?: ImageAnalysis | null;
       tab: string;
     }) => {
       const res = await fetch("/api/user/tasks", {
@@ -181,6 +184,10 @@ function DashboardInner() {
           status: "Pending Verification",
           proofUrl,
           proofImageUrl,
+          proofPhash: imageAnalysis?.phash ?? null,
+          proofExifFlags: imageAnalysis?.exifFlags
+            ? JSON.stringify(imageAnalysis.exifFlags)
+            : null,
         }),
       });
       if (!res.ok) {
@@ -619,14 +626,21 @@ function DashboardInner() {
                   onCancel={(id) =>
                     cancelMutation.mutate({ taskId: id, tab: activeTab })
                   }
-                  onComplete={(id, proofUrl, proofImageUrl) =>
+                  onComplete={(id, proofUrl, proofImageUrl, imageAnalysis) => {
+                    if (imageAnalysis?.isDuplicateImage) {
+                      toast.error(
+                        "This image has already been submitted as proof. Please upload a different screenshot.",
+                      );
+                      return;
+                    }
                     completeMutation.mutate({
                       taskId: id,
                       proofUrl,
                       proofImageUrl,
+                      imageAnalysis,
                       tab: activeTab,
-                    })
-                  }
+                    });
+                  }}
                   onClaimDailyLogin={(_id) =>
                     claimDailyLogin.mutate({ tab: activeTab })
                   }

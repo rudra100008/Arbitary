@@ -4,7 +4,8 @@ import {
   userTasksTable,
   tasksTable,
 } from "@/src/db/schema";
-import { eq, and, sql, gte, desc, inArray, ne } from "drizzle-orm";
+import { eq, and, sql, gte, desc, inArray, isNotNull } from "drizzle-orm";
+import { hammingDistance, PHASH_DUPLICATE_THRESHOLD } from "@/src/lib/image-analysis";
 import { ServiceResult, ok } from "./result";
 
 export type FraudBreakdown = {
@@ -12,6 +13,8 @@ export type FraudBreakdown = {
   multipleAccounts: number;
   fastCompletion: number;
   highVolume: number;
+  duplicateImage: number;
+  suspiciousExif: number;
 };
 
 export type FraudUser = {
@@ -37,6 +40,8 @@ const FLAG_THRESHOLD = 70;
 const FAST_COMPLETION_RATIO = 0.3;
 const HIGH_VOLUME_LIMIT = 20;
 const HIGH_VOLUME_WINDOW_HOURS = 1;
+const DUPLICATE_IMAGE_PTS = 40;
+const SUSPICIOUS_EXIF_PTS = 15;
 
 export const FraudService = {
   async getFraudReport(): Promise<ServiceResult<FraudReport>> {
@@ -166,6 +171,70 @@ export const FraudService = {
       volumeRows.filter((r) => r.userId !== null).map((r) => [r.userId as number, r.count]),
     );
 
+    // ── 5: Duplicate image (pHash) ──
+    const phashRows = await db
+      .select({
+        userId: userTasksTable.userId,
+        proofPhash: userTasksTable.proofPhash,
+        id: userTasksTable.id,
+      })
+      .from(userTasksTable)
+      .where(
+        and(
+          inArray(userTasksTable.userId, userIds),
+          isNotNull(userTasksTable.proofPhash),
+        ),
+      );
+
+    // Group hashes by user, then check all pairs across different users
+    const userToHashes = new Map<number, string[]>();
+    for (const row of phashRows) {
+      if (!row.userId || !row.proofPhash) continue;
+      const arr = userToHashes.get(row.userId) ?? [];
+      arr.push(row.proofPhash);
+      userToHashes.set(row.userId, arr);
+    }
+
+    const duplicateImageUsers = new Set<number>();
+    const allHashList = phashRows.filter((r) => r.userId && r.proofPhash) as {
+      userId: number; proofPhash: string; id: number;
+    }[];
+    for (let i = 0; i < allHashList.length; i++) {
+      for (let j = i + 1; j < allHashList.length; j++) {
+        const a = allHashList[i];
+        const b = allHashList[j];
+        if (a.userId !== b.userId && hammingDistance(a.proofPhash, b.proofPhash) <= PHASH_DUPLICATE_THRESHOLD) {
+          duplicateImageUsers.add(a.userId);
+          duplicateImageUsers.add(b.userId);
+        }
+      }
+    }
+
+    // ── 6: Suspicious EXIF (editing tool or AI-generated) ──
+    const exifRows = await db
+      .select({
+        userId: userTasksTable.userId,
+        proofExifFlags: userTasksTable.proofExifFlags,
+      })
+      .from(userTasksTable)
+      .where(
+        and(
+          inArray(userTasksTable.userId, userIds),
+          isNotNull(userTasksTable.proofExifFlags),
+        ),
+      );
+
+    const suspiciousExifUsers = new Set<number>();
+    for (const row of exifRows) {
+      if (!row.userId || !row.proofExifFlags) continue;
+      try {
+        const flags = JSON.parse(row.proofExifFlags);
+        if (flags.editingToolDetected || flags.noExif) {
+          suspiciousExifUsers.add(row.userId);
+        }
+      } catch { /* skip malformed */ }
+    }
+
     // ── Build results ──
     const flaggedUsers: FraudUser[] = [];
     const updates: { id: number; riskScore: number; isFlagged: boolean }[] = [];
@@ -176,9 +245,11 @@ export const FraudService = {
       const multipleAccounts = fpScore?.multipleAccounts ?? 0;
       const fastCompletion = (fastCompletionMap.get(user.id) ?? 0) > 0 ? FAST_COMPLETION_PTS : 0;
       const highVolume = (volumeMap.get(user.id) ?? 0) >= HIGH_VOLUME_LIMIT ? HIGH_VOLUME_PTS : 0;
+      const duplicateImage = duplicateImageUsers.has(user.id) ? DUPLICATE_IMAGE_PTS : 0;
+      const suspiciousExif = suspiciousExifUsers.has(user.id) ? SUSPICIOUS_EXIF_PTS : 0;
 
       const riskScore =
-        sharedFingerprint + multipleAccounts + fastCompletion + highVolume;
+        sharedFingerprint + multipleAccounts + fastCompletion + highVolume + duplicateImage + suspiciousExif;
 
       updates.push({ id: user.id, riskScore, isFlagged: riskScore > FLAG_THRESHOLD });
 
@@ -193,6 +264,8 @@ export const FraudService = {
             multipleAccounts,
             fastCompletion,
             highVolume,
+            duplicateImage,
+            suspiciousExif,
           },
           completedTasks: user.completedTasksCount,
         });

@@ -7,8 +7,11 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { NotificationBell } from "@/src/components/notifications/notification-bell";
 
 const Header = () => {
+  const { status } = useSession();
   const fullText = "ARBITRARY";
   const [displayText, setDisplayText] = useState("");
   const [isTyping, setIsTyping] = useState(true);
@@ -29,7 +32,16 @@ const Header = () => {
   });
 
   const navItems = useMemo(() => {
-    const items = ["Home", "Work", "Events", "Records", "Leaderboard", "Dashboard", "About", "Contact"];
+    const items = [
+      "Home",
+      "Work",
+      "Events",
+      "Records",
+      "Leaderboard",
+      "Dashboard",
+      "About",
+      "Contact",
+    ];
     if (liveStatus?.live) {
       items.splice(4, 0, "Live");
     }
@@ -127,6 +139,8 @@ const Header = () => {
             })}
           </nav>
 
+          {status === "authenticated" && <NotificationBell />}
+
           <ProfileDropdown redirectUrl="/" />
 
           {/* Mobile Menu Toggle */}
@@ -155,7 +169,9 @@ const Header = () => {
                   : "border-b border-black/5 bg-white shadow-lg"
               }`}
           >
-            <div className={`flex flex-col gap-1 py-4 px-6 ${scrolled ? "" : "border-t border-black/5"}`}>
+            <div
+              className={`flex flex-col gap-1 py-4 px-6 ${scrolled ? "" : "border-t border-black/5"}`}
+            >
               {navItems.map((item, idx) => {
                 const href = item === "Home" ? "/" : `/${item.toLowerCase()}`;
                 const isActive = pathName === href;

@@ -80,13 +80,15 @@ export async function PATCH(req: NextRequest) {
     return toNextResponse(failWithDetails("Validation failed", parsed.error.flatten().fieldErrors));
   }
 
-  const { taskId, status, proofUrl, proofImageUrl } = parsed.data;
+  const { taskId, status, proofUrl, proofImageUrl, proofPhash, proofExifFlags } = parsed.data;
   const result = await TaskService.updateTaskStatus(
     auth.data.id,
     taskId,
     status,
     proofUrl,
     proofImageUrl,
+    proofPhash ?? undefined,
+    proofExifFlags ?? undefined,
   );
   return toNextResponse(result);
 }

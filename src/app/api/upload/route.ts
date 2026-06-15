@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { rateLimit } from "@/src/lib/rate-limit";
 import crypto from "crypto";
+import {
+  extractExifFlags,
+  computePerceptualHash,
+  hammingDistance,
+  PHASH_DUPLICATE_THRESHOLD,
+} from "@/src/lib/image-analysis";
+import { db } from "@/src/db";
+import { userTasksTable } from "@/src/db/schema";
+import { isNotNull } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
@@ -54,13 +63,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Upload service not configured — missing Cloudinary credentials" }, { status: 500 });
   }
 
-  let buffer;
+  let buffer: Buffer;
   try {
     buffer = Buffer.from(await file.arrayBuffer());
   } catch {
     return NextResponse.json({ error: "Failed to read file" }, { status: 400 });
   }
 
+  // ── Tier-1 image analysis ─────────────────────────────────────────────────
+  // Run EXIF extraction and perceptual hashing in parallel.
+  // These are best-effort: failures don't block the upload.
+  const [exifFlags, phash] = await Promise.allSettled([
+    extractExifFlags(buffer),
+    computePerceptualHash(buffer),
+  ]).then((results) => [
+    results[0].status === "fulfilled" ? results[0].value : null,
+    results[1].status === "fulfilled" ? results[1].value : null,
+  ]);
+
+  // Duplicate image check: compare the new pHash against all existing task-proof hashes
+  let isDuplicateImage = false;
+  let duplicateImageUserTaskId: number | null = null;
+  if (phash && type === "task-proofs") {
+    const existingHashes = await db
+      .select({ id: userTasksTable.id, proofPhash: userTasksTable.proofPhash })
+      .from(userTasksTable)
+      .where(isNotNull(userTasksTable.proofPhash));
+
+    for (const row of existingHashes) {
+      if (row.proofPhash && hammingDistance(phash, row.proofPhash) <= PHASH_DUPLICATE_THRESHOLD) {
+        isDuplicateImage = true;
+        duplicateImageUserTaskId = row.id;
+        break;
+      }
+    }
+  }
+
+  // ── Cloudinary upload ─────────────────────────────────────────────────────
   const base64 = buffer.toString("base64");
   const dataUri = `data:${file.type};base64,${base64}`;
 
@@ -68,7 +107,6 @@ export async function POST(req: NextRequest) {
   const publicId = `${auth.data.id}_${Date.now()}`;
   const folder = `arbitary/${type}`;
 
-  // Build sorted param string for Cloudinary signed upload signature
   const params: Record<string, string> = {
     folder,
     public_id: publicId,
@@ -112,5 +150,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: uploadData.error?.message || "Cloudinary upload failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ url: uploadData.secure_url });
+  // Return the URL plus the image-analysis signals so the caller can
+  // persist them into userTasksTable when it saves the submission.
+  return NextResponse.json({
+    url: uploadData.secure_url,
+    imageAnalysis: {
+      phash,
+      exifFlags,
+      isDuplicateImage,
+      duplicateImageUserTaskId,
+    },
+  });
 }

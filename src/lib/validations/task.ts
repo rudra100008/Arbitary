@@ -75,6 +75,8 @@ export const updateTaskSchema = z.object({
         .url("proofImageUrl must be a valid URL")
         .max(2048, "URL too long")
         .optional(),
+    proofPhash: z.string().max(16).nullable().optional(),
+    proofExifFlags: z.string().max(4096).nullable().optional(),
 });
 
 
@@ -106,7 +108,14 @@ export const adminTaskSchema = z.object({
 export const verifySubmissionSchema = z.object({
     userTaskId: z.number("userTaskId must be a number").int().positive(),
     status: VerifyStatusEnum,
-}).strict();
+    rejectionReason: z.string().trim().min(1, "Rejection reason cannot be empty").max(500, "Rejection reason is too long").optional(),
+}).strict().refine(
+    (data) => data.status !== "Rejected" || !!data.rejectionReason,
+    {
+        message: "A rejection reason is required when rejecting a submission",
+        path: ["rejectionReason"],
+    },
+);
 
 
 export const youtubeCompleteSchema = z.object({

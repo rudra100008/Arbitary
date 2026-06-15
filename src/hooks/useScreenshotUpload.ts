@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 
-export function useScreenshotUpload(onUploadComplete: (url: string) => void) {
+export type ImageAnalysis = {
+  phash: string | null;
+  exifFlags: Record<string, unknown> | null;
+  isDuplicateImage: boolean;
+  duplicateImageUserTaskId: number | null;
+};
+
+export function useScreenshotUpload(
+  onUploadComplete: (url: string, imageAnalysis: ImageAnalysis | null) => void
+) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -27,7 +36,7 @@ export function useScreenshotUpload(onUploadComplete: (url: string) => void) {
         throw new Error(d.error || "Upload failed");
       }
       const data = await res.json();
-      onUploadComplete(data.url);
+      onUploadComplete(data.url, data.imageAnalysis ?? null);
       setSelectedFile(null);
       setPreviewUrl("");
     } catch (err: unknown) {

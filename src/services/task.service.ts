@@ -26,6 +26,8 @@ import { pointsLogTable } from "@/src/db/schema";
 import { ServiceResult, ok, fail } from "./result";
 import type { Task, UserTask } from "@/src/types/db";
 import { TASK_STATUS } from "@/src/lib/constants/task-status";
+import { NotificationService } from "./notification.service";
+import { submissionRejectedEmailHtml } from "@/src/lib/emails/submission-rejected";
 
 export type UserTaskItem = {
   id: number;
@@ -822,6 +824,9 @@ export const TaskService = {
     status: string,
     proofUrl?: string,
     proofImageUrl?: string,
+    proofPhash?: string,
+    proofExifFlags?: string,
+    isDuplicateProof?: boolean,
   ): Promise<ServiceResult<{ message: string }>> {
     if (status !== "Pending Verification") {
       return fail("You can only submit proof for verification", 400);
@@ -848,6 +853,9 @@ export const TaskService = {
     } else if (proofUrl) {
       updateData.proofImageUrl = proofUrl;
     }
+    if (proofPhash) updateData.proofPhash = proofPhash;
+    if (proofExifFlags) updateData.proofExifFlags = proofExifFlags;
+    if (proofPhash !== undefined) updateData.isDuplicateProof = false; // will be set correctly via isDuplicateProof param
 
     if (Object.keys(updateData).length === 0) {
       return fail("Task is already in this status", 400);
@@ -1826,6 +1834,9 @@ export const TaskService = {
       proofImageUrl: s.userTask.proofImageUrl,
       assignedAt: s.userTask.assignedAt,
       completedAt: s.userTask.completedAt,
+      proofPhash: s.userTask.proofPhash ?? null,
+      proofExifFlags: s.userTask.proofExifFlags ?? null,
+      isDuplicateProof: s.userTask.isDuplicateProof ?? false,
     }));
 
     return ok(mapped);
@@ -1834,8 +1845,9 @@ export const TaskService = {
   async verifySubmission(
     userTaskId: number,
     newStatus: string,
+    rejectionReason?: string,
   ): Promise<ServiceResult<{ message: string }>> {
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const [userTaskInfo] = await tx
         .select({
           userTask: userTasksTable,
@@ -1890,6 +1902,9 @@ export const TaskService = {
           ...(newStatus === "Verified" || newStatus === "Rejected"
             ? { proofImageUrl: null, proofUrl: null }
             : {}),
+          ...(newStatus === "Rejected"
+            ? { rejectionReason: rejectionReason ?? null, rejectedAt: new Date() }
+            : {}),
         })
         .where(eq(userTasksTable.id, userTaskId));
 
@@ -1913,8 +1928,62 @@ export const TaskService = {
         }
       }
 
-      return ok({ message: "Submission updated" });
+      return ok({ message: "Submission updated", userTaskInfo, newStatus, taskPoints });
     });
+
+    if (!result.success) return result;
+
+    // ── Notify the user (real-time push + DB record, with email fallback
+    // when they're offline) — fired after the transaction commits so we
+    // never block the DB write on email/SSE delivery. ────────────────────
+    const { userTaskInfo, newStatus: status, taskPoints } = result.data;
+    const userId = userTaskInfo.user.id;
+    const taskTitle = userTaskInfo.task.title;
+
+    if (status === "Rejected") {
+      const timestamp = new Date();
+      await NotificationService.deliver({
+        userId,
+        type: "submission_rejected",
+        title: "Submission rejected",
+        message: `Your submission for "${taskTitle}" was rejected: ${rejectionReason ?? "No reason provided"}`,
+        data: {
+          taskId: userTaskInfo.task.id,
+          userTaskId,
+          taskTitle,
+          status: "Rejected",
+          reason: rejectionReason ?? "No reason provided",
+          rejectedAt: timestamp.toISOString(),
+        },
+        email: {
+          subject: `Your submission for "${taskTitle}" was rejected`,
+          html: submissionRejectedEmailHtml({
+            name: userTaskInfo.user.name ?? "there",
+            taskTitle,
+            reason: rejectionReason ?? "No reason provided",
+            timestamp: timestamp.toLocaleString(),
+            dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"}/dashboard`,
+          }),
+        },
+      });
+    } else if (status === "Verified") {
+      await NotificationService.create({
+        userId,
+        type: "submission_approved",
+        title: "Submission approved",
+        message: `Your submission for "${taskTitle}" was approved — you earned ${taskPoints} pts!`,
+        data: {
+          taskId: userTaskInfo.task.id,
+          userTaskId,
+          taskTitle,
+          status: "Verified",
+          points: taskPoints,
+          verifiedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    return ok({ message: result.data.message });
   },
 };
 

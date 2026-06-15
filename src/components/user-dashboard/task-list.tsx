@@ -1,4 +1,5 @@
 "use client";
+import { type ImageAnalysis } from "@/src/hooks/useScreenshotUpload";
 // task-list.tsx
 
 import { useState, useMemo } from "react";
@@ -23,6 +24,7 @@ type TaskListProps = {
     taskId: number,
     proofUrl: string,
     proofImageUrl?: string,
+    imageAnalysis?: ImageAnalysis | null,
   ) => void;
   onClaimDailyLogin: (taskId: number) => void;
   onClaimProfile: (taskId: number) => void;

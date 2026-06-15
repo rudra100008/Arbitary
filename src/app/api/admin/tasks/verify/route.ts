@@ -32,8 +32,8 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const { userTaskId, status } = parsed.data;
-  const result = await TaskService.verifySubmission(userTaskId, status);
+  const { userTaskId, status, rejectionReason } = parsed.data;
+  const result = await TaskService.verifySubmission(userTaskId, status, rejectionReason);
   if (!result.success) return toNextResponse(result);
 
   return NextResponse.json({ message: result.data.message }, { status: 200 });

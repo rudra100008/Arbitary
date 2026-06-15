@@ -117,6 +117,16 @@ export const userTasksTable = pgTable("user_tasks", {
     completedAt: timestamp("completed_at"),
     submissionFingerprint: varchar("submission_fingerprint", { length: 255 }),
     completionDurationSeconds: integer("completion_duration_seconds"),
+    /** 16-char hex dHash for duplicate-image detection */
+    proofPhash: varchar("proof_phash", { length: 16 }),
+    /** JSON blob of ExifFlags — stored so admins can see it without re-parsing */
+    proofExifFlags: text("proof_exif_flags"),
+    /** true if pHash matched an existing submission at upload time */
+    isDuplicateProof: boolean("is_duplicate_proof").default(false),
+    /** Admin-provided reason when status is set to "Rejected" */
+    rejectionReason: text("rejection_reason"),
+    /** Timestamp of the most recent rejection */
+    rejectedAt: timestamp("rejected_at"),
 }, (table) => ({
     userIdIdx: index("idx_user_tasks_user_id").on(table.userId),
     taskIdIdx: index("idx_user_tasks_task_id").on(table.taskId),
@@ -342,6 +352,30 @@ export const adminActivityLogsTable = pgTable("admin_activity_logs", {
     createdAt: timestamp("created_at").defaultNow(),
 });
 
+// --- Notifications ---
+// Scalable, reusable notification model: every event (submission rejected /
+// approved, points awarded, new task assigned, tier upgrade, event
+// announcements, ...) is stored as a row here and pushed to the user in
+// real-time via SSE (see /api/notifications/subscribe) and persisted for the
+// in-app notification center.
+export const notificationsTable = pgTable("notifications", {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    /** e.g. "submission_rejected", "submission_approved", "points_awarded", "task_assigned", "tier_upgrade", "event_announcement" */
+    type: varchar("type", { length: 50 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    message: text("message").notNull(),
+    /** Arbitrary structured payload (taskName, reason, points, etc.) for rendering rich notifications */
+    data: jsonb("data"),
+    isRead: boolean("is_read").notNull().default(false),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+    userIdIdx: index("idx_notifications_user_id").on(table.userId),
+    userUnreadIdx: index("idx_notifications_user_unread").on(table.userId, table.isRead),
+    createdAtIdx: index("idx_notifications_created_at").on(table.createdAt),
+}));
+
 // --- Relations ---
 
 export const eventsRelations = relations(eventsTable, ({ many }) => ({
@@ -386,6 +420,7 @@ export const usersRelations = relations(usersTable, ({ many, one }) => ({
     pointsLog: many(pointsLogTable),
     watchSessions: many(watchSessionsTable),
     liveWatchSessions: many(liveWatchSessionsTable),
+    notifications: many(notificationsTable),
     dailyLogin: one(dailyLoginTable, {
         fields: [usersTable.id],
         references: [dailyLoginTable.userId],
@@ -497,5 +532,12 @@ export const redemptionsRelations = relations(redemptionsTable, ({ one }) => ({
     deal: one(dealsTable, {
         fields: [redemptionsTable.dealId],
         references: [dealsTable.id],
+    }),
+}));
+
+export const notificationsRelations = relations(notificationsTable, ({ one }) => ({
+    user: one(usersTable, {
+        fields: [notificationsTable.userId],
+        references: [usersTable.id],
     }),
 }));

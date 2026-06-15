@@ -140,6 +140,14 @@ export function InstagramModal({
       }
       const uploadData = await uploadRes.json();
 
+      if (uploadData.imageAnalysis?.isDuplicateImage) {
+        setError(
+          "This image has already been submitted as proof. Please upload a different screenshot.",
+        );
+        setIsUploading(false);
+        return;
+      }
+
       const proofRes = await fetch("/api/user/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -148,6 +156,10 @@ export function InstagramModal({
           status: "Pending Verification",
           proofUrl: uploadData.url,
           proofImageUrl: uploadData.url,
+          proofPhash: uploadData.imageAnalysis?.phash ?? null,
+          proofExifFlags: uploadData.imageAnalysis?.exifFlags
+            ? JSON.stringify(uploadData.imageAnalysis.exifFlags)
+            : null,
         }),
       });
       if (!proofRes.ok) {
