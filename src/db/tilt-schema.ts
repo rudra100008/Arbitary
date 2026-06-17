@@ -96,6 +96,7 @@ export const lotteryEntriesTable = pgTable(
       .references(() => lotterySessionsTable.id),
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
+    phonePlain: text("phone_plain").notNull(),
     phoneHash: text("phone_hash").notNull(),
     address: text("address").notNull(),
     flagged: boolean("flagged").default(false).notNull(),

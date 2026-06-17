@@ -50,6 +50,7 @@ const HomePage = () => {
   React.useEffect(() => {
     const fetchEvents = async () => {
       try {
+        console.log('mounted', window.location.hash) 
         const response = await fetch("/api/events");
         const data = await response.json();
         if (data.success) {
@@ -120,6 +121,7 @@ const HomePage = () => {
   };
 
   useEffect(() => {
+    console.log('mounted', window.location.hash) 
     document.title = "Home | Arbitrary";
   });
   return (

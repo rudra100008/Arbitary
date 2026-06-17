@@ -1,105 +1,188 @@
-// src/app/api/tilt/register/route.ts
-//
-// Handles Tilt event registration (guest-only, accessed via QR code).
-//
-// Validation (Zod):
-//   - All fields required and trimmed
-//   - Email must be a valid email address
-//   - Phone must be a valid Nepali number: starts with 98/97 (mobile)
-//     or 01 (Kathmandu landline), exactly 10 digits
-//   - Same email or phone cannot be registered twice
+import { and, eq } from "drizzle-orm";
+import { NextRequest, NextResponse } from "next/server";
+import { tiltDb } from "@/src/db/tilt-db";
+import {
+  lotteryEntriesTable,
+  lotterySessionsTable,
+} from "@/src/db/tilt-schema";
+import {
+  EMAIL_FORMAT_REGEX,
+  isDisposableEmail,
+} from "@/src/lib/tilt/disposable-email";
+import {
+  getSessionFromCookie,
+  getSessionFromId,
+} from "@/src/lib/tilt/get-session-from-cookie";
+import { hashPhone, normalisePhone } from "@/src/lib/tilt/phone";
 
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { tiltDb } from '@/src/db/tilt-db';
-import { tiltRegistrationsTable } from '@/src/db/tilt-schema';
-import { eq, or } from 'drizzle-orm';
+type ErrorResponse = {
+  error: string;
+  code: string;
+};
 
-// ── Nepali phone validation ──────────────────────────────────────────────────
-// Accepts exactly 10 digits (after stripping optional +977 / 977 country code).
-// Valid prefixes: 98x / 97x (mobile), 01 (Kathmandu landline), 0[2-9]x (provincial)
-const nepaliPhoneSchema = z
-    .string({ error: 'Phone number is required or must be a string.' })
-    .transform((val) => {
-        const cleaned = val.trim().replace(/\s+/g, '');
-        return cleaned.replace(/^\+?977/, '');
-    })
-    .refine(
-        (val) => val.length === 10 && /^(98|97|01|0[2-9])\d{8}$/.test(val),
-        {
-            message: 'Phone number must be a valid Nepali number (e.g. 98XXXXXXXX or 01XXXXXXXX), exactly 10 digits.',
-        },
-    );
+function jsonError(status: number, error: string, code: string) {
+  const payload: ErrorResponse = { error, code };
+  return NextResponse.json(payload, { status });
+}
 
-const RegistrationSchema = z.object({
-    name: z.string().trim().min(1, 'Name is required.'),
-    email: z
-        .string()
-        .trim()
-        .min(1, 'Email is required.')
-        .email('Please enter a valid email address.')
-        .transform((val) => val.toLowerCase()),
-    phone: nepaliPhoneSchema,
-    address: z.string().trim().min(1, 'Address is required.'),
-});
+function isUniqueViolation(error: unknown): boolean {
+  const maybeError = error as { code?: string; cause?: { code?: string } };
+  return maybeError?.code === "23505" || maybeError?.cause?.code === "23505";
+}
+
+function readTrimmedString(body: Record<string, unknown>, key: string): string {
+  const value = body[key];
+  return typeof value === "string" ? value.trim() : "";
+}
 
 export async function POST(req: NextRequest) {
-    try {
-        // ── Parse & validate body with Zod ────────────────────────────────
-        const body = await req.json();
-        const parsed = RegistrationSchema.safeParse(body);
+  try {
+    const body = (await req.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
 
-        if (!parsed.success) {
-            const firstError = parsed.error?.issues?.[0]?.message ?? 'Invalid input.';
-            return NextResponse.json({ error: firstError }, { status: 400 });
-        }
+    const sidFallback =
+      typeof body.sid === "string" ? body.sid.trim() : "";
 
-        const { name, email, phone, address } = parsed.data;
+    const cookieSession = await getSessionFromCookie(req.cookies);
+    const fallbackSession = cookieSession
+      ? null
+      : await getSessionFromId(sidFallback);
 
-        // ── Duplicate check (email OR phone) in a single query ─────────────
-        const dupes = await tiltDb
-            .select({ id: tiltRegistrationsTable.id, email: tiltRegistrationsTable.email, phone: tiltRegistrationsTable.phone })
-            .from(tiltRegistrationsTable)
-            .where(
-                or(
-                    eq(tiltRegistrationsTable.email, email),
-                    eq(tiltRegistrationsTable.phone, phone),
-                )
-            );
-
-        if (dupes.length > 0) {
-            const emailTaken = dupes.some((r) => r.email === email);
-            const phoneTaken = dupes.some((r) => r.phone === phone);
-
-            if (emailTaken && phoneTaken) {
-                return NextResponse.json(
-                    { error: 'This email address and phone number are already registered.' },
-                    { status: 409 },
-                );
-            }
-            if (emailTaken) {
-                return NextResponse.json(
-                    { error: 'This email address is already registered.' },
-                    { status: 409 },
-                );
-            }
-            return NextResponse.json(
-                { error: 'This phone number is already registered.' },
-                { status: 409 },
-            );
-        }
-
-        // ── Insert registration ────────────────────────────────────────────
-        await tiltDb.insert(tiltRegistrationsTable).values({
-            name,
-            email,
-            phone,
-            address,
-        });
-
-        return NextResponse.json({ ok: true }, { status: 200 });
-    } catch (err) {
-        console.error('[tilt/register]', err);
-        return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
+    const session = cookieSession ?? fallbackSession;
+    if (!session) {
+      return jsonError(403, "Invalid or missing session", "SESSION_REQUIRED");
     }
+
+    if (session.submitted_at) {
+      const [existingEntry] = await tiltDb
+        .select({ id: lotteryEntriesTable.id })
+        .from(lotteryEntriesTable)
+        .where(eq(lotteryEntriesTable.sessionId, session.id));
+
+      return NextResponse.json(
+        { message: "already_submitted", entry_id: existingEntry?.id ?? null },
+        { status: 200 },
+      );
+    }
+
+    const fullName = readTrimmedString(body, "full_name");
+    const email = readTrimmedString(body, "email").toLowerCase();
+    const phoneRaw = readTrimmedString(body, "phone");
+    const address = readTrimmedString(body, "address");
+
+    if (!fullName) {
+      return jsonError(400, "Full name is required", "INVALID_FULL_NAME");
+    }
+
+    if (!EMAIL_FORMAT_REGEX.test(email)) {
+      return jsonError(400, "Invalid email address", "INVALID_EMAIL");
+    }
+
+    if (isDisposableEmail(email)) {
+      return jsonError(
+        400,
+        "Disposable email addresses are not allowed",
+        "DISPOSABLE_EMAIL",
+      );
+    }
+
+    const phoneDigits = phoneRaw.replace(/\D/g, "");
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+      return jsonError(400, "Invalid phone number", "INVALID_PHONE");
+    }
+
+    if (!address) {
+      return jsonError(400, "Address is required", "INVALID_ADDRESS");
+    }
+
+    const [existingEmailEntry] = await tiltDb
+      .select({ id: lotteryEntriesTable.id })
+      .from(lotteryEntriesTable)
+      .where(
+        and(
+          eq(lotteryEntriesTable.campaignId, session.campaign_id),
+          eq(lotteryEntriesTable.email, email),
+        ),
+      );
+
+    if (existingEmailEntry) {
+      return jsonError(
+        409,
+        "Email already entered for this campaign",
+        "EMAIL_ALREADY_ENTERED",
+      );
+    }
+
+    const normalisedPhone = normalisePhone(phoneRaw, "977");
+    const phoneHash = hashPhone(normalisedPhone);
+
+    const [existingPhoneEntry] = await tiltDb
+      .select({ id: lotteryEntriesTable.id })
+      .from(lotteryEntriesTable)
+      .where(
+        and(
+          eq(lotteryEntriesTable.campaignId, session.campaign_id),
+          eq(lotteryEntriesTable.phoneHash, phoneHash),
+        ),
+      );
+
+    if (existingPhoneEntry) {
+      return jsonError(
+        409,
+        "Phone already entered for this campaign",
+        "PHONE_ALREADY_ENTERED",
+      );
+    }
+
+    const insertedEntry = await tiltDb.transaction(async (tx) => {
+      const [entry] = await tx
+        .insert(lotteryEntriesTable)
+        .values({
+          campaignId: session.campaign_id,
+          sessionId: session.id,
+          fullName,
+          email,
+          phonePlain: normalisedPhone,
+          phoneHash,
+          address,
+          flagged: false,
+          flagReason: null,
+        })
+        .returning({ id: lotteryEntriesTable.id });
+
+      await tx
+        .update(lotterySessionsTable)
+        .set({ submittedAt: new Date() })
+        .where(eq(lotterySessionsTable.id, session.id));
+
+      return entry;
+    });
+
+    return NextResponse.json(
+      { message: "entered", entry_id: insertedEntry.id },
+      { status: 200 },
+    );
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      const session = await getSessionFromCookie(req.cookies);
+      if (session) {
+        const [existingEntry] = await tiltDb
+          .select({ id: lotteryEntriesTable.id })
+          .from(lotteryEntriesTable)
+          .where(eq(lotteryEntriesTable.sessionId, session.id));
+
+        if (existingEntry) {
+          return NextResponse.json(
+            { message: "already_submitted", entry_id: existingEntry.id },
+            { status: 200 },
+          );
+        }
+      }
+    }
+
+    console.error("[tilt/register]", error);
+    return jsonError(500, "Something went wrong", "INTERNAL_ERROR");
+  }
 }

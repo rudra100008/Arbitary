@@ -5,19 +5,35 @@ import * as tiltSchema from './tilt-schema';
 
 const connectionString = process.env.TILT_DATABASE_URL;
 
+type TiltDb = ReturnType<typeof drizzle<typeof tiltSchema>>;
+
+let tiltDbInstance: TiltDb | null = null;
+
 if (!connectionString) {
-    throw new Error('TILT_DATABASE_URL is not set');
+    // Avoid crashing the module at import time so route handlers can return proper JSON errors.
+    console.error('TILT_DATABASE_URL is not set');
+} else {
+    const tiltPool = new Pool({
+        connectionString,
+        ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
+        max: 10,
+        idleTimeoutMillis: 30000,
+    });
+
+    tiltPool.on('error', (err) => {
+        console.error('Unexpected error on tilt DB idle client', err);
+    });
+
+    tiltDbInstance = drizzle(tiltPool, { schema: tiltSchema });
 }
 
-const tiltPool = new Pool({
-    connectionString,
-    ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 30000,
-});
+export const tiltDb = new Proxy({} as TiltDb, {
+    get(_target, prop, receiver) {
+        if (!tiltDbInstance) {
+            throw new Error('TILT_DATABASE_URL is not set');
+        }
 
-tiltPool.on('error', (err) => {
-    console.error('Unexpected error on tilt DB idle client', err);
+        const value = Reflect.get(tiltDbInstance, prop, receiver);
+        return typeof value === 'function' ? value.bind(tiltDbInstance) : value;
+    },
 });
-
-export const tiltDb = drizzle(tiltPool, { schema: tiltSchema });

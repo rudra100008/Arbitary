@@ -14,14 +14,7 @@ type CookieStoreLike = {
     get(name: string): { value: string } | undefined;
 };
 
-export async function getSessionFromCookie(
-    cookieStore: CookieStoreLike,
-): Promise<LotterySession | null> {
-    const sessionId = cookieStore.get('lsid')?.value?.trim();
-    if (!sessionId) {
-        return null;
-    }
-
+async function getSessionById(sessionId: string): Promise<LotterySession | null> {
     const [session] = await tiltDb
         .select({
             id: lotterySessionsTable.id,
@@ -34,4 +27,24 @@ export async function getSessionFromCookie(
         .where(eq(lotterySessionsTable.id, sessionId));
 
     return session ?? null;
+}
+
+export async function getSessionFromId(sessionId: string): Promise<LotterySession | null> {
+    const trimmed = sessionId.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    return getSessionById(trimmed);
+}
+
+export async function getSessionFromCookie(
+    cookieStore: CookieStoreLike,
+): Promise<LotterySession | null> {
+    const sessionId = cookieStore.get('lsid')?.value?.trim();
+    if (!sessionId) {
+        return null;
+    }
+
+    return getSessionById(sessionId);
 }

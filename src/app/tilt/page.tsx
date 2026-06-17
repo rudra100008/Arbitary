@@ -2,17 +2,16 @@
 
 // src/app/tilt/page.tsx
 //
-// Public Tilt event registration page.
-// No authentication required to view or submit the registration form.
-// Accessed via QR code at the event — pure guest registration only.
+// Public Tilt lottery application page.
+// Accessed via redeemed QR flow; submission is tied to the anonymous lottery session cookie.
 //
 // Flow:
-//   1. User fills in name / email / phone / address and clicks "Register".
-//   2. POST /api/tilt/register → registration saved directly.
+//   1. User fills in full_name / email / phone / address and clicks "Apply".
+//   2. POST /api/tilt/register → lottery entry validation + save.
 //   3. Success screen shown.
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+
 import { motion, AnimatePresence } from "framer-motion";
 import type { Variants, Transition } from "framer-motion";
 
@@ -88,18 +87,108 @@ const pageCss = `
 
 export default function TiltPage() {
   const [step, setStep] = useState<PageStep>("form");
-  const [mounted, setMounted] = useState(false);
+  const [sidFallback, setSidFallback] = useState("");
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   // Form state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    document.title = "Register | Tilt Event";
-    setMounted(true);
+    document.title = "Apply | Tilt Lottery";
+
+    const resolveSid = () => {
+      const sidFromQuery =
+        new URLSearchParams(window.location.search).get("sid")?.trim() ?? "";
+      const sidFromStorage =
+        sessionStorage.getItem("tilt_lsid_fallback")?.trim() ?? "";
+      const sid = sidFromQuery || sidFromStorage;
+
+      if (sid) {
+        setSidFallback(sid);
+        sessionStorage.setItem("tilt_lsid_fallback", sid);
+      }
+
+      if (sidFromQuery) {
+        window.history.replaceState(null, "", "/tilt");
+      }
+
+      return sid;
+    };
+
+    const checkSession = async () => {
+      const sid = resolveSid();
+
+      try {
+        const url = new URL("/api/tilt/session-state", window.location.origin);
+        if (sid) {
+          url.searchParams.set("sid", sid);
+        }
+
+        const response = await fetch(url.toString(), {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | { valid?: boolean; submitted?: boolean; reason?: string }
+          | null;
+
+        if (!payload?.valid) {
+          const reason = payload?.reason || "invalid_session";
+          window.location.replace(`/tilt/invalid?reason=${encodeURIComponent(reason)}`);
+          return;
+        }
+
+        if (payload.submitted) {
+          window.location.replace("/tilt/invalid?reason=already_submitted");
+          return;
+        }
+      } catch {
+        window.location.replace("/tilt/invalid?reason=server_error");
+        return;
+      }
+
+      setIsCheckingSession(false);
+    };
+
+    void checkSession();
+
+    const handlePageShow = () => {
+      setIsCheckingSession(true);
+      void checkSession();
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+    };
   }, []);
 
-  // ── Submit form → save registration ──────────────────────────────────────
+  if (isCheckingSession) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "#0e1f10" }}
+      >
+        <div
+          style={{
+            width: "40px",
+            height: "40px",
+            borderRadius: "50%",
+            border: "3px solid rgba(200,230,60,0.15)",
+            borderTop: "3px solid #c8e63c",
+            animation: "spin 0.8s linear infinite",
+          }}
+        />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  // ── Submit form → save lottery entry ─────────────────────────────────────
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
@@ -107,10 +196,11 @@ export default function TiltPage() {
 
     const fd = new FormData(e.currentTarget);
     const data = {
-      name: fd.get("name") as string,
+      full_name: fd.get("full_name") as string,
       email: fd.get("email") as string,
       phone: fd.get("phone") as string,
       address: fd.get("address") as string,
+      sid: sidFallback,
     };
 
     try {
@@ -119,15 +209,42 @@ export default function TiltPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(json.error ?? "Something went wrong.");
-        setIsLoading(false);
+        const code = typeof json?.code === "string" ? json.code : "";
+        const fallback =
+          typeof json?.error === "string"
+            ? json.error
+            : "Unable to apply right now.";
+
+        const messageByCode: Record<string, string> = {
+          SESSION_REQUIRED:
+            "Your session is missing or expired. Please scan the QR again.",
+          INVALID_FULL_NAME: "Please enter your full name.",
+          INVALID_EMAIL: "Please enter a valid email address.",
+          DISPOSABLE_EMAIL: "Disposable email addresses are not allowed.",
+          INVALID_PHONE: "Please enter a valid phone number.",
+          INVALID_ADDRESS: "Please enter your address.",
+          EMAIL_ALREADY_ENTERED:
+            "This email has already been entered for this campaign.",
+          PHONE_ALREADY_ENTERED:
+            "This phone number has already been entered for this campaign.",
+          INTERNAL_ERROR: "Something went wrong. Please try again.",
+        };
+
+        setError(messageByCode[code] ?? fallback);
         return;
       }
 
-      setStep("success");
+      const message = typeof json?.message === "string" ? json.message : "";
+      if (message === "entered" || message === "already_submitted") {
+        sessionStorage.removeItem("tilt_lsid_fallback");
+        setStep("success");
+        return;
+      }
+
+      setError("Unexpected server response. Please try again.");
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -196,7 +313,7 @@ export default function TiltPage() {
                 margin: 0,
               }}
             >
-              You&apos;re registered!
+              Application received!
             </h1>
             <p
               style={{
@@ -205,34 +322,8 @@ export default function TiltPage() {
                 marginTop: "8px",
               }}
             >
-              We&apos;ve received your details. See you at Tilt.
+              You&apos;re entered in the Tilt lottery for this campaign.
             </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.4 }}
-          >
-            <Link
-              href="/"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "12px 28px",
-                background: "#c8e63c",
-                color: "#0e1f10",
-                fontSize: "12px",
-                fontWeight: 900,
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-                borderRadius: "10px",
-                textDecoration: "none",
-              }}
-            >
-              Back to Arbitrary
-            </Link>
           </motion.div>
         </motion.div>
       </div>
@@ -339,7 +430,7 @@ export default function TiltPage() {
                   margin: "5px 0 0",
                 }}
               >
-                Event Registration
+                Lottery Application
               </p>
             </div>
           </div>
@@ -453,7 +544,7 @@ export default function TiltPage() {
           >
             {[
               {
-                id: "name",
+                id: "full_name",
                 label: "Full Name",
                 type: "text",
                 placeholder: "Your full name",
@@ -477,7 +568,7 @@ export default function TiltPage() {
               <motion.div
                 key={field.id}
                 initial={{ opacity: 0, y: 16 }}
-                animate={mounted ? { opacity: 1, y: 0 } : {}}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{
                   delay: 0.15 + i * 0.06,
                   duration: 0.4,
@@ -501,7 +592,7 @@ export default function TiltPage() {
 
             <motion.div
               initial={{ opacity: 0, y: 16 }}
-              animate={mounted ? { opacity: 1, y: 0 } : {}}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.33, duration: 0.4, ease: EASE }}
             >
               <label htmlFor="address" className="tilt-label">
@@ -519,46 +610,14 @@ export default function TiltPage() {
 
             <motion.div
               initial={{ opacity: 0, y: 16 }}
-              animate={mounted ? { opacity: 1, y: 0 } : {}}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.39, duration: 0.4, ease: EASE }}
             >
               <button type="submit" disabled={isLoading} className="tilt-btn">
-                {isLoading ? "Saving…" : "Register for Tilt"}
+                {isLoading ? "Applying…" : "Apply"}
               </button>
             </motion.div>
           </form>
-        </motion.div>
-
-        {/* Back link */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5, duration: 0.4 }}
-          className="text-center mt-6"
-        >
-          <Link
-            href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "10px",
-              fontWeight: 700,
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: "rgba(200,230,60,0.3)",
-              textDecoration: "none",
-              transition: "color 0.2s",
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.color = "rgba(200,230,60,0.7)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.color = "rgba(200,230,60,0.3)")
-            }
-          >
-            <span>←</span> Back to Arbitrary
-          </Link>
         </motion.div>
       </div>
     </div>
