@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type Campaign = {
   id: string;
@@ -9,6 +10,7 @@ type Campaign = {
   startsAt: string;
   endsAt: string;
   createdAt: string;
+  entryCount: number;
 };
 
 function toLocalInputValue(value: string) {
@@ -377,7 +379,7 @@ export default function TiltAdminCampaignsPage() {
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
               className="tilt-input"
-              placeholder="Tilt Lottery June"
+              placeholder="Campaign Name"
               required
             />
           </Field>
@@ -477,6 +479,7 @@ export default function TiltAdminCampaignsPage() {
               <Th>Starts</Th>
               <Th>Ends</Th>
               <Th>Created</Th>
+              <Th>Entries</Th>
               <Th>Status</Th>
               <Th>Actions</Th>
             </tr>
@@ -520,6 +523,11 @@ export default function TiltAdminCampaignsPage() {
                   </Td>
                   <Td>{formatDateTime(campaign.createdAt)}</Td>
                   <Td>
+                    <span className="font-semibold text-white">
+                      {campaign.entryCount}
+                    </span>
+                  </Td>
+                  <Td>
                     <StatusBadge status={status} />
                   </Td>
                   <Td>
@@ -548,17 +556,30 @@ export default function TiltAdminCampaignsPage() {
                           </button>
                         </>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEditing(campaign)}
-                          className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider"
-                          style={{
-                            background: "rgba(255,255,255,0.08)",
-                            color: "#fff",
-                          }}
-                        >
-                          Edit
-                        </button>
+                        <>
+                          <Link
+                            href={`/tilt/admin/campaigns/${campaign.id}`}
+                            className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider inline-block"
+                            style={{
+                              background: "rgba(200,230,60,0.1)",
+                              border: "1px solid rgba(200,230,60,0.2)",
+                              color: "#c8e63c",
+                            }}
+                          >
+                            View
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => startEditing(campaign)}
+                            className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider"
+                            style={{
+                              background: "rgba(255,255,255,0.08)",
+                              color: "#fff",
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </>
                       )}
 
                       <button
@@ -583,7 +604,7 @@ export default function TiltAdminCampaignsPage() {
             {!isLoading && campaigns.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-5 py-10 text-center text-sm"
                   style={{ color: "rgba(255,255,255,0.4)" }}
                 >

@@ -393,4 +393,27 @@ Changes:
 - Loading screen subtext changed from `"Tiltyourmusic · Events"` to `"Tilt Your Music"`.
 - Loading screen letter reveal animation kept as `"TILT"` (stylistic, not a heading).
 
+---
+
+### 15) Campaign entries page + admin user management (2026-06-18)
+
+#### Campaign entries API & page
+- New API `GET /api/tilt/admin/campaigns/[id]/entries` returns all lottery entries for a campaign with outlet name joined through `lottery_sessions` → `qr_tokens` → `tilt_users`.
+- Entries are ordered ascending by `createdAt` (oldest first).
+- New page at `src/app/tilt/admin/campaigns/[id]` with:
+  - Back link to campaigns list
+  - Campaign name + entry count header
+  - Table columns: `#` (1-based index), Name, Email, Phone, Outlet, Flagged, Submitted
+  - Flagged rows highlighted with red tint background
+- Campaigns list updated: `entryCount` added to GET response via `LEFT JOIN + COUNT + GROUP BY` on `lottery_entries`. Displays as a numeric column with "View" link per row.
+
+#### Admin user management
+- `GET /api/tilt/admin/users` now returns `totalSubmissions` alongside `users` array.
+- `DELETE /api/tilt/admin/users` accepts `{ type: "invite", id }` or `{ type: "user", id }` to revoke an invite or permanently remove an outlet account.
+- Admin page (`src/app/tilt/admin/page.tsx`):
+  - Added **Submissions** stat card (4th card; grid changed to `sm:grid-cols-4`).
+  - Added **Revoke** button on invited rows, **Remove** button on active rows.
+  - Confirmation dialog before delete (modal overlay with cancel/confirm).
+  - Table `minWidth` increased to `800px` to accommodate Actions column.
+
 ## Notes

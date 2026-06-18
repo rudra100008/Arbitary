@@ -1,7 +1,8 @@
-import { desc } from "drizzle-orm";
+import { desc, count } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
-import { lotteryCampaignsTable } from "@/src/db/tilt-schema";
+import { lotteryCampaignsTable, lotteryEntriesTable } from "@/src/db/tilt-schema";
+import { eq, sql } from "drizzle-orm";
 import { requireTiltSuperadmin } from "@/src/lib/tilt/require-superadmin";
 
 function parseDate(value: unknown): Date | null {
@@ -28,8 +29,11 @@ export async function GET(req: NextRequest) {
         startsAt: lotteryCampaignsTable.startsAt,
         endsAt: lotteryCampaignsTable.endsAt,
         createdAt: lotteryCampaignsTable.createdAt,
+        entryCount: sql<number>`COALESCE(CAST(COUNT(${lotteryEntriesTable.id}) AS integer), 0)`,
       })
       .from(lotteryCampaignsTable)
+      .leftJoin(lotteryEntriesTable, eq(lotteryEntriesTable.campaignId, lotteryCampaignsTable.id))
+      .groupBy(lotteryCampaignsTable.id)
       .orderBy(desc(lotteryCampaignsTable.createdAt));
 
     return NextResponse.json({ campaigns }, { status: 200 });

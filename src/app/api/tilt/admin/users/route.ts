@@ -118,7 +118,14 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        return NextResponse.json({ users: result });
+        const [totalSubmissionsRow] = await tiltDb
+            .select({ count: count() })
+            .from(lotteryEntriesTable);
+
+        return NextResponse.json({
+            users: result,
+            totalSubmissions: totalSubmissionsRow?.count ?? 0,
+        });
     } catch (err) {
         console.error('[tilt/admin/users]', err);
         return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
@@ -165,6 +172,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true }, { status: 201 });
     } catch (err) {
         console.error('[tilt/admin/users] POST', err);
+        return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const payload = await requireSuperadmin(req);
+        if (!payload) {
+            return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+        }
+
+        const { type, id } = await req.json();
+
+        if (type === 'invite') {
+            await tiltDb
+                .delete(invitedOutletsTable)
+                .where(eq(invitedOutletsTable.id, id));
+        } else if (type === 'user') {
+            await tiltDb
+                .delete(tiltUsersTable)
+                .where(eq(tiltUsersTable.id, id));
+        } else {
+            return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
+        }
+
+        return NextResponse.json({ ok: true });
+    } catch (err) {
+        console.error('[tilt/admin/users] DELETE', err);
         return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
     }
 }

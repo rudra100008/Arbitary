@@ -16,8 +16,14 @@ interface OutletRow {
 
 export default function TiltAdminPage() {
   const [users, setUsers] = useState<OutletRow[]>([]);
+  const [totalSubmissions, setTotalSubmissions] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<{
+    type: "invite" | "user";
+    id: number;
+    email: string;
+  } | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
@@ -30,6 +36,9 @@ export default function TiltAdminPage() {
       if (!res.ok) return;
       const data = await res.json();
       setUsers(data.users ?? []);
+      if (typeof data.totalSubmissions === "number") {
+        setTotalSubmissions(data.totalSubmissions);
+      }
     } catch {
       // silent
     } finally {
@@ -41,6 +50,24 @@ export default function TiltAdminPage() {
     document.title = "Outlets | Tilt Your Music";
     void loadUsers();
   }, []);
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    const { type, id } = confirmDelete;
+    setConfirmDelete(null);
+    try {
+      const res = await fetch("/api/tilt/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, id }),
+      });
+      if (res.ok) {
+        await loadUsers();
+      }
+    } catch {
+      // silent
+    }
+  };
 
   const handleInvite = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -161,7 +188,7 @@ export default function TiltAdminPage() {
       </div>
 
       {/* Stat row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         <div
           className="rounded-xl border px-5 py-4"
           style={{
@@ -211,6 +238,23 @@ export default function TiltAdminPage() {
           </p>
           <p className="text-2xl font-black text-white mt-1">
             {invitedCount}
+          </p>
+        </div>
+        <div
+          className="rounded-xl border px-5 py-4"
+          style={{
+            borderColor: "rgba(200,230,60,0.1)",
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.2em]"
+            style={{ color: "rgba(200,230,60,0.45)" }}
+          >
+            Submissions
+          </p>
+          <p className="text-2xl font-black text-white mt-1">
+            {totalSubmissions}
           </p>
         </div>
       </div>
@@ -309,7 +353,7 @@ export default function TiltAdminPage() {
           className="overflow-x-auto rounded-2xl border"
           style={{ borderColor: "rgba(200,230,60,0.08)" }}
         >
-          <table className="w-full text-left" style={{ minWidth: "700px" }}>
+          <table className="w-full text-left" style={{ minWidth: "800px" }}>
             <thead>
               <tr style={{ background: "rgba(200,230,60,0.03)" }}>
                 <Th>Outlet</Th>
@@ -319,6 +363,7 @@ export default function TiltAdminPage() {
                 <Th>Submissions</Th>
                 <Th>Status</Th>
                 <Th>Joined</Th>
+                <Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
@@ -394,12 +439,103 @@ export default function TiltAdminPage() {
                     )}
                   </Td>
                   <Td>{formatDate(u.createdAt)}</Td>
+                  <Td>
+                    {u.status === "invited" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConfirmDelete({
+                            type: "invite",
+                            id: u.id!,
+                            email: u.email,
+                          })
+                        }
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider"
+                        style={{
+                          background: "rgba(212,43,43,0.12)",
+                          color: "#fca5a5",
+                        }}
+                      >
+                        Revoke
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConfirmDelete({
+                            type: "user",
+                            id: u.id!,
+                            email: u.email,
+                          })
+                        }
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider"
+                        style={{
+                          background: "rgba(212,43,43,0.12)",
+                          color: "#fca5a5",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Confirmation dialog */}
+      {confirmDelete ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setConfirmDelete(null)}
+        >
+          <div
+            className="rounded-2xl border p-8 max-w-sm w-full mx-4"
+            style={{
+              borderColor: "rgba(212,43,43,0.3)",
+              background: "#0e1f10",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-white font-bold text-lg mb-2">
+              {confirmDelete.type === "invite"
+                ? "Revoke invite?"
+                : "Remove outlet?"}
+            </p>
+            <p
+              className="text-sm mb-6"
+              style={{ color: "rgba(255,255,255,0.55)" }}
+            >
+              {confirmDelete.type === "invite"
+                ? `This will remove the invitation for ${confirmDelete.email}.`
+                : `This will permanently delete the account for ${confirmDelete.email}. This cannot be undone.`}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider"
+                style={{
+                  background: "rgba(255,255,255,0.08)",
+                  color: "#fff",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider"
+                style={{ background: "#d42b2b", color: "#fff" }}
+              >
+                {confirmDelete.type === "invite" ? "Revoke" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
