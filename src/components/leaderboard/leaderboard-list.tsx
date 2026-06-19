@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TopUser, UserRankInfo } from "@/src/db/user-queries";
 import Image from "next/image";
@@ -38,7 +38,6 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 const TOP_BG = ["bg-[#FEFCE8]", "bg-[#FAFAFA]", "bg-[#FFF8F3]"];
 
-// Easing curves
 const EASE_OUT_QUART = [0.25, 1, 0.5, 1] as const;
 const EASE_SPRING = { type: "spring", stiffness: 380, damping: 30 } as const;
 
@@ -122,25 +121,24 @@ function LeaderboardRow({
       ? TOP_BG[rank - 1]
       : "";
 
-  // Top-3 rows slide in from the left with a longer travel; rest fade up normally
   const initial = isTop3
     ? { opacity: 0, x: -32, scale: 0.98 }
     : { opacity: 0, y: 20 };
 
   const animate = isCurrentUser
-    ? { opacity: 1, x: 0, y: 0, scale: [1, 1.012, 1] } // subtle pulse for "You" row
+    ? { opacity: 1, x: 0, y: 0, scale: [1, 1.012, 1] }
     : { opacity: 1, x: 0, y: 0, scale: 1 };
 
   const transition = isTop3
     ? {
         duration: 0.55,
-        delay: index * 0.08, // top-3 stagger is more deliberate
+        delay: index * 0.08,
         ease: EASE_OUT_QUART,
         scale: { duration: 0.4, times: [0, 0.5, 1] },
       }
     : {
         duration: 0.38,
-        delay: Math.min(0.24 + index * 0.04, 1.0), // rest starts after top-3 lands
+        delay: Math.min(0.24 + index * 0.04, 1.0),
         ease: EASE_OUT_QUART,
       };
 
@@ -213,7 +211,7 @@ function LeaderboardRow({
         </p>
       </div>
 
-      {/* Stats — count-up feel via staggered entrance */}
+      {/* Stats */}
       <motion.div
         className="flex items-center gap-3 justify-end"
         initial={{ opacity: 0 }}
@@ -333,20 +331,10 @@ export default function LeaderboardList({
   currentUserId,
   currentUserRankInfo,
 }: LeaderboardListProps) {
-  const [search, setSearch] = useState("");
-
   const rankedUsers = useMemo(
     () => users.map((u, i) => ({ ...u, rank: i + 1 })),
     [users],
   );
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return rankedUsers;
-    const q = search.toLowerCase();
-    return rankedUsers.filter(
-      (u) => u.name?.toLowerCase().includes(q) || u.id.toString().includes(q),
-    );
-  }, [rankedUsers, search]);
 
   const currentUserData = useMemo(() => {
     if (!currentUserId) return null;
@@ -354,68 +342,8 @@ export default function LeaderboardList({
     return idx === -1 ? null : rankedUsers[idx];
   }, [rankedUsers, currentUserId]);
 
-  const currentUserVisible =
-    currentUserData && filtered.some((u) => u.id === currentUserId);
-
   return (
     <div className="w-full flex flex-col">
-      {/* Search */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: EASE_OUT_QUART }}
-        className="sticky top-0 z-20 bg-white/95 backdrop-blur-lg border-b border-black/5 px-4 py-3"
-      >
-        <div className="relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search by name or ID..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-9 py-2 bg-zinc-50 border border-black/8 rounded-lg text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FACC15]/30 focus:border-[#FACC15]/40 transition-all"
-          />
-          <AnimatePresence>
-            {search && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.7 }}
-                transition={{ duration: 0.15 }}
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
-      </motion.div>
-
       {/* Column header */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -436,7 +364,7 @@ export default function LeaderboardList({
       {/* Rows */}
       <AnimatePresence mode="popLayout">
         <div key="rows">
-          {filtered.map((user, index) => (
+          {rankedUsers.map((user, index) => (
             <LeaderboardRow
               key={user.id}
               user={user}
@@ -448,40 +376,15 @@ export default function LeaderboardList({
         </div>
       </AnimatePresence>
 
-      {/* Empty state */}
+      {/* Sticky current user */}
       <AnimatePresence>
-        {filtered.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.25 }}
-            className="text-center py-16 text-zinc-400"
-          >
-            <motion.p
-              animate={{ rotate: [0, -10, 10, -6, 6, 0] }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-3xl mb-3"
-            >
-              🔍
-            </motion.p>
-            <p className="text-sm font-medium">
-              No users match &quot;{search}&quot;
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Sticky current user — two cases:
-          1. User IS in the top-100 but has scrolled out of view → show without "Your ranking" label
-          2. User is NOT in the top-100 at all → show with "Your ranking" label using server-fetched rank */}
-      <AnimatePresence>
-        {currentUserData && !currentUserVisible && (
-          <CurrentUserStickyRow
-            user={currentUserData}
-            rank={currentUserData.rank}
-          />
-        )}
+        {currentUserData &&
+          !rankedUsers.some((u) => u.id === currentUserId) && (
+            <CurrentUserStickyRow
+              user={currentUserData}
+              rank={currentUserData.rank}
+            />
+          )}
         {!currentUserData && currentUserRankInfo && (
           <CurrentUserStickyRow
             user={currentUserRankInfo}

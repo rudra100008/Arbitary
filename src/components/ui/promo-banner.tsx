@@ -38,10 +38,106 @@ function Particle({ style }: { style: React.CSSProperties }) {
   );
 }
 
+// ── Moved outside PromoBanner to fix react-hooks/static-components errors ──
+
+function ClockIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function CloseBtn({
+  size = 16,
+  onDismiss,
+}: {
+  size?: number;
+  onDismiss: () => void;
+}) {
+  return (
+    <button
+      onClick={onDismiss}
+      aria-label="Dismiss promotional banner"
+      className="flex-shrink-0 text-white/70 hover:text-white transition-colors duration-150 p-0.5 rounded"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </button>
+  );
+}
+
+function RegisterBtn({ className = "" }: { className?: string }) {
+  return (
+    <Link
+      href={BANNER_CONFIG.registerHref}
+      className={`flex-shrink-0 bg-white text-green-700 font-black uppercase tracking-widest rounded-md hover:bg-green-50 transition-colors duration-150 shadow-sm ${className}`}
+    >
+      PARTICIPANT
+    </Link>
+  );
+}
+
+function Countdown({
+  timeLeft,
+  className = "",
+}: {
+  timeLeft: TimeLeft;
+  className?: string;
+}) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (!timeLeft.expired) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 text-white font-black tracking-widest uppercase px-3 py-1 rounded-full ${className}`}
+        style={{ background: "rgba(0,0,0,0.3)" }}
+        aria-live="polite"
+      >
+        <ClockIcon />
+        CLOSES IN {pad(timeLeft.days)}D {pad(timeLeft.hours)}H
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`text-white/70 font-black uppercase tracking-widest ${className}`}
+    >
+      EVENT CLOSED
+    </span>
+  );
+}
+
 function updateBannerHeight(el: HTMLElement | null) {
   const h = el ? el.getBoundingClientRect().height : 0;
   document.documentElement.style.setProperty("--banner-h", `${h}px`);
 }
+
+// ───────────────────────────────────────────────────────────────────────────────
 
 export default function PromoBanner() {
   const [dismissed, setDismissed] = useState(true);
@@ -56,25 +152,17 @@ export default function PromoBanner() {
     const isDismissed = stored === "true";
     setDismissed(isDismissed);
     setMounted(true);
-
-    if (isDismissed) {
+    if (isDismissed)
       document.documentElement.style.setProperty("--banner-h", "0px");
-    }
   }, []);
 
-  // Set CSS var once banner is visible in the DOM
   useEffect(() => {
     if (!mounted || dismissed) return;
-
-    // Use rAF to ensure layout has painted before measuring
-    const id = requestAnimationFrame(() => {
-      updateBannerHeight(bannerRef.current);
-    });
-
-    // Also handle window resize
+    const id = requestAnimationFrame(() =>
+      updateBannerHeight(bannerRef.current),
+    );
     const onResize = () => updateBannerHeight(bannerRef.current);
     window.addEventListener("resize", onResize);
-
     return () => {
       cancelAnimationFrame(id);
       window.removeEventListener("resize", onResize);
@@ -177,92 +265,86 @@ export default function PromoBanner() {
         }}
       />
 
-      <div className="relative flex items-center justify-between gap-2 px-3 py-2 md:px-6 md:py-2.5">
-        {/* LEFT — Branding badge */}
-        <div className="flex-shrink-0 hidden sm:flex">
+      {/* ── Mobile (< 640px): two rows ── */}
+      <div className="sm:hidden relative px-3 pt-2 pb-1.5">
+        <div className="flex items-center justify-between mb-1">
           <span
-            className="text-white font-black text-[10px] md:text-xs tracking-widest uppercase px-3 py-1 rounded-full border border-white/40"
+            className="text-white font-black text-[9px] tracking-widest uppercase px-2 py-0.5 rounded-full border border-white/40"
+            style={{ background: "rgba(0,0,0,0.25)" }}
+          >
+            TUBORG × ARBITARY
+          </span>
+          <CloseBtn size={14} onDismiss={handleDismiss} />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col min-w-0">
+            <p className="text-white font-black text-[10px] uppercase tracking-wider leading-tight truncate">
+              TILT YOUR MUSIC SESSION
+            </p>
+            {!timeLeft.expired ? (
+              <span
+                className="mt-0.5 inline-flex items-center gap-1 text-white font-bold text-[9px] tracking-wider uppercase opacity-90"
+                aria-live="polite"
+              >
+                <ClockIcon />
+                CLOSES IN {pad(timeLeft.days)}D {pad(timeLeft.hours)}H{" "}
+                {pad(timeLeft.minutes)}M
+              </span>
+            ) : (
+              <span className="text-white/70 text-[9px] font-black uppercase tracking-widest mt-0.5">
+                EVENT CLOSED
+              </span>
+            )}
+          </div>
+          <RegisterBtn className="text-[10px] px-3 py-1.5" />
+        </div>
+      </div>
+
+      {/* ── Tablet (640px–1023px): compact single row ── */}
+      <div className="hidden sm:flex lg:hidden relative items-center justify-between gap-2 px-4 py-2">
+        <span
+          className="flex-shrink-0 text-white font-black text-[10px] tracking-widest uppercase px-2.5 py-1 rounded-full border border-white/40"
+          style={{ background: "rgba(0,0,0,0.25)" }}
+        >
+          TUBORG × ARBITARY
+        </span>
+
+        <p className="flex-1 text-white font-black text-[11px] uppercase tracking-wider text-center leading-tight px-2">
+          TILT YOUR MUSIC SESSION
+        </p>
+
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <Countdown timeLeft={timeLeft} className="text-[10px]" />
+          <RegisterBtn className="text-[10px] px-3 py-1.5" />
+          <CloseBtn size={14} onDismiss={handleDismiss} />
+        </div>
+      </div>
+
+      {/* ── Desktop (≥ 1024px): original full layout ── */}
+      <div className="hidden lg:flex relative items-center justify-between gap-2 px-6 py-2.5">
+        <div className="flex-shrink-0">
+          <span
+            className="text-white font-black text-xs tracking-widest uppercase px-3 py-1 rounded-full border border-white/40"
             style={{ background: "rgba(0,0,0,0.25)" }}
           >
             TUBORG × ARBITARY
           </span>
         </div>
 
-        {/* CENTER — Event text */}
         <div className="flex-1 flex justify-center">
-          <p className="text-white font-black text-[10px] sm:text-xs md:text-sm uppercase tracking-wider text-center leading-tight">
-            <span className="sm:hidden font-black">
-              TILT YOUR MUSIC SESSION
-            </span>
-            <span className="hidden sm:inline">
-              <span className="font-black">TILT YOUR MUSIC SESSION</span>
-              <span className="mx-2 opacity-60">—</span>
-              <span className="font-medium opacity-90">
-                Meet your favourite artist
-              </span>
+          <p className="text-white font-black text-sm uppercase tracking-wider text-center leading-tight">
+            <span className="font-black">TILT YOUR MUSIC SESSION</span>
+            <span className="mx-2 opacity-60">—</span>
+            <span className="font-medium opacity-90">
+              Meet your favourite artist
             </span>
           </p>
         </div>
 
-        {/* RIGHT — Countdown + Register + Close */}
         <div className="flex-shrink-0 flex items-center gap-2">
-          {!timeLeft.expired ? (
-            <span
-              className="hidden md:flex items-center gap-1.5 text-white font-black text-[10px] tracking-widest uppercase px-3 py-1 rounded-full"
-              style={{ background: "rgba(0,0,0,0.3)" }}
-              aria-live="polite"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              CLOSES IN {pad(timeLeft.days)}D {pad(timeLeft.hours)}H
-            </span>
-          ) : (
-            <span className="hidden md:inline text-white/70 text-[10px] font-black uppercase tracking-widest">
-              EVENT CLOSED
-            </span>
-          )}
-
-          <Link
-            href={BANNER_CONFIG.registerHref}
-            className="flex-shrink-0 bg-white text-green-700 font-black text-[10px] md:text-xs uppercase tracking-widest px-3 py-1.5 md:px-4 rounded-md hover:bg-green-50 transition-colors duration-150 shadow-sm"
-          >
-            PARTICIPANT
-          </Link>
-
-          <button
-            onClick={handleDismiss}
-            aria-label="Dismiss promotional banner"
-            className="flex-shrink-0 text-white/70 hover:text-white transition-colors duration-150 p-0.5 rounded"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          <Countdown timeLeft={timeLeft} className="text-[10px]" />
+          <RegisterBtn className="text-xs px-4 py-1.5" />
+          <CloseBtn size={16} onDismiss={handleDismiss} />
         </div>
       </div>
     </div>

@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import Header from "@/src/components/ui/header";
-import Footer from "@/src/components/ui/footer";
 import AmbientBlob from "@/src/components/ui/ambient-blob";
 
 type Partner = {

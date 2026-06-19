@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Header from "@/src/components/ui/header";
-import Footer from "@/src/components/ui/footer";
 import { ArrowLeft, Calendar, MapPin } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";

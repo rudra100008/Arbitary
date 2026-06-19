@@ -19,6 +19,8 @@ export const NotificationTypeEnum = z.enum([
     "task_assigned",
     "tier_upgrade",
     "event_announcement",
+    "participant_approved",
+    "participant_rejected",
 ]);
 
 export type NotificationType = z.infer<typeof NotificationTypeEnum>;

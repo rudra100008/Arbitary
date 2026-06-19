@@ -1,6 +1,5 @@
 "use client";
 
-import Header from "@/src/components/ui/header";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";

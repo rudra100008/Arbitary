@@ -3,8 +3,6 @@
 import { useEffect, useState, useRef, useCallback, FormEvent } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import Header from "@/src/components/ui/header";
-import Footer from "@/src/components/ui/footer";
 
 export default function LivePage() {
   const { data: session } = useSession();

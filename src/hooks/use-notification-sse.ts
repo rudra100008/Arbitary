@@ -12,9 +12,7 @@ import {
 /**
  * Notification types that reflect a change to one of the user's task
  * submissions. When one of these arrives, the dashboard's task list and
- * points are stale and need to be refreshed immediately — otherwise the
- * user sees a "Submission rejected"/"approved" toast while the task card
- * still shows "Pending Verification".
+ * points are stale and need to be refreshed immediately.
  */
 const SUBMISSION_STATUS_NOTIFICATION_TYPES = new Set([
     "submission_rejected",
@@ -22,20 +20,68 @@ const SUBMISSION_STATUS_NOTIFICATION_TYPES = new Set([
 ]);
 
 /**
+ * Notification types that mean a participant submission status changed.
+ * When one of these arrives the participants page should re-fetch its
+ * status so the "View Status" panel updates without a manual refresh.
+ */
+const PARTICIPANT_STATUS_NOTIFICATION_TYPES = new Set([
+    "participant_approved",
+    "participant_rejected",
+]);
+
+/**
+ * All notification types that should trigger the notification sound.
+ * Only plays for SSE-delivered events — never for history loaded on init.
+ */
+const SOUND_NOTIFICATION_TYPES = new Set([
+    "submission_rejected",
+    "submission_approved",
+    "participant_approved",
+    "participant_rejected",
+    "points_awarded",
+    "task_assigned",
+    "tier_upgrade",
+    "event_announcement",
+]);
+
+/**
  * Subscribes to /api/notifications/subscribe (SSE) and:
- *  - prepends newly received notifications to the react-query cache so the
- *    notification center updates instantly without a page refresh,
- *  - shows a toast for the new notification, and
- *  - for submission status changes (rejected/approved), immediately
- *    invalidates the user's task list and points so the dashboard reflects
- *    the new status in lockstep with the notification (no stale "Pending
- *    Verification" card).
+ *  - prepends newly received notifications to the react-query cache,
+ *  - shows a sonner toast,
+ *  - plays a notification sound once (debounced for bursts),
+ *  - for task submission changes: invalidates user-tasks + user-points,
+ *  - for participant status changes: invalidates the participant-status
+ *    query so the participants page re-fetches without a manual refresh.
  *
- * Mount this once for any authenticated session (e.g. in the main layout).
+ * Mount this once per authenticated session (already done in main layout).
  */
 export function useNotificationSSE({ enabled = true }: { enabled?: boolean } = {}) {
     const queryClient = useQueryClient();
     const esRef = useRef<EventSource | null>(null);
+
+    // Audio refs — no state to avoid re-renders
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    // Debounce: multiple simultaneous notifications → one sound play
+    const soundDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    function scheduleSound() {
+        if (soundDebounceRef.current) clearTimeout(soundDebounceRef.current);
+        soundDebounceRef.current = setTimeout(() => {
+            try {
+                if (!audioRef.current) {
+                    audioRef.current = new Audio("/sounds/notification.wav");
+                    audioRef.current.volume = 0.6;
+                }
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(() => {
+                    // Browser blocks autoplay before first user interaction — safe to ignore
+                });
+            } catch {
+                // Non-fatal
+            }
+            soundDebounceRef.current = null;
+        }, 100);
+    }
 
     useEffect(() => {
         if (!enabled) {
@@ -56,11 +102,11 @@ export function useNotificationSSE({ enabled = true }: { enabled?: boolean } = {
                 if (data.type === "notification") {
                     const notification: AppNotification = data.notification;
 
+                    // 1. Prepend to notification center cache
                     queryClient.setQueryData<NotificationsResponse | undefined>(
                         NOTIFICATIONS_QUERY_KEY,
                         (old) => {
                             if (!old) return old;
-                            // avoid duplicates if it's already in the cache
                             if (old.notifications.some((n) => n.id === notification.id)) return old;
                             return {
                                 notifications: [notification, ...old.notifications],
@@ -69,30 +115,41 @@ export function useNotificationSSE({ enabled = true }: { enabled?: boolean } = {
                         },
                     );
 
+                    // 2. Toast
                     toast(notification.title, {
                         description: notification.message,
                     });
 
-                    // Keep the dashboard's task cards and points in sync with
-                    // this notification — don't wait for the separate
-                    // polling-based task-status SSE to catch up.
+                    // 3. Sound — only for SSE-delivered events, never for page-load history
+                    if (SOUND_NOTIFICATION_TYPES.has(notification.type)) {
+                        scheduleSound();
+                    }
+
+                    // 4. Invalidate task-related queries
                     if (SUBMISSION_STATUS_NOTIFICATION_TYPES.has(notification.type)) {
                         queryClient.invalidateQueries({ queryKey: ["user-tasks"] });
                         queryClient.invalidateQueries({ queryKey: ["user-points"] });
                     }
+
+                    // 5. Invalidate participant status — makes the participants page
+                    //    re-fetch automatically when an admin approves/rejects.
+                    if (PARTICIPANT_STATUS_NOTIFICATION_TYPES.has(notification.type)) {
+                        queryClient.invalidateQueries({ queryKey: ["participant-status"] });
+                    }
                 }
             } catch {
-                // ignore heartbeat/comment lines and parse errors
+                // Ignore heartbeat lines and parse errors
             }
         };
 
         es.onerror = () => {
-            // EventSource auto-reconnects; nothing to do
+            // EventSource reconnects automatically
         };
 
         return () => {
             es?.close();
             esRef.current = null;
+            if (soundDebounceRef.current) clearTimeout(soundDebounceRef.current);
         };
     }, [queryClient, enabled]);
 

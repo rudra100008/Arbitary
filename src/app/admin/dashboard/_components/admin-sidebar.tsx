@@ -155,6 +155,26 @@ const sidebarGroups = [
         ),
       },
       {
+        label: "Participants",
+        href: "/admin/dashboard/participants",
+        icon: (
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="4" r="2" strokeWidth={2} />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 10c1.5-1.5 5-1.5 6 0l2 6-3 1-1-3-1 3-3-1zM9 17l-1.5 4M15 17l1.5 4"
+            />
+          </svg>
+        ),
+      },
+      {
         label: "Fraud Detection",
         href: "/admin/dashboard/fraud",
         icon: (

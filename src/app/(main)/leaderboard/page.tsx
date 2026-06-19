@@ -1,5 +1,3 @@
-import Header from "@/src/components/ui/header";
-import Footer from "@/src/components/ui/footer";
 import LeaderboardList from "@/src/components/leaderboard/leaderboard-list";
 import { getTopUsers, getUserRankInfo } from "@/src/db/user-queries";
 import { getServerSession } from "next-auth";
@@ -100,8 +98,6 @@ export default async function LeaderboardPage() {
           </div>
         </section>
       </main>
-
-      <Footer />
     </div>
   );
 }
