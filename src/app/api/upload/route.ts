@@ -18,7 +18,12 @@ const AUDIO_MIMES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "aud
 const VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/x-msvideo", "video/webm", "video/mpeg", "video/3gpp"];
 
 const IMAGE_FOLDERS = ["task-proofs", "profile-pictures", "event-heroes", "record_cover", "partner_logo", "member_photo", "about_hero"];
-const MEDIA_FOLDERS = ["participant-songs", "participant-dances"];
+// NOTE: "participant-songs" / "participant-dances" intentionally removed.
+// Participant song/dance submissions now use social media URLs instead of
+// file uploads — see src/app/api/participants/route.ts and
+// src/lib/social-url.ts. Kept as an empty array (rather than deleting the
+// MEDIA_FOLDERS concept) in case a future media-upload feature needs it.
+const MEDIA_FOLDERS: string[] = [];
 
 
 
@@ -99,25 +104,23 @@ export async function POST(req: NextRequest) {
   // ── Tier-1 image analysis ─────────────────────────────────────────────────
   // Run EXIF extraction and perceptual hashing in parallel.
   // These are best-effort: failures don't block the upload.
-  const [exifFlags, phash] = await Promise.allSettled([
+  const [exifSettled, phashSettled] = await Promise.allSettled([
     extractExifFlags(buffer),
     computePerceptualHash(buffer),
-  ]).then((results) => [
-    results[0].status === "fulfilled" ? results[0].value : null,
-    results[1].status === "fulfilled" ? results[1].value : null,
   ]);
+  const exifFlags = exifSettled.status === "fulfilled" ? exifSettled.value : null;
+  const phash = phashSettled.status === "fulfilled" ? phashSettled.value : null;
 
 
   // ── Image-only: EXIF + perceptual hash analysis ───────────────────────────
   let imageAnalysis = null;
   if (isImage && rawType === "task-proofs") {
-    const [exifFlags, phash] = await Promise.allSettled([
+    const [exifSettled2, phashSettled2] = await Promise.allSettled([
       extractExifFlags(buffer),
       computePerceptualHash(buffer),
-    ]).then((results) => [
-      results[0].status === "fulfilled" ? results[0].value : null,
-      results[1].status === "fulfilled" ? results[1].value : null,
     ]);
+    const exifFlags = exifSettled2.status === "fulfilled" ? exifSettled2.value : null;
+    const phash = phashSettled2.status === "fulfilled" ? phashSettled2.value : null;
 
     let isDuplicateImage = false;
     let duplicateImageUserTaskId: number | null = null;

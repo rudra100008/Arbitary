@@ -2,12 +2,21 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 const BANNER_CONFIG = {
   eventDate: "2026-08-15T20:00:00",
   registerHref: "/participants",
-  storageKey: "tilt-promo-banner-dismissed-v2",
 } as const;
+
+const TICKER_ITEMS = [
+  "TILT YOUR MUSIC SESSION",
+  "✦",
+  "MEET YOUR FAVOURITE ARTIST",
+  "✦",
+  "TUBORG × ARBITARY",
+  "✦",
+];
 
 interface TimeLeft {
   days: number;
@@ -37,8 +46,6 @@ function Particle({ style }: { style: React.CSSProperties }) {
     </span>
   );
 }
-
-// ── Moved outside PromoBanner to fix react-hooks/static-components errors ──
 
 function ClockIcon() {
   return (
@@ -98,7 +105,7 @@ function RegisterBtn({ className = "" }: { className?: string }) {
       href={BANNER_CONFIG.registerHref}
       className={`flex-shrink-0 bg-white text-green-700 font-black uppercase tracking-widest rounded-md hover:bg-green-50 transition-colors duration-150 shadow-sm ${className}`}
     >
-      PARTICIPANT
+      PARTICIPATE
     </Link>
   );
 }
@@ -114,7 +121,7 @@ function Countdown({
   if (!timeLeft.expired) {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 text-white font-black tracking-widest uppercase px-3 py-1 rounded-full ${className}`}
+        className={`inline-flex items-center gap-1.5 text-white font-medium tracking-widest uppercase px-3 py-1 rounded-full ${className}`}
         style={{ background: "rgba(0,0,0,0.3)" }}
         aria-live="polite"
       >
@@ -132,15 +139,71 @@ function Countdown({
   );
 }
 
+/**
+ * Pure-CSS marquee ticker.
+ *
+ * How it works:
+ * - The outer div clips with overflow-hidden.
+ * - Inside, two identical copies of the content sit side by side (inline-flex).
+ * - A CSS keyframe translates the whole track from 0 to -50% (exactly one copy width),
+ *   then loops — no JS measurement needed, works immediately on paint.
+ * - `animation-play-state: paused` on hover lets users read if they want.
+ */
+function Ticker() {
+  const tickerContent = (
+    <span className="inline-flex items-center gap-8 pr-8 shrink-0">
+      {TICKER_ITEMS.map((item, i) =>
+        item === "✦" ? (
+          <span key={i} className="text-white/50 text-[8px]" aria-hidden="true">
+            ✦
+          </span>
+        ) : (
+          <span
+            key={i}
+            className="whitespace-nowrap font-medium uppercase tracking-widest text-white text-[10px]"
+          >
+            {item}
+          </span>
+        ),
+      )}
+    </span>
+  );
+
+  return (
+    <>
+      {/* Keyframe injected once — scoped name avoids collisions */}
+      <style>{`
+        @keyframes promo-marquee {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .promo-ticker-track {
+          animation: promo-marquee 18s linear infinite;
+          will-change: transform;
+        }
+        .promo-ticker-track:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+
+      <div className="overflow-hidden w-full" aria-hidden="true">
+        {/* Track = two copies side by side → 200% wide → slide left by 50% = one copy */}
+        <div className="promo-ticker-track inline-flex">
+          {tickerContent}
+          {tickerContent}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function updateBannerHeight(el: HTMLElement | null) {
   const h = el ? el.getBoundingClientRect().height : 0;
   document.documentElement.style.setProperty("--banner-h", `${h}px`);
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-
 export default function PromoBanner() {
-  const [dismissed, setDismissed] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(
     calcTimeLeft(BANNER_CONFIG.eventDate),
@@ -148,12 +211,7 @@ export default function PromoBanner() {
   const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(BANNER_CONFIG.storageKey);
-    const isDismissed = stored === "true";
-    setDismissed(isDismissed);
     setMounted(true);
-    if (isDismissed)
-      document.documentElement.style.setProperty("--banner-h", "0px");
   }, []);
 
   useEffect(() => {
@@ -181,7 +239,7 @@ export default function PromoBanner() {
   const handleDismiss = () => {
     document.documentElement.style.setProperty("--banner-h", "0px");
     setDismissed(true);
-    localStorage.setItem(BANNER_CONFIG.storageKey, "true");
+    toast.info("Reload the page to see the banner again.", { duration: 4000 });
   };
 
   if (!mounted || dismissed) return null;
@@ -265,53 +323,51 @@ export default function PromoBanner() {
         }}
       />
 
-      {/* ── Mobile (< 640px): two rows ── */}
+      {/* ── Mobile (< 640px): 3 rows ── */}
       <div className="sm:hidden relative px-3 pt-2 pb-1.5">
         <div className="flex items-center justify-between mb-1">
           <span
-            className="text-white font-black text-[9px] tracking-widest uppercase px-2 py-0.5 rounded-full border border-white/40"
+            className="text-white font-black text-[10px] tracking-widest uppercase px-2 py-1.5 rounded-full border border-white/40"
             style={{ background: "rgba(0,0,0,0.25)" }}
           >
-            TUBORG × ARBITARY
+            TUBORG × ARBITRARY
           </span>
           <CloseBtn size={14} onDismiss={handleDismiss} />
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-col min-w-0">
-            <p className="text-white font-black text-[10px] uppercase tracking-wider leading-tight truncate">
-              TILT YOUR MUSIC SESSION
-            </p>
-            {!timeLeft.expired ? (
-              <span
-                className="mt-0.5 inline-flex items-center gap-1 text-white font-bold text-[9px] tracking-wider uppercase opacity-90"
-                aria-live="polite"
-              >
-                <ClockIcon />
-                CLOSES IN {pad(timeLeft.days)}D {pad(timeLeft.hours)}H{" "}
-                {pad(timeLeft.minutes)}M
-              </span>
-            ) : (
-              <span className="text-white/70 text-[9px] font-black uppercase tracking-widest mt-0.5">
-                EVENT CLOSED
-              </span>
-            )}
-          </div>
+
+        <Ticker />
+
+        <div className="flex items-center justify-between gap-2 mt-1.5">
+          {!timeLeft.expired ? (
+            <span
+              className="inline-flex items-center gap-1 text-white font-bold text-[9px] tracking-wider uppercase opacity-90"
+              aria-live="polite"
+            >
+              <ClockIcon />
+              CLOSES IN {pad(timeLeft.days)}D {pad(timeLeft.hours)}H{" "}
+              {pad(timeLeft.minutes)}M
+            </span>
+          ) : (
+            <span className="text-white/70 text-[9px] font-black uppercase tracking-widest">
+              EVENT CLOSED
+            </span>
+          )}
           <RegisterBtn className="text-[10px] px-3 py-1.5" />
         </div>
       </div>
 
-      {/* ── Tablet (640px–1023px): compact single row ── */}
-      <div className="hidden sm:flex lg:hidden relative items-center justify-between gap-2 px-4 py-2">
+      {/* ── Tablet (640px–1023px): badge | ticker | countdown + CTA + close ── */}
+      <div className="hidden sm:flex lg:hidden relative items-center gap-3 px-4 py-2">
         <span
-          className="flex-shrink-0 text-white font-black text-[10px] tracking-widest uppercase px-2.5 py-1 rounded-full border border-white/40"
+          className="flex-shrink-0 text-white font-black text-[11px] tracking-widest uppercase px-2.5 py-1 rounded-full border border-white/40"
           style={{ background: "rgba(0,0,0,0.25)" }}
         >
-          TUBORG × ARBITARY
+          TUBORG × ARBITRARY
         </span>
 
-        <p className="flex-1 text-white font-black text-[11px] uppercase tracking-wider text-center leading-tight px-2">
-          TILT YOUR MUSIC SESSION
-        </p>
+        <div className="flex-1 min-w-0">
+          <Ticker />
+        </div>
 
         <div className="flex-shrink-0 flex items-center gap-2">
           <Countdown timeLeft={timeLeft} className="text-[10px]" />
@@ -320,19 +376,18 @@ export default function PromoBanner() {
         </div>
       </div>
 
-      {/* ── Desktop (≥ 1024px): original full layout ── */}
-      <div className="hidden lg:flex relative items-center justify-between gap-2 px-6 py-2.5">
+      {/* ── Desktop (≥ 1024px): original static layout ── */}
+      <div className="hidden lg:flex relative items-center justify-between gap-2 px-6 py-5">
         <div className="flex-shrink-0">
           <span
-            className="text-white font-black text-xs tracking-widest uppercase px-3 py-1 rounded-full border border-white/40"
+            className="text-white font-black text-[12px] tracking-widest uppercase px-3 py-1 rounded-full border border-white/40"
             style={{ background: "rgba(0,0,0,0.25)" }}
           >
-            TUBORG × ARBITARY
+            TUBORG × ARBITRARY
           </span>
         </div>
-
         <div className="flex-1 flex justify-center">
-          <p className="text-white font-black text-sm uppercase tracking-wider text-center leading-tight">
+          <p className="text-white font-black text-sm uppercase md:font-semibold tracking-wider text-center leading-tight">
             <span className="font-black">TILT YOUR MUSIC SESSION</span>
             <span className="mx-2 opacity-60">—</span>
             <span className="font-medium opacity-90">
@@ -340,7 +395,6 @@ export default function PromoBanner() {
             </span>
           </p>
         </div>
-
         <div className="flex-shrink-0 flex items-center gap-2">
           <Countdown timeLeft={timeLeft} className="text-[10px]" />
           <RegisterBtn className="text-xs px-4 py-1.5" />

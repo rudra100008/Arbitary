@@ -46,7 +46,7 @@ export default async function LeaderboardPage() {
         </section>
 
         {/* Stats Summary */}
-        <section className="container mx-auto px-6 mb-16">
+        {/* <section className="container mx-auto px-6 mb-16">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-6 bg-zinc-50 rounded-2xl border border-black/5">
               <p className="text-3xl md:text-4xl font-black text-[#FACC15]">
@@ -81,7 +81,7 @@ export default async function LeaderboardPage() {
               </p>
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* Leaderboard List */}
         <section className="container mx-auto px-6">

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence, useAnimationFrame } from "framer-motion";
 import { toast } from "sonner";
+import { parseSocialUrl } from "@/src/lib/social-url";
+import { PlatformBadge } from "@/src/components/layout/manage-task/PlatformBadge";
 
 type Section = "song" | "dance";
 
@@ -12,7 +14,7 @@ interface FormState {
   name: string;
   email: string;
   phone: string;
-  file: File | null;
+  url: string;
 }
 
 interface SubmissionStatus {
@@ -25,31 +27,7 @@ interface ExistingSubmissions {
   dance?: SubmissionStatus;
 }
 
-const emptyForm: FormState = { name: "", email: "", phone: "", file: null };
-
-// ── File validation constants ─────────────────────────────────────────────────
-const ACCEPTED = {
-  song: [
-    "audio/mpeg",
-    "audio/mp3",
-    "audio/wav",
-    "audio/x-wav",
-    "audio/aac",
-    "audio/ogg",
-    "audio/flac",
-    "audio/mp4",
-  ],
-  dance: [
-    "video/mp4",
-    "video/quicktime",
-    "video/x-msvideo",
-    "video/webm",
-    "video/mpeg",
-    "video/3gpp",
-  ],
-};
-const MAX_SIZE_MB = 100;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+const emptyForm: FormState = { name: "", email: "", phone: "", url: "" };
 
 // ─── VINYL RECORD ────────────────────────────────────────────────────────────
 function VinylRecord({ size = 180 }: { size?: number }) {
@@ -133,6 +111,7 @@ function EqualizerBars() {
           style={{
             background: "linear-gradient(to top, #000, #555)",
             minWidth: 6,
+            transformOrigin: "bottom",
           }}
           animate={{ scaleY: [0.3, 1, 0.5, 0.85, 0.3] }}
           transition={{
@@ -141,7 +120,6 @@ function EqualizerBars() {
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          transformOrigin="bottom"
           initial={{ height: bar.h, scaleY: 0.4 }}
         />
       ))}
@@ -689,26 +667,70 @@ function ParticipantForm({
   existingSubmission?: SubmissionStatus;
 }) {
   const { data: session } = useSession();
-  const [form, setForm] = useState<FormState>(emptyForm);
+
+  // Derive initial field values directly from the session so we never need
+  // a setState-in-effect to "hydrate" the form after mount.  The form still
+  // stays fully controlled (user edits always win via setForm below).
+  const sessionDefaults = useMemo<Partial<FormState>>(() => {
+    if (!session?.user) return {};
+    return {
+      name: session.user.name ?? "",
+      email: session.user.email ?? "",
+      phone: (session.user as { phoneNumber?: string }).phoneNumber ?? "",
+    };
+  }, [session]);
+
+  const [form, setForm] = useState<FormState>(() => ({
+    ...emptyForm,
+    ...Object.fromEntries(
+      Object.entries(sessionDefaults).filter(([, v]) => v !== ""),
+    ),
+  }));
+
+  // Keep form defaults in sync if the session loads after first render
+  // (e.g. hard refresh while logged in).  We update only the fields that
+  // are still at their empty default so we never overwrite what the user
+  // has already typed.
+  const prevSessionRef = useRef<typeof sessionDefaults | null>(null);
+  useEffect(() => {
+    if (!sessionDefaults || prevSessionRef.current === sessionDefaults) return;
+    prevSessionRef.current = sessionDefaults;
+    setForm((f) => ({
+      name: f.name || sessionDefaults.name || "",
+      email: f.email || sessionDefaults.email || "",
+      phone: f.phone || sessionDefaults.phone || "",
+      url: f.url,
+    }));
+  }, [sessionDefaults]);
+
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [fileError, setFileError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const isDance = type === "dance";
   const label = isDance ? "Dance" : "Song";
 
+  // ── Live URL validation / platform detection (debounced) ─────────────────
+  // Uses the same parseSocialUrl() util the API route validates with server
+  // side, so client feedback can never drift from what the server accepts.
+  const [debouncedUrl, setDebouncedUrl] = useState("");
   useEffect(() => {
-    if (session?.user) {
-      setForm((f) => ({
-        ...f,
-        name: session.user.name || f.name,
-        email: session.user.email || f.email,
-        phone: (session.user as any).phoneNumber || f.phone,
-      }));
-    }
-  }, [session]);
+    const t = setTimeout(() => setDebouncedUrl(form.url.trim()), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- debouncing a fast-changing input is the canonical use case for a timer effect
+  }, [form.url]);
+
+  const parsedUrl = useMemo(
+    () => (debouncedUrl ? parseSocialUrl(debouncedUrl) : null),
+    [debouncedUrl],
+  );
+
+  // Derived value — no state or effect needed.
+  const urlError = useMemo(() => {
+    if (!debouncedUrl) return null;
+    return parsedUrl
+      ? null
+      : "Enter a valid public YouTube, Instagram, or Facebook link.";
+  }, [debouncedUrl, parsedUrl]);
 
   // ── If already submitted, show status panel instead of form ──────────────
   if (existingSubmission) {
@@ -721,89 +743,23 @@ function ParticipantForm({
     );
   }
 
-  // ── Client-side file validation ──────────────────────────────────────────
-  function validateFile(file: File): string | null {
-    if (!ACCEPTED[type].includes(file.type)) {
-      return isDance
-        ? "Please upload a video file (MP4, MOV, WEBM, AVI)"
-        : "Please upload an audio file (MP3, WAV, AAC, FLAC)";
-    }
-    if (file.size > MAX_SIZE_BYTES) {
-      return `File is too large. Max size is ${MAX_SIZE_MB} MB`;
-    }
-    return null;
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setFileError(null);
-    if (file) {
-      const err = validateFile(file);
-      if (err) {
-        setFileError(err);
-        return;
-      }
-    }
-    setForm((f) => ({ ...f, file }));
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.file) {
-      setError("Please select a file first.");
-      return;
-    }
-    const fileValidation = validateFile(form.file);
-    if (fileValidation) {
-      setError(fileValidation);
+
+    const trimmedUrl = form.url.trim();
+    const parsed = parseSocialUrl(trimmedUrl);
+    if (!parsed) {
+      // Flush debounce immediately so the inline urlError message (derived
+      // from debouncedUrl) shows right away instead of waiting ~300ms.
+      setDebouncedUrl(trimmedUrl);
+      setError("Enter a valid public YouTube, Instagram, or Facebook link.");
       return;
     }
 
     setIsSubmitting(true);
-    setUploadProgress(0);
-
-    // ── Simulated progress ticks while uploading ─────────────────────────
-    let tick = 0;
-    const progressInterval = setInterval(() => {
-      tick += Math.random() * 12;
-      setUploadProgress(Math.min(Math.round(tick), 85));
-    }, 500);
 
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", form.file);
-      uploadFormData.append(
-        "type",
-        isDance ? "participant-dances" : "participant-songs",
-      );
-
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: uploadFormData,
-      });
-      clearInterval(progressInterval);
-
-      if (!uploadRes.ok) {
-        let errMsg = "Upload failed";
-        try {
-          const errData = await uploadRes.json();
-          errMsg = errData.error || errMsg;
-        } catch {
-          errMsg = `Upload failed (HTTP ${uploadRes.status})`;
-        }
-        throw new Error(errMsg);
-      }
-
-      setUploadProgress(100);
-      let uploadJson: { url: string; publicId: string };
-      try {
-        uploadJson = await uploadRes.json();
-      } catch {
-        throw new Error("Upload succeeded but returned an unexpected response");
-      }
-      const { url, publicId } = uploadJson;
-
       const submitRes = await fetch("/api/participants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -812,8 +768,7 @@ function ParticipantForm({
           name: form.name,
           email: form.email,
           phone: form.phone,
-          mediaUrl: url,
-          mediaPublicId: publicId,
+          mediaUrl: form.url.trim(),
         }),
       });
 
@@ -830,8 +785,6 @@ function ParticipantForm({
 
       setSubmitted(true);
     } catch (e) {
-      clearInterval(progressInterval);
-      setUploadProgress(0);
       const message =
         e instanceof Error ? e.message : "An unexpected error occurred";
       setError(message);
@@ -892,7 +845,6 @@ function ParticipantForm({
           onClick={() => {
             setSubmitted(false);
             setForm(emptyForm);
-            setUploadProgress(0);
             onClose();
           }}
           className={`text-xs font-black uppercase tracking-widest px-6 py-2.5 rounded-full border transition-all duration-200 ${
@@ -981,148 +933,105 @@ function ParticipantForm({
         disabled={isSubmitting}
       />
 
-      {/* File upload */}
+      {/* Public-content warning */}
+      <div
+        className={`text-[11px] leading-relaxed px-3 py-2.5 rounded-lg border ${
+          isDance
+            ? "border-white/15 bg-white/5 text-white/55"
+            : "border-black/10 bg-black/[0.03] text-black/55"
+        }`}
+      >
+        Your video/post must be <strong>publicly accessible</strong>. Private
+        accounts or unlisted/private videos cannot be reviewed by judges.
+      </div>
+
+      {/* Social URL */}
       <div className="flex flex-col gap-1.5">
         <label
           className={`text-[10px] font-black uppercase tracking-[0.15em] ${isDance ? "text-white/50" : "text-black/40"}`}
         >
-          {isDance ? "Upload dance video" : "Upload music file"}
+          {isDance ? "Dance URL" : "Song URL"}
         </label>
-        <button
-          type="button"
-          disabled={isSubmitting}
-          onClick={() => fileRef.current?.click()}
-          className="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl border-2 border-dashed transition-all disabled:opacity-50"
-          style={{
-            borderColor: fileError
-              ? "#ef4444"
-              : form.file
-                ? "#FACC15"
-                : isDance
-                  ? "rgba(255,255,255,0.18)"
-                  : "rgba(0,0,0,0.12)",
-            background: fileError
-              ? "rgba(239,68,68,0.08)"
-              : form.file
-                ? "rgba(250,204,21,0.15)"
-                : isDance
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.02)",
-            color: fileError
-              ? "#ef4444"
-              : form.file
-                ? "#FACC15"
-                : isDance
-                  ? "rgba(255,255,255,0.35)"
-                  : "rgba(0,0,0,0.3)",
-          }}
-        >
-          {isDance ? (
-            <svg
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              viewBox="0 0 24 24"
-            >
-              <rect x="2" y="7" width="15" height="10" rx="2" />
-              <path
-                d="M17 9l5-3v12l-5-3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M9 18V5l12-2v13"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
-            </svg>
-          )}
-          <span className="truncate text-xs font-black uppercase tracking-wider">
-            {form.file ? form.file.name : "Choose a file…"}
-          </span>
-          {form.file && (
-            <span
-              className={`ml-auto text-[10px] font-medium shrink-0 ${isDance ? "text-white/40" : "text-black/30"}`}
-            >
-              {(form.file.size / (1024 * 1024)).toFixed(1)} MB
-            </span>
-          )}
-        </button>
         <input
-          ref={fileRef}
-          type="file"
-          accept={isDance ? "video/*" : "audio/*"}
-          className="hidden"
-          onChange={handleFileChange}
+          required
+          type="url"
+          placeholder="https://youtube.com/watch?v=… , instagram.com/reel/… , facebook.com/…"
+          value={form.url}
+          disabled={isSubmitting}
+          onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+          className={`w-full text-sm px-4 py-3 rounded-xl border outline-none transition-all disabled:opacity-50 ${
+            isDance
+              ? "border-white/15 bg-white/8 text-white placeholder:text-white/30 focus:border-white/35 focus:bg-white/12"
+              : "border-black/10 bg-black/[0.02] text-black placeholder:text-black/25 focus:border-black/30 focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)]"
+          }`}
+          style={
+            urlError
+              ? { borderColor: "#ef4444" }
+              : isDance
+                ? { background: "rgba(255,255,255,0.08)", color: "#fff" }
+                : {}
+          }
         />
         <p
           className={`text-[10px] ${isDance ? "text-white/30" : "text-black/30"}`}
         >
-          {isDance
-            ? "MP4, MOV, WEBM · max 100 MB"
-            : "MP3, WAV, AAC, FLAC · max 100 MB"}
+          Paste a YouTube, Instagram (Reel/Post), or Facebook (Video/Post) link.
         </p>
 
-        {/* File validation error */}
+        {/* Platform badge once detected */}
         <AnimatePresence>
-          {fileError && (
+          {parsedUrl && !urlError && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2"
+            >
+              <PlatformBadge platform={parsedUrl.platform} />
+              <span
+                className={`text-[10px] font-medium ${isDance ? "text-white/40" : "text-black/40"}`}
+              >
+                Detected automatically
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Inline YouTube preview so participants can confirm before submitting */}
+        <AnimatePresence>
+          {parsedUrl?.platform === "youtube" && parsedUrl.id && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="rounded-xl overflow-hidden"
+            >
+              <iframe
+                className="w-full aspect-video"
+                src={`https://www.youtube.com/embed/${parsedUrl.id}`}
+                title="YouTube preview"
+                allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+                sandbox="allow-scripts allow-same-origin allow-presentation"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* URL validation error */}
+        <AnimatePresence>
+          {urlError && (
             <motion.p
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg"
             >
-              {fileError}
+              {urlError}
             </motion.p>
           )}
         </AnimatePresence>
       </div>
-
-      {/* Upload progress bar */}
-      <AnimatePresence>
-        {isSubmitting && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex flex-col gap-2"
-          >
-            <div className="flex justify-between items-center">
-              <span
-                className={`text-[10px] font-black uppercase tracking-wider ${isDance ? "text-white/50" : "text-black/40"}`}
-              >
-                {uploadProgress < 100 ? "Uploading…" : "Saving submission…"}
-              </span>
-              <span className="text-[10px] font-black text-[#FACC15]">
-                {uploadProgress}%
-              </span>
-            </div>
-            <div
-              className={`w-full h-1.5 rounded-full ${isDance ? "bg-white/10" : "bg-black/8"}`}
-            >
-              <motion.div
-                className="h-full rounded-full bg-[#FACC15]"
-                animate={{ width: `${uploadProgress}%` }}
-                transition={{ ease: "easeOut", duration: 0.3 }}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Submission error */}
       <AnimatePresence>
@@ -1139,11 +1048,11 @@ function ParticipantForm({
       </AnimatePresence>
 
       <motion.button
-        disabled={isSubmitting}
-        whileHover={!isSubmitting ? { scale: 1.01 } : {}}
-        whileTap={!isSubmitting ? { scale: 0.98 } : {}}
+        disabled={isSubmitting || !parsedUrl}
+        whileHover={!isSubmitting && parsedUrl ? { scale: 1.01 } : {}}
+        whileTap={!isSubmitting && parsedUrl ? { scale: 0.98 } : {}}
         type="submit"
-        className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-[0.15em] mt-1 transition-colors flex items-center justify-center gap-2 ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
+        className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-[0.15em] mt-1 transition-colors flex items-center justify-center gap-2 ${isSubmitting || !parsedUrl ? "opacity-70 cursor-not-allowed" : ""}`}
         style={{ background: "#FACC15", color: "#000" }}
       >
         {isSubmitting ? (
@@ -1169,7 +1078,7 @@ function ParticipantForm({
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
               />
             </svg>
-            Processing…
+            Submitting…
           </>
         ) : (
           "Submit entry"

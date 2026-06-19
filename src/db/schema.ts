@@ -408,8 +408,8 @@ export const participantSubmissionsTable = pgTable("participant_submission", {
     email: varchar("email", { length: 255 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     phone: varchar("phoneNumber", { length: 255 }),
-    mediaUrl: text("media_url").notNull(), // cloudinary secure_url
-    mediaPublicId: varchar("media_public_id", { length: 255 }).notNull(), // cloudinary public id
+    mediaUrl: text("media_url").notNull(), // social post/video URL (or legacy cloudinary secure_url)
+    mediaPlatform: varchar("media_platform", { length: 20 }).notNull(), // "youtube" | "instagram" | "facebook" | "legacy_upload"
 
     status: varchar("status", { length: 255 }).notNull().default("pending"), // pending, approved, rejected
 

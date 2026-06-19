@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { parseSocialUrl } from "@/src/lib/social-url";
+import { PlatformBadge } from "@/src/components/layout/manage-task/PlatformBadge";
 
 type Category = "all" | "song" | "dance";
 type Status = "all" | "pending" | "approved" | "rejected";
@@ -16,7 +18,7 @@ interface Submission {
   email: string;
   phone: string | null;
   mediaUrl: string;
-  mediaPublicId: string;
+  mediaPlatform: string;
   status: string;
   rejectedReason: string | null;
   createdAt: string;
@@ -43,13 +45,17 @@ const MAX_REASON_LENGTH = 250;
 function MediaPreview({
   url,
   category,
+  platform,
   name,
 }: {
   url: string;
   category: string;
+  platform: string;
   name: string;
 }) {
   const [open, setOpen] = useState(false);
+  const isLegacyUpload = platform === "legacy_upload";
+
   return (
     <>
       <button
@@ -102,11 +108,14 @@ function MediaPreview({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-black/8">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-black/35">
-                    {category}
-                  </p>
-                  <p className="text-sm font-black text-black">{name}</p>
+                <div className="flex items-center gap-2">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-black/35">
+                      {category}
+                    </p>
+                    <p className="text-sm font-black text-black">{name}</p>
+                  </div>
+                  {!isLegacyUpload && <PlatformBadge platform={platform} />}
                 </div>
                 <button
                   onClick={() => setOpen(false)}
@@ -125,37 +134,96 @@ function MediaPreview({
                 </button>
               </div>
               <div className="p-5 bg-black/[0.02]">
-                {category === "dance" ? (
-                  <video
-                    src={url}
-                    controls
-                    className="w-full rounded-xl max-h-[60vh]"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-4 py-8">
-                    <div className="w-16 h-16 rounded-2xl bg-black flex items-center justify-center">
-                      <svg
-                        width="28"
-                        height="28"
-                        fill="none"
-                        stroke="white"
-                        strokeWidth="1.5"
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M9 18V5l12-2v13" strokeLinecap="round" />
-                        <circle cx="6" cy="18" r="3" />
-                        <circle cx="18" cy="16" r="3" />
-                      </svg>
-                    </div>
-                    <audio src={url} controls className="w-full" />
-                  </div>
-                )}
+                <MediaPreviewBody
+                  url={url}
+                  category={category}
+                  platform={platform}
+                />
+              </div>
+              {/* Always-present fallback link, per requirement that every
+                  submission has a way to open the original source. */}
+              <div className="px-5 py-3.5 border-t border-black/8 bg-white flex justify-end">
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-full bg-black text-white hover:bg-black/80 transition-colors"
+                >
+                  Open Original Post ↗
+                </a>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+// ─── MEDIA PREVIEW BODY ───────────────────────────────────────────────────────
+// Renders the actual preview surface: legacy Cloudinary player, a YouTube
+// embed, or a fallback card (Instagram/Facebook — see embedding feasibility
+// notes; arbitrary public posts can't be reliably embedded without
+// privileged Graph API access, so we don't try).
+function MediaPreviewBody({
+  url,
+  category,
+  platform,
+}: {
+  url: string;
+  category: string;
+  platform: string;
+}) {
+  if (platform === "legacy_upload") {
+    return category === "dance" ? (
+      <video src={url} controls className="w-full rounded-xl max-h-[60vh]" />
+    ) : (
+      <div className="flex flex-col items-center gap-4 py-8">
+        <div className="w-16 h-16 rounded-2xl bg-black flex items-center justify-center">
+          <svg
+            width="28"
+            height="28"
+            fill="none"
+            stroke="white"
+            strokeWidth="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path d="M9 18V5l12-2v13" strokeLinecap="round" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
+          </svg>
+        </div>
+        <audio src={url} controls className="w-full" />
+      </div>
+    );
+  }
+
+  if (platform === "youtube") {
+    const id = parseSocialUrl(url)?.id;
+    if (id) {
+      return (
+        <iframe
+          className="w-full aspect-video rounded-xl"
+          src={`https://www.youtube.com/embed/${id}`}
+          title="YouTube preview"
+          allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+          sandbox="allow-scripts allow-same-origin allow-presentation"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      );
+    }
+  }
+
+  // Instagram / Facebook (and any YouTube URL that failed to re-parse)
+  return (
+    <div className="flex flex-col items-center gap-3 py-10">
+      <PlatformBadge platform={platform} />
+      <p className="text-sm text-black/50 text-center max-w-xs">
+        This {platform === "instagram" ? "Instagram" : "Facebook"} content
+        can&apos;t be embedded reliably inside the dashboard. Use &quot;Open
+        Original Post&quot; below to review it.
+      </p>
+    </div>
   );
 }
 
@@ -274,8 +342,19 @@ function SubmissionRow({
       fill="none"
       viewBox="0 0 24 24"
     >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   ) : (
     <div className="flex gap-2">
@@ -344,6 +423,14 @@ function SubmissionRow({
         <div>
           <MediaPreview url={s.mediaUrl} category={s.category} name={s.name} />
         </div>
+        <td className="px-4 py-3.5">
+          <MediaPreview
+            url={s.mediaUrl}
+            category={s.category}
+            platform={s.mediaPlatform}
+            name={s.name}
+          />
+        </td>
 
         {/* Status */}
         <div>
@@ -402,7 +489,9 @@ function SubmissionRow({
             {s.status}
           </span>
           {s.rejectedReason && (
-            <span className="text-[9px] text-red-400">· {s.rejectedReason}</span>
+            <span className="text-[9px] text-red-400">
+              · {s.rejectedReason}
+            </span>
           )}
         </div>
         <p className="text-[10px] text-black/30 mt-1.5">{dateStr}</p>
@@ -421,10 +510,53 @@ export default function AdminParticipantsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
+  // filterKey bumps whenever category/status change so the main fetch effect
+  // re-runs cleanly without needing fetchSubmissions in its dep array.
+  const [filterKey, setFilterKey] = useState(0);
+
+  // ── Primary fetch: runs on mount, filter change, or manual refresh ────────
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({ page: "1" });
+    if (category !== "all") params.set("category", category);
+    if (status !== "all") params.set("status", status);
+
+    setLoading(true);
+    fetch(`/api/admin/participants?${params}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch");
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setSubmissions(data.submissions);
+        setHasMore(data.submissions.length === 20);
+        setPage(1);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Failed to load submissions");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // filterKey is the manual-refresh escape hatch; category/status are filters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, status, filterKey]);
+
+  // ── Load-more (append) ────────────────────────────────────────────────────
   const fetchSubmissions = useCallback(
     async (reset = false) => {
+      if (reset) {
+        // Trigger the primary effect instead of duplicating the logic.
+        setFilterKey((k) => k + 1);
+        return;
+      }
       setLoading(true);
-      const p = reset ? 1 : page;
+      const p = page + 1;
       const params = new URLSearchParams({ page: String(p) });
       if (category !== "all") params.set("category", category);
       if (status !== "all") params.set("status", status);
@@ -434,11 +566,9 @@ export default function AdminParticipantsPage() {
         const res = await fetch(`/api/admin/participants?${params}`);
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        setSubmissions(
-          reset ? data.submissions : (prev) => [...prev, ...data.submissions],
-        );
+        setSubmissions((prev) => [...prev, ...data.submissions]);
         setHasMore(data.submissions.length === 20);
-        if (reset) setPage(1);
+        setPage(p);
       } catch {
         toast.error("Failed to load submissions");
       } finally {
@@ -448,15 +578,31 @@ export default function AdminParticipantsPage() {
     [category, status, search, page],
   );
 
+  // ── Debounced search ──────────────────────────────────────────────────────
   useEffect(() => {
-    fetchSubmissions(true);
-  }, [category, status]);
+    if (!search.trim()) return;
+    const t = setTimeout(() => {
+      const params = new URLSearchParams({ page: "1" });
+      if (category !== "all") params.set("category", category);
+      if (status !== "all") params.set("status", status);
+      params.set("search", search.trim());
 
-  // Debounced search
-  useEffect(() => {
-    const t = setTimeout(() => fetchSubmissions(true), 400);
+      setLoading(true);
+      fetch(`/api/admin/participants?${params}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch");
+          return res.json();
+        })
+        .then((data) => {
+          setSubmissions(data.submissions);
+          setHasMore(data.submissions.length === 20);
+          setPage(1);
+        })
+        .catch(() => toast.error("Failed to load submissions"))
+        .finally(() => setLoading(false));
+    }, 400);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, category, status]);
 
   async function handleStatusChange(
     id: number,
@@ -510,7 +656,7 @@ export default function AdminParticipantsPage() {
           </h1>
         </div>
         <button
-          onClick={() => fetchSubmissions(true)}
+          onClick={() => setFilterKey((k) => k + 1)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl border border-black/10 text-xs font-black uppercase tracking-wider text-black/50 hover:text-black hover:border-black/25 transition-colors"
         >
           <svg

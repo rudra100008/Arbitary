@@ -99,6 +99,38 @@ function TaskSection({
 
 const DIFFICULTIES = ["all", "easy", "medium", "hard"] as const;
 
+// ── Recurrence filter type ────────────────────────────────────────────────────
+// "all"      → show all tasks regardless of is_recurring (default)
+// "daily"    → is_recurring === true  (task resets and can be done again each day)
+// "one-time" → is_recurring === false (task can only be completed once ever)
+type RecurrenceFilter = "all" | "daily" | "one-time";
+
+const RECURRENCE_FILTERS: {
+  value: RecurrenceFilter;
+  label: string;
+  icon: string;
+  activeClass: string;
+}[] = [
+  {
+    value: "all",
+    label: "All Tasks",
+    icon: "⊞",
+    activeClass: "bg-slate-900 text-white border-slate-900",
+  },
+  {
+    value: "daily",
+    label: "Daily",
+    icon: "🔄",
+    activeClass: "bg-indigo-600 text-white border-indigo-600",
+  },
+  {
+    value: "one-time",
+    label: "One-Time",
+    icon: "✦",
+    activeClass: "bg-amber-500 text-white border-amber-500",
+  },
+];
+
 export function TaskList({
   availableTasks,
   inProgressTasks,
@@ -117,16 +149,33 @@ export function TaskList({
 }: TaskListProps) {
   const [difficultyFilter, setDifficultyFilter] = useState<string>("all");
 
+  // ── Recurrence filter state ───────────────────────────────────────────────
+  // Completely separate from difficultyFilter and from the server-side taskType
+  // tab. Both filters compose: a task must pass BOTH to appear in Available.
+  const [recurrenceFilter, setRecurrenceFilter] =
+    useState<RecurrenceFilter>("all");
+
   const hasAnyTasks =
     availableTasks.length > 0 ||
     inProgressTasks.length > 0 ||
     rejectedTasks.length > 0 ||
     completedTasks.length > 0;
 
+  // ── Step 1: filter by is_recurring ───────────────────────────────────────
+  const recurrenceFiltered = useMemo(() => {
+    if (recurrenceFilter === "all") return availableTasks;
+    if (recurrenceFilter === "daily")
+      return availableTasks.filter((t) => t.isRecurring === true);
+    if (recurrenceFilter === "one-time")
+      return availableTasks.filter((t) => t.isRecurring === false);
+    return availableTasks;
+  }, [availableTasks, recurrenceFilter]);
+
+  // ── Step 2: filter by difficulty on top of the recurrence-filtered list ──
   const filteredAvailable = useMemo(() => {
-    if (difficultyFilter === "all") return availableTasks;
-    return availableTasks.filter((t) => t.difficulty === difficultyFilter);
-  }, [availableTasks, difficultyFilter]);
+    if (difficultyFilter === "all") return recurrenceFiltered;
+    return recurrenceFiltered.filter((t) => t.difficulty === difficultyFilter);
+  }, [recurrenceFiltered, difficultyFilter]);
 
   const difficultyActiveClass: Record<string, string> = {
     all: "bg-slate-900 text-white border-slate-900",
@@ -134,6 +183,10 @@ export function TaskList({
     medium: "bg-orange-500 text-white border-orange-500",
     hard: "bg-red-500 text-white border-red-500",
   };
+
+  // Whether any client-side filter is active (used for the "clear" helper)
+  const hasActiveFilter =
+    recurrenceFilter !== "all" || difficultyFilter !== "all";
 
   return (
     <div className="px-5 pb-6 min-h-64">
@@ -178,7 +231,40 @@ export function TaskList({
           </div>
         ) : (
           <div className="pt-3">
-            {/* Difficulty filter pills */}
+            {/* ── Recurrence filter ──────────────────────────────────────────
+                Filters by task.isRecurring (is_recurring column in DB).
+                Completely independent from the task-type tab (server-side) and
+                the difficulty filter (client-side). They all compose cleanly.
+            ─────────────────────────────────────────────────────────────── */}
+            <div className="flex items-center gap-1.5 mb-3 px-0.5">
+              {RECURRENCE_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setRecurrenceFilter(f.value)}
+                  aria-pressed={recurrenceFilter === f.value}
+                  className={`inline-flex items-center gap-1 text-[9px] font-black uppercase
+                              tracking-wider px-3 py-1.5 rounded-full border transition-all shrink-0
+                              ${
+                                recurrenceFilter === f.value
+                                  ? f.activeClass
+                                  : "bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600"
+                              }`}
+                >
+                  <span aria-hidden="true" className="text-[10px] leading-none">
+                    {f.icon}
+                  </span>
+                  {f.label}
+                  {/* Live count badge shown only on the active non-"all" option */}
+                  {recurrenceFilter === f.value && f.value !== "all" && (
+                    <span className="ml-0.5 bg-white/30 rounded-full px-1 py-px text-[8px] leading-none tabular-nums">
+                      {filteredAvailable.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Difficulty filter pills — unchanged from original */}
             {availableTasks.length > 1 && (
               <div className="flex items-center gap-1.5 mb-4 px-0.5 overflow-x-auto pb-0.5">
                 {DIFFICULTIES.map((d) => (
@@ -220,6 +306,27 @@ export function TaskList({
               {...cardProps}
             />
 
+            {/* Empty state when filters narrow to zero but tasks exist elsewhere */}
+            {filteredAvailable.length === 0 &&
+              availableTasks.length > 0 &&
+              hasActiveFilter && (
+                <div className="flex flex-col items-center gap-2 py-6 text-slate-400">
+                  <p className="text-xs font-semibold">
+                    No available tasks match your current filters.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setRecurrenceFilter("all");
+                      setDifficultyFilter("all");
+                    }}
+                    className="text-[9px] font-black uppercase tracking-wider text-slate-500
+                               hover:text-slate-800 underline underline-offset-2 transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
+
             {/* Load more */}
             {hasMore && !isLoading && (
               <div className="flex justify-center pt-2 pb-4">
@@ -237,7 +344,7 @@ export function TaskList({
           </div>
         )}
 
-        {/* System tasks */}
+        {/* System tasks — untouched, recurrence filter doesn't apply here */}
         {!isLoading && systemTasks.length > 0 && (
           <div className="mt-2">
             <div className="flex items-center gap-2 mb-2.5 px-0.5">

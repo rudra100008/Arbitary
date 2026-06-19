@@ -4,36 +4,38 @@ import { participantSubmissionsTable } from "@/src/db/schema";
 import { eq, desc, and, like } from "drizzle-orm";
 import { requireAdmin, requireUser } from "@/src/services/auth.service";
 import { NotificationService } from "@/src/services/notification.service";
+import { participantSubmissionSchema } from "@/src/lib/validations/participant";
+import { parseSocialUrl } from "@/src/lib/social-url";
 
-// POST /api/participants  { category, name, email, phone?, mediaUrl, mediaPublicId }
+// POST /api/participants  { category, name, email, phone?, mediaUrl }
+// mediaUrl must be a public YouTube, Instagram, or Facebook link.
 export async function POST(req: NextRequest) {
     const auth = await requireUser();
     if (!auth.success) {
         return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
-    let body: {
-        category?: string;
-        name?: string;
-        email?: string;
-        phone?: string;
-        mediaUrl?: string;
-        mediaPublicId?: string;
-    };
-
+    let json: unknown;
     try {
-        body = await req.json();
+        json = await req.json();
     } catch {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const { category, name, email, phone, mediaUrl, mediaPublicId } = body;
-
-    if (!category || !["song", "dance"].includes(category)) {
-        return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+    const parsedBody = participantSubmissionSchema.safeParse(json);
+    if (!parsedBody.success) {
+        return NextResponse.json(
+            { error: parsedBody.error.issues[0]?.message ?? "Invalid submission" },
+            { status: 400 },
+        );
     }
-    if (!name?.trim() || !email?.trim() || !mediaUrl?.trim() || !mediaPublicId?.trim()) {
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const { category, name, email, phone, mediaUrl } = parsedBody.data;
+
+    // Authoritative re-parse — never trust that client-side detection
+    // (which uses the same util) wasn't bypassed or tampered with.
+    const parsed = parseSocialUrl(mediaUrl);
+    if (!parsed) {
+        return NextResponse.json({ error: "Unsupported or malformed URL" }, { status: 400 });
     }
 
     // Prevent duplicate submissions for the same category
@@ -60,8 +62,8 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         email: email.trim(),
         phone: phone?.trim() ?? null,
-        mediaUrl: mediaUrl.trim(),
-        mediaPublicId: mediaPublicId.trim(),
+        mediaUrl: parsed.normalizedUrl,
+        mediaPlatform: parsed.platform,
         status: "pending",
         createdAt: new Date(),
         updatedAt: new Date(),

@@ -8,8 +8,6 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import Footer from "@/src/components/ui/footer";
-import Header from "@/src/components/ui/header";
 import { StatsHeader } from "@/src/components/user-dashboard/stats-header";
 import { TaskList } from "@/src/components/user-dashboard/task-list";
 import { ActivitySidebar } from "@/src/components/user-dashboard/activity-sidebar";
