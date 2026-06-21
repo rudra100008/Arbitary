@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+// Shared global typing for window.YT lives in src/types/youtube.d.ts
+// (it must only be declared once across the app).
+import type { YTPlayerInstance as YTPlayer } from "@/src/types/youtube";
 
 type YoutubeModalProps = {
   url: string;
@@ -17,31 +20,6 @@ function getYoutubeId(url: string): string | null {
     /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   return match && match[2].length === 11 ? match[2] : null;
-}
-
-interface YTPlayer {
-  destroy(): void;
-  playVideo(): void;
-  stopVideo(): void;
-  pauseVideo(): void;
-  getCurrentTime(): number;
-}
-
-declare global {
-  interface Window {
-    YT: {
-      Player: any;
-      PlayerState: {
-        OFF: number;
-        UNSTARTED: number;
-        PLAYING: number;
-        PAUSED: number;
-        BUFFERING: number;
-        CUED: number;
-      };
-    };
-    onYouTubeIframeAPIReady: () => void;
-  }
 }
 
 export function YoutubeModal({
@@ -302,7 +280,9 @@ export function YoutubeModal({
         playerRef.current = null;
       }
 
-      playerRef.current = new window.YT.Player("yt-player-container", {
+      // initPlayer is only ever invoked after window.YT is confirmed loaded
+      // (see the `window.YT && window.YT.Player` guard / onYouTubeIframeAPIReady below).
+      playerRef.current = new window.YT!.Player("yt-player-container", {
         height: "100%",
         width: "100%",
         videoId,
@@ -317,7 +297,7 @@ export function YoutubeModal({
         events: {
           onReady: () => setPlayerReady(true),
           onStateChange: (event: { data: number }) => {
-            if (event.data === window.YT.PlayerState.PLAYING) {
+            if (event.data === window.YT!.PlayerState.PLAYING) {
               setIsPlaying(true);
               startSession();
             } else {
