@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Header from "@/src/components/ui/header";
-import Footer from "@/src/components/ui/footer";
 
 type AboutData = {
   tagline: string | null;
@@ -140,8 +139,6 @@ export default function AboutPage() {
           </section>
         )}
       </main>
-
-      <Footer />
     </div>
   );
 }

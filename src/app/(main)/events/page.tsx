@@ -3,14 +3,13 @@
 import React from "react";
 import {
   motion,
-  useScroll,
-  useTransform,
   useInView,
   AnimatePresence,
 } from "framer-motion";
-import { MapPin, ArrowRight, Music2, Calendar, Clock } from "lucide-react";
+import { MapPin, ArrowRight, Music2 } from "lucide-react";
 import Link from "next/link";
 import type { Event } from "@/src/types/db";
+import "./events.css";
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
 
@@ -28,78 +27,47 @@ const heroItemVariants = {
   },
 };
 
-// ─── Soundwave Graphic ────────────────────────────────────────────────────────
-// Each bar: first does the X-expand "wake up" burst, then loops Y pulse forever.
-// Heights and durations are hand-tuned so the wave looks like real audio levels.
+// ─── Floating Music Note ──────────────────────────────────────────────────────
 
-const BARS = [
-  { h: 12, expandDelay: 0.08, pulseDur: 0.65, pulseDelay: 0.0 },
-  { h: 22, expandDelay: 0.05, pulseDur: 0.5, pulseDelay: 0.12 },
-  { h: 32, expandDelay: 0.02, pulseDur: 0.8, pulseDelay: 0.05 },
-  { h: 40, expandDelay: 0.0, pulseDur: 0.45, pulseDelay: 0.2 },
-  { h: 28, expandDelay: 0.03, pulseDur: 0.7, pulseDelay: 0.08 },
-  { h: 36, expandDelay: 0.06, pulseDur: 0.55, pulseDelay: 0.15 },
-  { h: 18, expandDelay: 0.09, pulseDur: 0.6, pulseDelay: 0.03 },
-  { h: 30, expandDelay: 0.04, pulseDur: 0.75, pulseDelay: 0.18 },
-  { h: 24, expandDelay: 0.07, pulseDur: 0.48, pulseDelay: 0.1 },
-  { h: 14, expandDelay: 0.1, pulseDur: 0.85, pulseDelay: 0.22 },
-];
-
-// Two-phase animation per bar:
-//   Phase 1 — X expand: scaleX 0->1 fast with staggered delay (wake-up burst)
-//   Phase 2 — Y pulse:  scaleY loops 0.2<->1 at its own unique rhythm forever
-function SoundwaveBars({ className = "" }: { className?: string }) {
-  const [pulsing, setPulsing] = React.useState(false);
-
-  // Switch to pulse phase after the slowest X-expand finishes (~700ms)
-  React.useEffect(() => {
-    const t = setTimeout(() => setPulsing(true), 700);
-    return () => clearTimeout(t);
-  }, []);
-
+function FloatingNote({
+  className,
+  delay = 0,
+}: {
+  className: string;
+  delay?: number;
+}) {
   return (
-    <div
-      className={`flex items-end gap-[3px] sm:gap-1 ${className}`}
+    <motion.span
       aria-hidden="true"
+      className={`absolute text-[#FACC15] pointer-events-none select-none ${className}`}
+      initial={{ opacity: 0, y: 0 }}
+      animate={{ opacity: [0, 0.55, 0.55, 0], y: [-8, 6, -2, -8] }}
+      transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay }}
     >
-      {BARS.map((bar, i) => (
-        <motion.div
-          key={i}
-          className="bg-[#FACC15] rounded-sm flex-shrink-0"
-          style={{
-            width: "clamp(3px, 0.35vw, 5px)",
-            height: bar.h,
-            transformOrigin: "bottom center",
-          }}
-          initial={{ scaleX: 0, scaleY: 1 }}
-          animate={
-            pulsing
-              ? { scaleX: 1, scaleY: [0.2, 1, 0.35, 0.85, 0.2] }
-              : { scaleX: 1, scaleY: 1 }
-          }
-          transition={
-            pulsing
-              ? {
-                  scaleX: { duration: 0 },
-                  scaleY: {
-                    duration: bar.pulseDur,
-                    delay: bar.pulseDelay,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  },
-                }
-              : {
-                  scaleX: {
-                    duration: 0.28,
-                    delay: bar.expandDelay,
-                    ease: [0.23, 1, 0.32, 1] as const,
-                  },
-                  scaleY: { duration: 0 },
-                }
-          }
-        />
-      ))}
-    </div>
+      <Music2 className="w-4 h-4 sm:w-5 sm:h-5" />
+    </motion.span>
+  );
+}
+
+// ─── EQ Bars (identical to records page hero) ────────────────────────────────
+
+function EqBars({ className = "" }: { className?: string }) {
+  return (
+    <span className={`ev-eq ${className}`} aria-hidden="true">
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+      <span />
+    </span>
   );
 }
 
@@ -154,29 +122,7 @@ const dividerVariants = {
   },
 };
 
-// ─── Floating Music Note ──────────────────────────────────────────────────────
-
-function FloatingNote({
-  className,
-  delay = 0,
-}: {
-  className: string;
-  delay?: number;
-}) {
-  return (
-    <motion.span
-      aria-hidden="true"
-      className={`absolute text-[#FACC15] pointer-events-none select-none ${className}`}
-      initial={{ opacity: 0, y: 0 }}
-      animate={{ opacity: [0, 0.55, 0.55, 0], y: [-8, 6, -2, -8] }}
-      transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay }}
-    >
-      <Music2 className="w-4 h-4 sm:w-5 sm:h-5" />
-    </motion.span>
-  );
-}
-
-// ─── Equalizer Bars ───────────────────────────────────────────────────────────
+// ─── Equalizer Bars ─────────────────────────────────────────────────────────
 
 function EqualizerBars({ className = "" }: { className?: string }) {
   const bars = Array.from({ length: 14 });
@@ -230,40 +176,42 @@ function RevealSection({
   );
 }
 
-// ─── Parallax hero image ──────────────────────────────────────────────────────
+// ─── Hero Section ────────────────────────────────────────────────────────────
 
-function ParallaxHero({ children }: { children: React.ReactNode }) {
-  const ref = React.useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
-  // Background moves at 40% the scroll speed → subtle parallax
-  const y = useTransform(scrollYProgress, [0, 1], ["0%", "40%"]);
-  // Fade out the whole hero as user scrolls away
-  const opacity = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
+function EventsHero({ children }: { children: React.ReactNode }) {
+  const bgRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const el = bgRef.current;
+    if (!el) return;
+    let rafId: number;
+    const onScroll = () => {
+      rafId = requestAnimationFrame(() => {
+        const scrollY = window.scrollY;
+        const parent = el.parentElement;
+        if (parent) {
+          const heroBottom = parent.getBoundingClientRect().bottom;
+          if (heroBottom > 0) {
+            el.style.transform = `translateY(${scrollY * 0.35}px)`;
+          }
+        }
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(rafId);
+    };
+  }, []);
 
   return (
-    <section
-      ref={ref}
-      className="relative min-h-[70vh] sm:min-h-[75vh] flex items-center overflow-hidden pb-14 sm:pb-20 lg:pb-32 -mt-20 sm:-mt-28 lg:-mt-32 pt-28 sm:pt-36 lg:pt-44"
-    >
-      {/* Parallax background */}
-      <motion.div
-        className="absolute inset-0 bg-cover bg-center scale-110"
-        style={{
-          y,
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=2070&auto=format&fit=crop')",
-        }}
-      />
+    <section className="relative h-screen flex items-center overflow-hidden">
+      <div ref={bgRef} className="events-hero-bg" />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/30" />
       <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]" />
-
-      {/* Content fades as user scrolls */}
-      <motion.div className="relative z-10 w-full" style={{ opacity }}>
+      <div className="relative z-10 w-full">
         {children}
-      </motion.div>
+      </div>
     </section>
   );
 }
@@ -693,9 +641,9 @@ export default function EventPage() {
 
   return (
     <div className="bg-white text-black min-h-screen selection:bg-[#FACC15] selection:text-black">
-      <main className="pt-20 sm:pt-28 lg:pt-32 pb-20 overflow-hidden">
+      <main className="pb-20">
         {/* ── Hero with parallax ── */}
-        <ParallaxHero>
+        <EventsHero>
           <FloatingNote className="top-16 left-[8%] z-20" delay={0.5} />
           <FloatingNote className="top-24 left-[18%] z-20" delay={1.2} />
           <FloatingNote className="top-12 right-[22%] z-20" delay={2.1} />
@@ -724,9 +672,8 @@ export default function EventPage() {
                   className="flex items-center gap-4 sm:gap-6"
                 >
                   <span className="text-[#FACC15]">EXPERIENCES</span>
-                  {/* Soundwave graphic — only in the empty space beside the heading, not over the image */}
-                  <span className="hidden sm:flex flex-1 items-end self-end mb-1 overflow-hidden">
-                    <SoundwaveBars className="h-10 sm:h-12 lg:h-14" />
+                  <span className="hidden sm:inline-flex">
+                    <EqBars />
                   </span>
                 </motion.span>
               </h1>
@@ -740,7 +687,7 @@ export default function EventPage() {
               </motion.p>
             </div>
           </motion.div>
-        </ParallaxHero>
+        </EventsHero>
 
         {/* ── Stats bar — count-up on scroll ── */}
         {!isLoading && (

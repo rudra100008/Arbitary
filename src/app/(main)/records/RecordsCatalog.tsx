@@ -259,8 +259,48 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
   const groups = useMemo(() => buildGroups(songs), [songs]);
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [closingId, setClosingId] = useState<number | null>(null);
+  const [closeDims, setCloseDims] = useState<{ w: number; h: number } | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Collapse: lock the card's current size, then shrink width + height to the
+  // tile size on the next frame so both axes animate (height can't transition
+  // from `auto`). overflow:hidden hides the body as it folds into the tile.
+  const startCollapse = useCallback((id: number, cardEl: HTMLElement | null) => {
+    if (cardEl) {
+      const r = cardEl.getBoundingClientRect();
+      setCloseDims({ w: Math.round(r.width), h: Math.round(r.height) });
+      setClosingId(id);
+    } else {
+      setClosingId(null);
+      setCloseDims(null);
+      setExpandedId((cur) => (cur === id ? null : cur));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (closingId == null) return;
+    const small = window.matchMedia("(max-width: 640px)").matches;
+    const target = small ? 150 : 200;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() =>
+        setCloseDims({ w: target, h: target }),
+      );
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [closingId]);
+
+  const finishCollapse = useCallback((id: number) => {
+    setClosingId((cur) => (cur === id ? null : cur));
+    setCloseDims(null);
+    setExpandedId((cur) => (cur === id ? null : cur));
+  }, []);
+
 
   const S = useRef({
     currentTrack: null as Song | null,
@@ -328,11 +368,15 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     }
     s.mode = "audio";
     s.currentTrack = song;
-    setExpandedId(song.id);
     setPlayingId(song.id);
     setIsPlaying(true);
     if (s.ytApiReady && s.ytAudioPlayer?.loadVideoById) s.ytAudioPlayer.loadVideoById(song.ytId);
     else s.pendingAudio = song;
+
+    if (expandedId && expandedId !== song.id) {
+      setClosingId(expandedId);
+    }
+    setExpandedId(song.id);
   };
 
   // Collapsed tile → expand + play. Cover of the playing record → pause/resume.
@@ -719,9 +763,11 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
           <div className="rc-grid">
             {g.items.map((song) => {
               const expanded = expandedId === song.id;
+              const closing = closingId === song.id;
+              const showCard = expanded || closing;
               const playing = playingId === song.id && isPlaying;
               const cover = song.coverImageUrl;
-              if (!expanded) {
+              if (!showCard) {
                 return (
                   <button
                     key={song.id}
@@ -763,14 +809,34 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
               return (
                 <article
                   key={song.id}
-                  className="rc-card"
-                  style={cover ? { backgroundImage: `url(${cover})` } : undefined}
+                  className={`rc-card${closing ? " rc-closing" : ""}`}
+                  style={{
+                    ...(cover ? { backgroundImage: `url(${cover})` } : null),
+                    ...(closing && closeDims
+                      ? { width: `${closeDims.w}px`, height: `${closeDims.h}px` }
+                      : null),
+                  }}
+                  onTransitionEnd={(e) => {
+                    if (
+                      closing &&
+                      e.target === e.currentTarget &&
+                      (e.propertyName === "width" || e.propertyName === "height")
+                    ) {
+                      finishCollapse(song.id);
+                    }
+                  }}
                 >
                   <div className="rc-card-wash" />
                   <button
                     type="button"
                     className="rc-collapse-btn"
-                    onClick={(e) => { e.stopPropagation(); setExpandedId(null); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startCollapse(
+                        song.id,
+                        (e.currentTarget as HTMLElement).closest(".rc-card") as HTMLElement | null,
+                      );
+                    }}
                     aria-label="Collapse"
                   >
                     <X size={16} />

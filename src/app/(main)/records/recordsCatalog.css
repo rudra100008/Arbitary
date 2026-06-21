@@ -419,18 +419,86 @@
   background-position: center;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
   min-height: 200px;
-  animation: rcCardIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
-  transform-origin: center center;
-  will-change: transform, opacity;
+  --rc-cover-size: 200px;
+  --rc-tile-w: 200px;
+  --rc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  animation: rcCardIn 0.68s var(--rc-ease) both;
+  transform-origin: left center;
+  /* layout shrink on collapse so neighbouring tiles glide with it */
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+    min-width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, clip-path, width, height;
 }
+/* Card unfurls outward from the cover image instead of popping in */
 @keyframes rcCardIn {
   0% {
-    transform: translateY(24px);
-    opacity: 0;
+    transform: scale(0.97);
+    clip-path: inset(0 calc(100% - var(--rc-cover-size)) 0 0 round 18px);
   }
   100% {
-    transform: translateY(0);
+    transform: scale(1);
+    clip-path: inset(0 0 0 0 round 18px);
+  }
+}
+/* Contracting: width AND height shrink to the tile size at once (overflow
+   hides the body) so the card folds into the tile with no snap on either axis.
+   The actual start size is locked inline in JS so height can animate. */
+.rc-card.rc-closing {
+  min-width: 0;
+  min-height: 0;
+  pointer-events: none;
+}
+/* Cover gently settles as the card emerges */
+@keyframes rcCoverZoom {
+  0% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* Body content slides out from behind the cover, staggered */
+.rc-card-body > * {
+  animation: rcCardBodyIn 0.55s var(--rc-ease) both;
+}
+.rc-card-body > *:nth-child(1) {
+  animation-delay: 0.13s;
+}
+.rc-card-body > *:nth-child(2) {
+  animation-delay: 0.2s;
+}
+@keyframes rcCardBodyIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  100% {
     opacity: 1;
+    transform: translateX(0);
+  }
+}
+/* Body fades as the card width collapses over it */
+.rc-closing .rc-card-body > * {
+  animation: rcCardBodyOut 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: 0s;
+}
+@keyframes rcCardBodyOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-card,
+  .rc-card.rc-closing,
+  .rc-card-cover,
+  .rc-closing .rc-card-cover,
+  .rc-card-body > *,
+  .rc-closing .rc-card-body > * {
+    animation: none !important;
   }
 }
 .rc-card-wash {
@@ -483,6 +551,7 @@
   background-position: center;
   position: relative;
   overflow: hidden;
+  animation: rcCoverZoom 0.8s var(--rc-ease) both;
 }
 .rc-card-cover::after {
   content: "";
@@ -518,6 +587,16 @@
 .rc-card-cover.rc-playing .rc-ic {
   opacity: 1;
   transform: scale(1);
+}
+/* Touch devices have no hover — keep the play/pause affordance visible */
+@media (pointer: coarse) {
+  .rc-card-cover .rc-ic {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .rc-card-cover::after {
+    opacity: 1;
+  }
 }
 .rc-card-body {
   flex: 1;
@@ -622,6 +701,8 @@
 @media (max-width: 768px) {
   .rc-card {
     flex-direction: column;
+    transform-origin: top center;
+    animation-name: rcCardInMobile;
   }
   .rc-card-cover {
     width: 100%;
@@ -633,6 +714,33 @@
   }
   .rc-card-top {
     flex-wrap: wrap;
+  }
+  /* On the stacked layout the card grows downward out of the image */
+  .rc-card-body > * {
+    animation-name: rcCardBodyInMobile;
+  }
+  .rc-closing .rc-card-body > * {
+    animation-name: none;
+  }
+  @keyframes rcCardInMobile {
+    0% {
+      transform: scale(0.97);
+      clip-path: inset(0 0 calc(100% - var(--rc-cover-size)) 0 round 18px);
+    }
+    100% {
+      transform: scale(1);
+      clip-path: inset(0 0 0 0 round 18px);
+    }
+  }
+  @keyframes rcCardBodyInMobile {
+    0% {
+      opacity: 0;
+      transform: translateY(-12px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
@@ -649,6 +757,8 @@
     width: 100%;
     min-width: 0;
     flex-direction: column;
+    --rc-cover-size: 180px;
+    --rc-tile-w: 150px;
   }
   .rc-card-cover {
     width: 100%;

@@ -1,0 +1,51 @@
+/* Events page styles — EQ bars matching the records page hero exactly */
+
+.ev-eq {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 76px;
+}
+.ev-eq span {
+  display: block;
+  width: 7px;
+  height: 100%;
+  border-radius: 6px;
+  background: #FACC15;
+  transform-origin: center;
+  animation: evEq 1.8s ease-in-out infinite;
+}
+.ev-eq span:nth-child(1) { animation-delay: -1.55s; }
+.ev-eq span:nth-child(2) { animation-delay: -0.40s; }
+.ev-eq span:nth-child(3) { animation-delay: -1.10s; }
+.ev-eq span:nth-child(4) { animation-delay: -0.75s; }
+.ev-eq span:nth-child(5) { animation-delay: -1.70s; }
+.ev-eq span:nth-child(6) { animation-delay: -0.25s; }
+.ev-eq span:nth-child(7) { animation-delay: -0.95s; }
+.ev-eq span:nth-child(8) { animation-delay: -1.35s; }
+.ev-eq span:nth-child(9) { animation-delay: -0.55s; }
+.ev-eq span:nth-child(10) { animation-delay: -1.80s; }
+.ev-eq span:nth-child(11) { animation-delay: -0.10s; }
+.ev-eq span:nth-child(12) { animation-delay: -1.25s; }
+.ev-eq span:nth-child(13) { animation-delay: -0.65s; }
+@keyframes evEq {
+  0%, 100% { transform: scaleY(0.18); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ev-eq span {
+    animation: none;
+    transform: scaleY(0.5);
+  }
+}
+
+/* Parallax hero background — same technique as records page */
+.events-hero-bg {
+  position: absolute;
+  inset: -40px 0 0 0;
+  background-image: url('https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=2070&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+  will-change: transform;
+  z-index: 0;
+}
