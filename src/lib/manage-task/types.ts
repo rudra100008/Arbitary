@@ -1,4 +1,4 @@
-// lib/types.ts
+// lib/manage-task/types.ts
 // Re-exports social types and defines the Task type used across all components.
 
 export type { Platform, SocialPost } from "@/src/lib/social/type";
@@ -32,14 +32,15 @@ export type Task = {
 
 export type ModalMode = "add" | "edit";
 
-export type TaskSource = "manual" | import("@/src/lib/social/type").Platform;
+export type TaskSource = "manual" | "share" | import("@/src/lib/social/type").Platform;
 
 export const PLATFORMS: {
     value: import("@/src/lib/social/type").Platform;
     label: string;
     color: string;
+    icon?: string;
 }[] = [
-        { value: "facebook", label: "Facebook", color: "#1877F2" },
-        { value: "instagram", label: "Instagram", color: "#E1306C" },
-        { value: "youtube", label: "YouTube", color: "#FF0000" },
+        { value: "facebook", label: "Facebook", color: "#1877F2", icon: "📘" },
+        { value: "instagram", label: "Instagram", color: "#E1306C", icon: "📷" },
+        { value: "youtube", label: "YouTube", color: "#FF0000", icon: "▶️" },
     ];

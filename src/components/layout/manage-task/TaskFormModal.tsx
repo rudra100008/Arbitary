@@ -28,7 +28,7 @@ export type TaskFormPayload = {
   taskType: string;
   rewardPoint: number;
   videoUrl: string | null;
-  platform: Platform | null;
+  platform: Platform | "screenshot" | "share" | null;
   socialPostId: string | null;
   socialPostUrl: string | null;
   socialPlatform?: string | null;

@@ -65,9 +65,10 @@ export function YoutubeModal({
         sessionIdRef.current = data.sessionId;
         if (data.requiredSeconds) setLocalRequiredSeconds(data.requiredSeconds);
         return data.sessionId;
-      } catch (err: any) {
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
         const isTransient =
-          err.name === "AbortError" || err.name === "TimeoutError";
+          error.name === "AbortError" || error.name === "TimeoutError";
         if (isTransient) {
           if (attempt < maxAttempts - 1) {
             await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
@@ -75,7 +76,7 @@ export function YoutubeModal({
           }
           return null; // retried later by heartbeat/completion check
         }
-        setSessionError(err.message || "Failed to start watch session");
+        setSessionError(error.message || "Failed to start watch session");
         return null;
       }
     }
@@ -83,9 +84,11 @@ export function YoutubeModal({
   }, [taskId]);
 
   const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onCloseRef.current = onClose;
+  }, [onComplete, onClose]);
 
   const handleComplete = useCallback(async () => {
     if (completedRef.current) return;
@@ -196,6 +199,10 @@ export function YoutubeModal({
   const videoId = getYoutubeId(url);
 
   // Portal mount
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional:
+  // createPortal needs document.body, which only exists client-side. This
+  // one-time flag is the standard way to detect "mounted on client" and
+  // unavoidably costs one extra render.
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
@@ -285,7 +292,7 @@ export function YoutubeModal({
       playerRef.current = new window.YT!.Player("yt-player-container", {
         height: "100%",
         width: "100%",
-        videoId,
+        videoId: videoId!,
         playerVars: {
           playsinline: 1,
           autoplay: 1,

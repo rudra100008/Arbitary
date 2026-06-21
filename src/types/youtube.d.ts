@@ -21,6 +21,8 @@ export interface YTNamespace {
     el: HTMLElement | string,
     options: {
       videoId: string;
+      height?: string | number;
+      width?: string | number;
       host?: string;
       playerVars?: Record<string, number | string>;
       events?: {
@@ -47,4 +49,4 @@ declare global {
   }
 }
 
-export {};
+export { };

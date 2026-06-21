@@ -477,7 +477,12 @@ function SubmissionRow({
             {s.category === "dance" ? "💃" : "🎵"} {s.category}
           </span>
           <span className="text-zinc-300">·</span>
-          <MediaPreview url={s.mediaUrl} category={s.category} name={s.name} />
+          <MediaPreview
+            url={s.mediaUrl}
+            category={s.category}
+            platform={s.mediaPlatform}
+            name={s.name}
+          />
           <span className="text-zinc-300">·</span>
           <span
             className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}

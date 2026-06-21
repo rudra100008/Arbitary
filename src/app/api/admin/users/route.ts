@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/services/auth.service";
 import { db } from "@/src/db";
 import { usersTable } from "@/src/db/schema";
-import { desc, ilike, or, count, and, isNull, not } from "drizzle-orm";
+import { desc, ilike, or, count, and, isNull, not, sql } from "drizzle-orm";
 
 const PAGE_SIZE = 25;
 
@@ -29,10 +29,7 @@ export async function GET(req: NextRequest) {
   // (case-insensitively) and "user" as everything else (including NULL),
   // so the two buckets are mutually exclusive and exhaustive — no account
   // can be miscounted or double-counted between them.
-  const isAdminRole = or(
-    ilike(usersTable.role, "admin"),
-    ilike(usersTable.role, "super_admin"),
-  );
+  const isAdminRole = sql`(${ilike(usersTable.role, "admin")} OR ${ilike(usersTable.role, "super_admin")})`;
 
   let roleClause;
   if (role === "admin") {
