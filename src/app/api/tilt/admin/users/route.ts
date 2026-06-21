@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
         for (const inv of invited) {
             if (!signedUpEmails.has(inv.email)) {
                 result.push({
-                    id: null,
+                    id: inv.id,
                     name: null,
                     email: inv.email,
                     role: null,
