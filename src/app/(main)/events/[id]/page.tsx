@@ -25,28 +25,7 @@ const YT_PLAYER_STATE_PLAYING = 1;
 type YTPlayerInstance = {
   destroy: () => void;
 };
-type YTNamespace = {
-  Player: new (
-    el: HTMLElement,
-    options: {
-      videoId: string;
-      host?: string;
-      playerVars?: Record<string, number | string>;
-      events?: {
-        onStateChange?: (e: { data: number }) => void;
-        onError?: () => void;
-      };
-    },
-  ) => YTPlayerInstance;
-  PlayerState: { PLAYING: number };
-};
 
-declare global {
-  interface Window {
-    YT?: YTNamespace;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
 
 const YT_API_SRC = "https://www.youtube.com/iframe_api";
 
@@ -54,7 +33,7 @@ const YT_API_SRC = "https://www.youtube.com/iframe_api";
  *  resolves every caller's promise once `window.YT.Player` is ready — the
  *  official, reliable way to get real play/pause state, unlike hand-rolled
  *  postMessage handshakes against the embed (which can silently never fire). */
-function loadYouTubeIframeApi(): Promise<YTNamespace> {
+function loadYouTubeIframeApi(): Promise<NonNullable<Window['YT']>> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("No window"));
   }
@@ -66,7 +45,7 @@ function loadYouTubeIframeApi(): Promise<YTNamespace> {
     const previousCallback = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       previousCallback?.();
-      resolve(window.YT as YTNamespace);
+      resolve(window.YT as NonNullable<Window['YT']>);
     };
 
     if (!document.querySelector(`script[src="${YT_API_SRC}"]`)) {
