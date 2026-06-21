@@ -29,7 +29,7 @@ interface YTPlayer {
 
 declare global {
   interface Window {
-    YT: {
+    YT?: {
       Player: any;
       PlayerState: {
         OFF: number;
