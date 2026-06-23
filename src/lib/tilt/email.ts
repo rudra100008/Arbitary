@@ -28,6 +28,7 @@ const COMMON_TYPOS: Record<string, string> = {
   "gmail.con": "gmail.com",
   "gmail.cpm": "gmail.com",
   "gnail.co": "gmail.com",
+  "gnail.cmo": "gmail.com",
   "gnail.cm": "gmail.com",
   "gmaill.net": "gmail.com",
   "gmaiil.co": "gmail.com",
