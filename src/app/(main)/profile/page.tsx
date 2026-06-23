@@ -26,12 +26,12 @@ const TAB_TITLES: Record<Tab, string> = {
 interface ApiTask {
   id: number;
   title: string;
+  description: string | null;
   points: number;
   userStatus: string | null;
   completedAt: string | null;
   taskType: string | null;
   platform: string | null;
-  description: string | null;
   difficulty: string | null;
 }
 
@@ -115,7 +115,7 @@ export default function ProfilePage() {
         .map((t) => ({
           id: t.id,
           title: t.title,
-          description: t.description ?? null,
+          description: t.description,
           points: t.points,
           status: (t.userStatus ?? "").toLowerCase(),
           completedAt: t.completedAt,

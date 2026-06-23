@@ -660,6 +660,7 @@ export const TaskService = {
         difficulty: task.difficulty,
         isFlash: task.isFlash,
         isShare: task.isShare,
+        isRecurring: task.isRecurring,
         expiresAt: task.expiresAt ? task.expiresAt.toISOString() : null,
         isExpired: false,
         userStatus: r.userTask.status,

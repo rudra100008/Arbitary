@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+// Shared global typing for window.YT lives in src/types/youtube.d.ts
+// (it must only be declared once across the app).
+import type { YTPlayerInstance as YTPlayer } from "@/src/types/youtube";
 
 type YoutubeModalProps = {
   url: string;
@@ -17,14 +20,6 @@ function getYoutubeId(url: string): string | null {
     /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   return match && match[2].length === 11 ? match[2] : null;
-}
-
-interface YTPlayer {
-  destroy(): void;
-  playVideo(): void;
-  stopVideo(): void;
-  pauseVideo(): void;
-  getCurrentTime(): number;
 }
 
 export function YoutubeModal({
@@ -70,9 +65,10 @@ export function YoutubeModal({
         sessionIdRef.current = data.sessionId;
         if (data.requiredSeconds) setLocalRequiredSeconds(data.requiredSeconds);
         return data.sessionId;
-      } catch (err: any) {
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
         const isTransient =
-          err.name === "AbortError" || err.name === "TimeoutError";
+          error.name === "AbortError" || error.name === "TimeoutError";
         if (isTransient) {
           if (attempt < maxAttempts - 1) {
             await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
@@ -80,7 +76,7 @@ export function YoutubeModal({
           }
           return null; // retried later by heartbeat/completion check
         }
-        setSessionError(err.message || "Failed to start watch session");
+        setSessionError(error.message || "Failed to start watch session");
         return null;
       }
     }
@@ -88,9 +84,11 @@ export function YoutubeModal({
   }, [taskId]);
 
   const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onCloseRef.current = onClose;
+  }, [onComplete, onClose]);
 
   const handleComplete = useCallback(async () => {
     if (completedRef.current) return;
@@ -201,6 +199,10 @@ export function YoutubeModal({
   const videoId = getYoutubeId(url);
 
   // Portal mount
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional:
+  // createPortal needs document.body, which only exists client-side. This
+  // one-time flag is the standard way to detect "mounted on client" and
+  // unavoidably costs one extra render.
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
@@ -285,10 +287,12 @@ export function YoutubeModal({
         playerRef.current = null;
       }
 
-      playerRef.current = new window.YT.Player("yt-player-container", {
+      // initPlayer is only ever invoked after window.YT is confirmed loaded
+      // (see the `window.YT && window.YT.Player` guard / onYouTubeIframeAPIReady below).
+      playerRef.current = new window.YT!.Player("yt-player-container", {
         height: "100%",
         width: "100%",
-        videoId,
+        videoId: videoId!,
         playerVars: {
           playsinline: 1,
           autoplay: 1,
@@ -300,7 +304,7 @@ export function YoutubeModal({
         events: {
           onReady: () => setPlayerReady(true),
           onStateChange: (event: { data: number }) => {
-            if (event.data === window.YT.PlayerState.PLAYING) {
+            if (event.data === window.YT!.PlayerState.PLAYING) {
               setIsPlaying(true);
               startSession();
             } else {

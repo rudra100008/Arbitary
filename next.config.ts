@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['*.trycloudflare.com'
+  allowedDevOrigins: ['https://arbitrary-nu.vercel.app'
   ],
 
   images: {

@@ -11,6 +11,9 @@ import type {
   MediaItem,
 } from "@/src/types/db";
 import { extractYouTubeId } from "@/src/lib/youtube-url";
+// Shared global typing for window.YT lives in src/types/youtube.d.ts
+// (it must only be declared once across the app).
+import type { YTNamespace, YTPlayerInstance } from "@/src/types/youtube";
 
 interface EventDetail extends Event {
   timelineItems: TimelineItem[];
@@ -19,13 +22,6 @@ interface EventDetail extends Event {
 
 // https://developers.google.com/youtube/iframe_api_reference#Playback_status
 const YT_PLAYER_STATE_PLAYING = 1;
-
-// Narrow shape of the bits of the real `window.YT` global we use. The actual
-// API surface is much bigger; we only declare what we touch.
-type YTPlayerInstance = {
-  destroy: () => void;
-};
-
 
 const YT_API_SRC = "https://www.youtube.com/iframe_api";
 
