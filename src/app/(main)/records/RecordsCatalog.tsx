@@ -854,13 +854,6 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                           <span
                             data-role="tile-progress"
                             className="rc-tile-progress-fill"
-<<<<<<< Updated upstream
-=======
-                            // eslint-disable-next-line react-hooks/refs
-                            style={{
-                              width: `${playingProgressRef.current * 100}%`,
-                            }}
->>>>>>> Stashed changes
                           />
                         </span>
                       </>
