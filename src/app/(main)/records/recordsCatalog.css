@@ -401,6 +401,7 @@
 .rc-tile-progress-fill {
   display: block;
   height: 100%;
+  width: 0%;
   background: #FACC15;
 }
 

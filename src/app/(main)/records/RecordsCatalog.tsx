@@ -798,7 +798,6 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                           <span
                             data-role="tile-progress"
                             className="rc-tile-progress-fill"
-                            style={{ width: `${playingProgressRef.current * 100}%` }}
                           />
                         </span>
                       </>
