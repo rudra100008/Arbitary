@@ -8,6 +8,8 @@ export default function TiltOutletPage() {
   const [userAddress, setUserAddress] = useState("");
   const [scans, setScans] = useState(0);
   const [submissions, setSubmissions] = useState(0);
+  const [rewardsToday, setRewardsToday] = useState(0);
+  const [rewardTarget, setRewardTarget] = useState(10);
 
   useEffect(() => {
     document.title = "Dashboard | Tilt Your Music";
@@ -30,6 +32,8 @@ export default function TiltOutletPage() {
         const data = await r.json();
         setScans(data.scans ?? 0);
         setSubmissions(data.submissions ?? 0);
+        setRewardsToday(data.rewardsToday ?? 0);
+        setRewardTarget(data.rewardTarget ?? 10);
       })
       .catch(() => {});
   }, []);
@@ -62,7 +66,7 @@ export default function TiltOutletPage() {
         }}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 rise2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 rise2">
         <div
           className="rounded-xl border px-5 py-4"
           style={{ borderColor: "rgba(200,230,60,0.1)", background: "rgba(255,255,255,0.02)" }}
@@ -80,6 +84,34 @@ export default function TiltOutletPage() {
             Submissions
           </p>
           <p className="text-2xl font-black text-white mt-1">{submissions}</p>
+        </div>
+        <div
+          className="rounded-xl border px-5 py-4"
+          style={{ borderColor: "rgba(200,230,60,0.1)", background: "rgba(255,255,255,0.02)" }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: "rgba(200,230,60,0.45)" }}>
+            Rewards Today
+          </p>
+          <p className="text-2xl font-black text-white mt-1">
+            {rewardsToday}
+            <span className="text-sm font-semibold ml-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+              / {rewardTarget}
+            </span>
+          </p>
+          <div className="mt-3 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <div
+              className="h-1 rounded-full transition-all duration-500"
+              style={{
+                width: `${Math.min((rewardsToday / rewardTarget) * 100, 100)}%`,
+                background: rewardsToday >= rewardTarget ? "#d42b2b" : "#c8e63c",
+              }}
+            />
+          </div>
+          {rewardsToday >= rewardTarget && (
+            <p className="text-[9px] mt-1.5 font-bold uppercase tracking-widest" style={{ color: "#d42b2b" }}>
+              Today's limit reached
+            </p>
+          )}
         </div>
       </div>
 

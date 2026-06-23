@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Calendar, MapPin } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, MapPin } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useMemo, useRef, useState, useEffect } from "react";
+import type { CSSProperties } from "react";
+import "../events.css";
 import type {
   Event,
   TimelineItem,
@@ -14,13 +16,13 @@ import { extractYouTubeId } from "@/src/lib/youtube-url";
 // Shared global typing for window.YT lives in src/types/youtube.d.ts
 // (it must only be declared once across the app).
 import type { YTNamespace, YTPlayerInstance } from "@/src/types/youtube";
+import Image from "next/image";
 
 interface EventDetail extends Event {
   timelineItems: TimelineItem[];
   contentSections: (ContentSection & { mediaItems: MediaItem[] })[];
 }
 
-// https://developers.google.com/youtube/iframe_api_reference#Playback_status
 const YT_PLAYER_STATE_PLAYING = 1;
 
 const YT_API_SRC = "https://www.youtube.com/iframe_api";
@@ -164,11 +166,39 @@ const EventContentPage = () => {
     event.heroImageUrl ||
     "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2070&auto=format&fit=crop";
 
+  // Base64 data-URLs must bypass Next.js image optimization entirely —
+  // the optimizer re-encodes them and causes visible blur.
+  // We also skip Next.js re-processing for Cloudinary (already optimized by CDN).
+  const isDataUrl =
+    heroImageSrc.startsWith("data:") ||
+    heroImageSrc.includes("res.cloudinary.com");
+
+  const accentColor = event.accentColor || "#FACC15";
+  const isPoster = false; // "poster" mode deprecated, always use photo layout
+  const hasTimeline = event.timelineItems && event.timelineItems.length > 0;
+
   return (
-    <div className="bg-white text-black min-h-screen selection:bg-[#FACC15] selection:text-black">
+    <div
+      className="bg-white text-black min-h-screen selection:text-black"
+      style={
+        {
+          "--accent-color": accentColor,
+          "--tw-selection-bg": accentColor,
+        } as CSSProperties
+      }
+    >
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `::selection { background-color: ${accentColor}; }`,
+        }}
+      />
       <main>
-        {/* Full-Page Hero: YouTube video when available, image otherwise */}
-        <section className="relative w-full h-[90vh] overflow-hidden bg-black">
+        {/* Full-Page Hero: YouTube video, poster image, or photo image */}
+        <section
+          className={`relative w-full overflow-hidden bg-black ${
+            isPoster ? "" : "h-[50vh] md:h-[90vh]"
+          }`}
+        >
           {showVideo && youtubeVideoId ? (
             <div className="absolute inset-0 flex items-center justify-center bg-black">
               <div className="relative w-full h-full">
@@ -188,113 +218,280 @@ const EventContentPage = () => {
                 }`}
               />
             </div>
+          ) : isPoster ? (
+            <>
+              {/* Blurred background fill */}
+              <div className="absolute inset-0 bg-zinc-900">
+                <Image
+                  src={heroImageSrc}
+                  alt=""
+                  aria-hidden="true"
+                  width={800}
+                  height={600}
+                  unoptimized={isDataUrl}
+                  className="w-full h-full object-cover blur-xl opacity-30"
+                />
+              </div>
+
+              {/* Compact back button — small pill, no min-height forcing */}
+              <div className="relative z-10 container mx-auto px-4 pt-3 md:pt-8">
+                <Link
+                  href="/events"
+                  className="inline-flex items-center gap-1.5 text-white/70 hover:text-[var(--accent-color)] font-bold uppercase tracking-widest text-[9px] transition-all group px-3 py-1.5 bg-black/30 backdrop-blur-md rounded-full border border-white/10"
+                >
+                  <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
+                  Back
+                </Link>
+              </div>
+
+              {/* Poster image — narrower on mobile, deep drop shadow */}
+              <div className="relative z-10 container mx-auto px-6 pb-6 md:pb-12 flex justify-center mt-3 md:mt-0">
+                <div className="w-full max-w-[220px] sm:max-w-xs md:max-w-sm lg:max-w-md aspect-[3/4] relative drop-shadow-[0_32px_48px_rgba(0,0,0,0.6)]">
+                  <Image
+                    src={heroImageSrc}
+                    alt={event.title}
+                    fill
+                    sizes="(max-width: 640px) 220px, (max-width: 768px) 320px, (max-width: 1024px) 384px, 448px"
+                    quality={100}
+                    unoptimized={isDataUrl}
+                    className="object-contain rounded-2xl"
+                  />
+                </div>
+              </div>
+            </>
           ) : (
-            <img
+            <Image
               src={heroImageSrc}
               alt={event.title}
-              className="w-full h-full object-cover opacity-80"
+              fill
+              sizes="100vw"
+              priority
+              quality={100}
+              unoptimized={isDataUrl}
+              className="object-cover"
             />
           )}
 
-          {/* Enhanced Bottom-to-Top Fade — hidden while the video plays so it
-              doesn't dim the footage; back the moment it's paused/stopped */}
-          <div
-            className={`absolute inset-0 bg-gradient-to-t from-white via-transparent to-black/40 pointer-events-none transition-opacity duration-500 ${
-              showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
-            }`}
-          />
+          {/* Enhanced Bottom-to-Top Fade — only for photo-style heroes; poster
+              heroes are shown at full clarity since the poster's own text
+              would otherwise get washed out, and hidden while video plays */}
+          {!isPoster && (
+            <div
+              className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${
+                showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
+              }`}
+              style={{
+                background:
+                  "linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 40%), " +
+                  "linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 35%)",
+              }}
+            />
+          )}
 
-          {/* Hero Content: Top-Center Aligned — fades out while the video is
-              playing so the title doesn't sit on top of the footage, and
-              fades back in as soon as it's paused, ends, or hasn't started */}
-          <div
-            className={`absolute inset-0 flex flex-col items-center pt-44 pointer-events-none transition-opacity duration-500 ${
-              showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
-            }`}
-          >
-            <div className="container mx-auto px-6 text-center animate-fade-in">
-              <span className="bg-[#FACC15] text-black text-[10px] font-black px-6 py-2 rounded-full tracking-[0.3em] uppercase mb-8 inline-block shadow-2xl">
-                {event.eventType}
-              </span>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tighter uppercase leading-[0.8] text-white drop-shadow-2xl max-w-6xl mx-auto">
-                {event.title}
-              </h1>
-            </div>
-          </div>
-
-          {/* Back Button Floating */}
-          <div className="absolute top-32 left-10 z-20">
-            <Link
-              href="/events"
-              className="flex items-center gap-2 text-white/80 hover:text-[#FACC15] font-bold uppercase tracking-widest text-[10px] transition-all group px-4 py-2 bg-black/20 backdrop-blur-md rounded-full border border-white/10"
+          {/* Hero Content: Top-Center Aligned — only rendered for photo-style
+              heroes, since poster-style heroes already contain their own
+              title/branding and would otherwise have two competing titles.
+              Fades out while the video is playing. */}
+          {!isPoster && (
+            <div
+              className={`absolute inset-0 flex flex-col items-center pt-24 md:pt-44 pointer-events-none transition-opacity duration-500 ${
+                showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
+              }`}
             >
-              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
-              Back
-            </Link>
-          </div>
+              <div className="container mx-auto px-6 text-center animate-fade-in">
+                <span
+                  className="text-black text-[10px] font-black px-6 py-2 rounded-full tracking-[0.3em] uppercase mb-8 inline-block shadow-2xl"
+                  style={{ backgroundColor: accentColor }}
+                >
+                  {event.eventType}
+                </span>
+                <h1 className="text-3xl md:text-6xl lg:text-7xl font-black tracking-tighter uppercase leading-[0.8] text-white drop-shadow-2xl max-w-6xl mx-auto">
+                  {event.title}
+                </h1>
+              </div>
+            </div>
+          )}
+
+          {/* Back Button Floating — only for non-poster; poster has its own back button above the poster */}
+          {!isPoster && (
+            <div className="absolute top-20 md:top-32 left-4 md:left-10 z-20">
+              <Link
+                href="/events"
+                className="flex items-center gap-2 text-white/80 hover:text-[var(--accent-color)] font-bold uppercase tracking-widest text-[10px] transition-all group px-4 py-2 bg-black/20 backdrop-blur-md rounded-full border border-white/10 min-h-[44px]"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+                Back
+              </Link>
+            </div>
+          )}
         </section>
 
-        {/* Content Section Below Image */}
-        <div className="container mx-auto px-6 py-24">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-            {/* Left Column: Description & Highlights */}
-            <div className="lg:col-span-9 space-y-16">
-              <div className="flex flex-wrap gap-12 border-b border-black/5 pb-12">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-zinc-50 border border-black/5 flex items-center justify-center text-[#FACC15]">
-                    <Calendar className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-                      Date
-                    </p>
-                    <p className="font-black text-xl">
-                      {formatDate(event.eventDate)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-zinc-50 border border-black/5 flex items-center justify-center text-[#FACC15]">
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-                      Location
-                    </p>
-                    <p className="font-black text-xl">{event.venue}</p>
-                  </div>
-                </div>
-              </div>
+        {/* Poster meta: event type badge → title → divider → meta pills */}
+        {isPoster && (
+          <div className="container mx-auto px-5 pt-6 md:pt-10 pb-6">
+            {/* Event type badge */}
+            <div className="flex justify-center mb-4">
+              <span
+                className="text-black text-[9px] font-black px-4 py-1.5 rounded-full tracking-[0.3em] uppercase"
+                style={{ backgroundColor: accentColor }}
+              >
+                {event.eventType}
+              </span>
+            </div>
 
+            {/* Title */}
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tighter uppercase text-center leading-tight">
+              {event.title}
+            </h1>
+
+            {/* Accent divider */}
+            <div
+              className="mx-auto mt-5 mb-5 h-px w-16 opacity-40"
+              style={{ backgroundColor: accentColor }}
+            />
+
+            {/* Meta pills row */}
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <div className="flex items-center gap-1.5 bg-zinc-50 border border-black/8 rounded-full px-3 py-1.5">
+                <Calendar
+                  className="w-3.5 h-3.5 shrink-0"
+                  style={{ color: accentColor }}
+                />
+                <span className="font-black text-[11px] tracking-wide">
+                  {formatDate(event.eventDate)}
+                </span>
+              </div>
+              {event.eventTime && (
+                <div className="flex items-center gap-1.5 bg-zinc-50 border border-black/8 rounded-full px-3 py-1.5">
+                  <Clock
+                    className="w-3.5 h-3.5 shrink-0"
+                    style={{ color: accentColor }}
+                  />
+                  <span className="font-black text-[11px] tracking-wide">
+                    {event.eventTime}
+                  </span>
+                </div>
+              )}
+              {event.venue && (
+                <div className="flex items-center gap-1.5 bg-zinc-50 border border-black/8 rounded-full px-3 py-1.5">
+                  <MapPin
+                    className="w-3.5 h-3.5 shrink-0"
+                    style={{ color: accentColor }}
+                  />
+                  <span className="font-black text-[11px] tracking-wide">
+                    {event.venue}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Quick-Info Bar: date / time / venue at a glance, right below the
+            hero so visitors don't have to scroll to confirm logistics.
+            Poster-type events already show this info in the block above
+            (grouped with the title), so this bar only renders for
+            photo-type events to avoid showing the same info twice. */}
+        {!isPoster && (
+          <div className="container mx-auto px-6 pt-8">
+            <div className="flex flex-wrap justify-center gap-4 md:gap-6 bg-zinc-50 border border-black/5 rounded-3xl px-6 py-5">
+              <div className="flex items-center gap-3 min-h-[44px]">
+                <Calendar
+                  className="w-5 h-5 shrink-0"
+                  style={{ color: accentColor }}
+                />
+                <span className="font-black text-sm md:text-base">
+                  {formatDate(event.eventDate)}
+                </span>
+              </div>
+              {event.eventTime && (
+                <div className="flex items-center gap-3 min-h-[44px]">
+                  <Clock
+                    className="w-5 h-5 shrink-0"
+                    style={{ color: accentColor }}
+                  />
+                  <span className="font-black text-sm md:text-base">
+                    {event.eventTime}
+                  </span>
+                </div>
+              )}
+              {event.venue && (
+                <div className="flex items-center gap-3 min-h-[44px]">
+                  <MapPin
+                    className="w-5 h-5 shrink-0"
+                    style={{ color: accentColor }}
+                  />
+                  <span className="font-black text-sm md:text-base">
+                    {event.venue}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sticky Anchor Nav — lets visitors jump straight to a section
+            instead of scrolling and hunting */}
+        <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-black/5 mt-10">
+          <div className="container mx-auto px-6">
+            <div className="flex gap-8 overflow-x-auto no-scrollbar">
+              <a
+                href="#overview"
+                className="py-4 text-[11px] font-black uppercase tracking-widest text-zinc-500 hover:text-black whitespace-nowrap min-h-[44px] flex items-center"
+              >
+                Overview
+              </a>
+              {hasTimeline && (
+                <a
+                  href="#agenda"
+                  className="py-4 text-[11px] font-black uppercase tracking-widest text-zinc-500 hover:text-black whitespace-nowrap min-h-[44px] flex items-center"
+                >
+                  Agenda
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Section Below Image */}
+        <div className="container mx-auto px-6 py-16 md:py-24">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
+            {/* Mobile-only Agenda: shown right after the quick-info bar in the
+                stacking order, ahead of the description, since lg:hidden
+                hides it on desktop where it instead renders sticky on the
+                right (below). */}
+            {hasTimeline && (
+              <div id="agenda-mobile" className="lg:hidden order-1">
+                <TimelineCard
+                  items={event.timelineItems}
+                  accentColor={accentColor}
+                />
+              </div>
+            )}
+
+            {/* Left Column: Description & Highlights */}
+            <div
+              id="overview"
+              className="lg:col-span-9 space-y-16 order-2 lg:order-1"
+            >
               <div className="prose prose-2xl max-w-none">
-                <p className="text-zinc-500 leading-relaxed whitespace-pre-line text-xl italic font-medium">
+                <p className="text-zinc-500 leading-relaxed whitespace-pre-line text-lg md:text-xl italic font-medium">
                   {event.description}
                 </p>
               </div>
             </div>
 
-            {/* Right Column: Timeline */}
-            <div className="lg:col-span-3 lg:sticky lg:top-32 h-fit space-y-6">
-              {event.timelineItems && event.timelineItems.length > 0 && (
-                <div className="p-6 bg-zinc-50 rounded-3xl border border-black/5">
-                  <h3 className="text-sm font-black uppercase tracking-widest mb-6">
-                    EVENT TIMELINE
-                  </h3>
-                  <div className="space-y-6">
-                    {event.timelineItems.map(
-                      (item: TimelineItem, i: number) => (
-                        <div key={i} className="flex gap-4 items-start">
-                          <span className="text-[10px] font-black text-[#FACC15] bg-black px-2 py-1 rounded-md min-w-[60px] text-center">
-                            {item.time}
-                          </span>
-                          <p className="text-[11px] font-bold text-zinc-800 uppercase tracking-tight leading-tight">
-                            {item.description}
-                          </p>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
+            {/* Right Column: Timeline (desktop only — mobile copy renders
+                above, right after the quick-info bar) */}
+            <div
+              id="agenda"
+              className="hidden lg:block lg:col-span-3 lg:sticky lg:top-32 h-fit space-y-6 order-3 lg:order-2"
+            >
+              {hasTimeline && (
+                <TimelineCard
+                  items={event.timelineItems}
+                  accentColor={accentColor}
+                />
               )}
             </div>
           </div>
@@ -303,5 +500,37 @@ const EventContentPage = () => {
     </div>
   );
 };
+
+/** Shared timeline card, rendered once in the mobile stacking order (right
+ *  after the quick-info bar) and once sticky in the desktop right rail —
+ *  kept as one component so the two stay visually identical. */
+const TimelineCard = ({
+  items,
+  accentColor,
+}: {
+  items: TimelineItem[];
+  accentColor: string;
+}) => (
+  <div className="p-6 bg-zinc-50 rounded-3xl border border-black/5">
+    <h3 className="text-sm font-black uppercase tracking-widest mb-6">
+      EVENT TIMELINE
+    </h3>
+    <div className="space-y-6">
+      {items.map((item: TimelineItem, i: number) => (
+        <div key={i} className="flex gap-4 items-start">
+          <span
+            className="text-[10px] font-black text-white px-2 py-1 rounded-md min-w-[60px] text-center"
+            style={{ backgroundColor: accentColor }}
+          >
+            {item.time}
+          </span>
+          <p className="text-[11px] font-bold text-zinc-800 uppercase tracking-tight leading-tight">
+            {item.description}
+          </p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 export default EventContentPage;

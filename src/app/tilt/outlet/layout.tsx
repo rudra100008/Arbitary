@@ -67,6 +67,7 @@ export default function TiltOutletLayout({
 
     const isOverview = pathname === "/tilt/outlet";
     const isQr = pathname === "/tilt/outlet/qr";
+    const isRewards = pathname === "/tilt/outlet/rewards";
 
   return (
     <div className="tilt-noise min-h-screen flex relative" style={{ background: "#0e1f10" }}>
@@ -219,6 +220,27 @@ export default function TiltOutletLayout({
                   <line x1="9" y1="9" x2="15" y2="15" />
               </svg>
               Generate QR
+          </Link>
+
+          <Link
+            href="/tilt/outlet/rewards"
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all duration-200
+              ${isRewards
+                ? "text-black"
+                : "text-white/40 hover:text-white hover:bg-white/4"
+              }`}
+            onClick={() => setSidebarOpen(false)}
+            style={isRewards ? {
+              background: "#c8e63c", color: "#0e1f10",
+              boxShadow: "0 0 20px rgba(200,230,60,0.15)",
+            } : {}}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="18" y="3" width="4" height="18" rx="1"/>
+              <rect x="10" y="8" width="4" height="13" rx="1"/>
+              <rect x="2" y="13" width="4" height="8" rx="1"/>
+            </svg>
+            Rewards
           </Link>
       </nav>
 

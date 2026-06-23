@@ -43,6 +43,11 @@ interface EventFormModalProps {
   youtubeUrl: string;
   setYoutubeUrl: (v: string) => void;
 
+  eventTime: string;
+  setEventTime: (v: string) => void;
+  accentColor: string;
+  setAccentColor: (v: string) => void;
+
   contentSections: ContentSection[];
   setContentSections: (v: ContentSection[]) => void;
   accessTypes: AccessType[];
@@ -106,7 +111,7 @@ const formatFieldName = (field: string): string => {
     const fieldLabels: Record<string, string> = {
       title: "Title",
       price: "Price",
-      pointCost: "Points Cost",
+
       type: "Section Type",
       content: "Content",
       time: "Time",
@@ -144,6 +149,10 @@ const EventFormModal = ({
   setHeroImage,
   youtubeUrl,
   setYoutubeUrl,
+  eventTime,
+  setEventTime,
+  accentColor,
+  setAccentColor,
   contentSections,
   setContentSections,
   accessTypes,
@@ -305,6 +314,57 @@ const EventFormModal = ({
                   />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <TextField
+                    label="Event Time"
+                    value={eventTime}
+                    placeholder="e.g. 10 AM - 4 PM"
+                    error={fieldErrors.eventTime}
+                    onChange={(v) => {
+                      setEventTime(v);
+                      if (fieldErrors.eventTime)
+                        setFieldErrors({ ...fieldErrors, eventTime: "" });
+                    }}
+                  />
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-2">
+                      Accent Color
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={accentColor}
+                        onChange={(e) => {
+                          setAccentColor(e.target.value);
+                          if (fieldErrors.accentColor)
+                            setFieldErrors({ ...fieldErrors, accentColor: "" });
+                        }}
+                        className="w-12 h-12 rounded-xl border border-black/5 cursor-pointer shrink-0 bg-zinc-50"
+                      />
+                      <input
+                        type="text"
+                        value={accentColor}
+                        onChange={(e) => {
+                          setAccentColor(e.target.value);
+                          if (fieldErrors.accentColor)
+                            setFieldErrors({ ...fieldErrors, accentColor: "" });
+                        }}
+                        placeholder="#FACC15"
+                        className={`flex-1 px-6 py-4 bg-zinc-50 border rounded-2xl focus:outline-none font-bold text-sm transition-colors ${
+                          fieldErrors.accentColor
+                            ? "border-red-500 focus:border-red-500"
+                            : "border-black/5 focus:border-[#FACC15]"
+                        }`}
+                      />
+                    </div>
+                    {fieldErrors.accentColor && (
+                      <p className="text-xs text-red-600 font-bold ml-2">
+                        ❌ {fieldErrors.accentColor}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-2">
                     Short Description
@@ -446,7 +506,6 @@ const EventFormModal = ({
                         id: Math.random().toString(),
                         title: "",
                         price: "",
-                        pointCost: 0,
                       },
                     ])
                   }

@@ -20,7 +20,7 @@ type EventWithRelations = Event & {
 
 export type EventListItem = Pick<
   Event,
-  "id" | "title" | "eventType" | "status" | "priority" | "eventDate" | "venue" | "description" | "heroImageUrl" | "youtubeUrl" | "createdAt"
+  "id" | "title" | "eventType" | "status" | "priority" | "eventDate" | "venue" | "description" | "heroImageUrl" | "imageType" | "eventTime" | "accentColor" | "youtubeUrl" | "createdAt"
 >;
 
 async function syncMediaItems(tx: any, sectionId: number, mediaItems: { id?: number; url: string }[]) {
@@ -68,6 +68,9 @@ export const EventService = {
           venue: eventsTable.venue,
           description: eventsTable.description,
           heroImageUrl: eventsTable.heroImageUrl,
+          imageType: eventsTable.imageType,
+          eventTime: eventsTable.eventTime,
+          accentColor: eventsTable.accentColor,
           youtubeUrl: eventsTable.youtubeUrl,
           createdAt: eventsTable.createdAt,
         })
@@ -129,7 +132,7 @@ export const EventService = {
       );
     }
 
-    const { id, title, eventType, status, priority, date, venue, description, heroImageUrl, youtubeUrl, contentSections, accessTypes, timelineItems } = parsed.data;
+    const { id, title, eventType, status, priority, date, venue, description, heroImageUrl, imageType, eventTime, accentColor, youtubeUrl, contentSections, accessTypes, timelineItems } = parsed.data;
 
     const eventDate = date ? new Date(date) : new Date();
     const normalizedYoutubeUrl = youtubeUrl && youtubeUrl.trim() !== "" ? youtubeUrl.trim() : null;
@@ -171,7 +174,7 @@ export const EventService = {
 
         const [updated] = await tx
           .update(eventsTable)
-          .set({ title, eventType, status, priority, eventDate, venue, description, heroImageUrl, youtubeUrl: normalizedYoutubeUrl })
+          .set({ title, eventType, status, priority, eventDate, venue, description, heroImageUrl, imageType, eventTime, accentColor: accentColor || "#FACC15", youtubeUrl: normalizedYoutubeUrl })
           .where(eq(eventsTable.id, eventIdNum))
           .returning();
 
@@ -290,7 +293,7 @@ export const EventService = {
       } else {
         const [newEvent] = await tx
           .insert(eventsTable)
-          .values({ title, eventType, status, priority, eventDate, venue, description, heroImageUrl, youtubeUrl: normalizedYoutubeUrl })
+          .values({ title, eventType, status, priority, eventDate, venue, description, heroImageUrl, imageType, eventTime, accentColor: accentColor || "#FACC15", youtubeUrl: normalizedYoutubeUrl })
           .returning();
 
         finalEvent = newEvent;

@@ -16,6 +16,17 @@ export const eventsTable = pgTable("events", {
     description: text("description"),
     heroImageUrl: text("hero_image_url"),
     youtubeUrl: text("youtube_url"),
+    /** "poster" = a designed graphic with its own baked-in title/branding
+     *  (rendered full-clarity, no overlay text). "photo" = a plain
+     *  background photo (rendered with the title/badge overlay + gradient,
+     *  as before). */
+    imageType: varchar("image_type", { length: 50 }).notNull().default("photo"),
+    /** Free-text display time, e.g. "10 AM - 4 PM". Nullable since older
+     *  events won't have this set. */
+    eventTime: varchar("event_time", { length: 100 }),
+    /** Hex color used to theme this event's page (badges, chips, timeline,
+     *  active nav state). Defaults to the site's existing yellow. */
+    accentColor: varchar("accent_color", { length: 50 }).notNull().default("#FACC15"),
     createdAt: timestamp("created_at").defaultNow(),
 });
 

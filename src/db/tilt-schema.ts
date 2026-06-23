@@ -121,3 +121,27 @@ export const lotteryEntriesTable = pgTable(
     ),
   ],
 );
+
+export const instantRewardsTable = pgTable(
+  "instant_rewards",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .unique()
+      .references(() => lotteryEntriesTable.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .unique()
+      .references(() => lotterySessionsTable.id),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => lotteryCampaignsTable.id),
+    outletId: text("outlet_id").notNull(), // denormalized so per-outlet counts don't need joins
+    claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("instant_rewards_claimed_at_idx").on(table.claimedAt),
+    index("instant_rewards_outlet_idx").on(table.outletId, table.claimedAt),
+  ],
+);

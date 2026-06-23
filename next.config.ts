@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['https://arbitrary-nu.vercel.app'
-  ],
+  allowedDevOrigins: ['*.vercel.app'],
 
   images: {
     remotePatterns: [
@@ -10,6 +9,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'platform-lookaside.fbsbx.com' },
       { protocol: 'https', hostname: 'graph.facebook.com' },
       { protocol: 'https', hostname: '**.fbcdn.net' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
   },
   async headers() {

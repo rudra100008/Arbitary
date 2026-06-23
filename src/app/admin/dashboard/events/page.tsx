@@ -181,33 +181,25 @@ export default function AdminEvents() {
     }
   };
 
-  const compressImage = (
+  // Upload image to Cloudinary via the existing /api/upload route.
+  // Returns a real https://res.cloudinary.com/... URL — no base64 in DB.
+  const uploadToCloudinary = async (
     file: File,
-    maxWidth = 1200,
-    quality = 0.7,
+    folder: string = "event-heroes",
   ): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (e) => {
-        const img = new Image();
-        img.src = e.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          if (width > maxWidth) {
-            height = (maxWidth / width) * height;
-            width = maxWidth;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", quality));
-        };
-      };
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("type", folder);
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Image upload failed");
+    }
+    const data = await res.json();
+    return data.url as string;
   };
 
   const triggerScrollToError = () => {
@@ -275,7 +267,14 @@ export default function AdminEvents() {
     setIsSaving(true);
     try {
       let finalHeroUrl = heroImage.url;
-      if (heroImage.file) finalHeroUrl = await compressImage(heroImage.file);
+      if (heroImage.file) {
+        try {
+          finalHeroUrl = await uploadToCloudinary(heroImage.file, "event-heroes");
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Hero image upload failed");
+          return;
+        }
+      }
 
       // — Snapshot and filter — use filtered arrays for both payload and index mapping —
       const unfilteredSections = [...contentSections];
@@ -303,7 +302,14 @@ export default function AdminEvents() {
             const processedMediaItems = await Promise.all(
               section.mediaItems.map(async (item) => {
                 let finalUrl = item.url;
-                if (item.file) finalUrl = await compressImage(item.file);
+                if (item.file) {
+                  try {
+                    finalUrl = await uploadToCloudinary(item.file, "event-heroes");
+                  } catch {
+                    // Keep existing URL if upload fails for this item
+                    finalUrl = item.url;
+                  }
+                }
                 return { id: cleanseId(item.id), url: finalUrl };
               }),
             );

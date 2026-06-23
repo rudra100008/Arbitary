@@ -1,8 +1,10 @@
-import { and, count, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, sql, gte, lt } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
-import { qrTokensTable, lotterySessionsTable } from "@/src/db/tilt-schema";
+import { qrTokensTable, lotterySessionsTable, instantRewardsTable } from "@/src/db/tilt-schema";
+import { DAILY_REWARD_TARGET } from "@/src/lib/tilt/reward-config";
+import { getRewardWindow } from "@/src/lib/tilt/reward-window";
 
 const TILT_JWT_SECRET = new TextEncoder().encode(
   process.env.TILT_JWT_SECRET ?? "tilt-fallback-secret-change-in-production",
@@ -53,10 +55,24 @@ export async function GET(req: NextRequest) {
         ),
       );
 
+    const { start, end } = getRewardWindow();
+    const [rewardResult] = await tiltDb
+      .select({ total: count() })
+      .from(instantRewardsTable)
+      .where(
+        and(
+          eq(instantRewardsTable.outletId, outletId),
+          gte(instantRewardsTable.claimedAt, start),
+          lt(instantRewardsTable.claimedAt, end),
+        ),
+      );
+
     return NextResponse.json(
       {
         scans: Number(scanResult?.count ?? 0),
         submissions: Number(submissionResult?.count ?? 0),
+        rewardsToday: Number(rewardResult?.total ?? 0),
+        rewardTarget: DAILY_REWARD_TARGET,
       },
       { status: 200 },
     );

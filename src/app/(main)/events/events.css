@@ -39,6 +39,17 @@
   }
 }
 
+/* Hides the scrollbar on the event detail page's sticky anchor nav, which
+   scrolls horizontally on narrow screens — the links remain reachable by
+   swipe/scroll, just without a visible scrollbar track. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Parallax hero background — same technique as records page */
 .events-hero-bg {
   position: absolute;

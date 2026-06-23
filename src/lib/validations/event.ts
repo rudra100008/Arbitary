@@ -13,6 +13,15 @@ export const eventSchema = z.object({
     venue: z.string().max(255).nullable().optional(),
     description: z.string().nullable().optional(),
     heroImageUrl: z.string().nullable().optional(),
+    // TODO: Remove after DB column `image_type` is dropped in a Drizzle migration.
+    // The admin UI no longer exposes this field; payload is hardcoded to "photo".
+    imageType: z.enum(["photo", "poster"]).default("photo"),
+    eventTime: z.string().max(100).nullable().optional(),
+    accentColor: z.string()
+        .max(50)
+        .regex(/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/, "Must be a valid hex color, e.g. #FACC15")
+        .nullable()
+        .optional(),
     youtubeUrl: z.string()
         .max(2048, "URL too long")
         .nullable()

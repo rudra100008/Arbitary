@@ -1,10 +1,14 @@
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, gte, lt } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
 import {
   lotteryEntriesTable,
   lotterySessionsTable,
+  instantRewardsTable,
+  qrTokensTable,
 } from "@/src/db/tilt-schema";
+import { getRewardWindow, isWithinRewardWindow } from "@/src/lib/tilt/reward-window";
+import { shouldGrantReward } from "@/src/lib/tilt/reward-roll";
 import {
   EMAIL_FORMAT_REGEX,
   isDisposableEmail,
@@ -159,7 +163,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const insertedEntry = await tiltDb.transaction(async (tx) => {
+    const { insertedEntry, wonReward } = await tiltDb.transaction(async (tx) => {
       const [entry] = await tx
         .insert(lotteryEntriesTable)
         .values({
@@ -180,11 +184,56 @@ export async function POST(req: NextRequest) {
         .set({ submittedAt: new Date() })
         .where(eq(lotterySessionsTable.id, session.id));
 
-      return entry;
+      let wonReward = false;
+
+      if (isWithinRewardWindow()) {
+        // Resolve which outlet this session's QR token belongs to
+        const [token] = await tx
+          .select({ outletId: qrTokensTable.outletId })
+          .from(qrTokensTable)
+          .where(eq(qrTokensTable.id, session.token_id));
+
+        if (token?.outletId) {
+          const outletId = token.outletId;
+          const { start, end } = getRewardWindow();
+
+          // Winners today, this outlet only
+          const [{ winnersInWindow }] = await tx
+            .select({ winnersInWindow: count() })
+            .from(instantRewardsTable)
+            .where(
+              and(
+                eq(instantRewardsTable.outletId, outletId),
+                gte(instantRewardsTable.claimedAt, start),
+                lt(instantRewardsTable.claimedAt, end),
+              ),
+            );
+
+          const w = Number(winnersInWindow ?? 0);
+
+          // No longer need a submissions-count query — the formula is time-based now.
+          if (shouldGrantReward(w, new Date(), start, end)) {
+            try {
+              await tx.insert(instantRewardsTable).values({
+                entryId: entry.id,
+                sessionId: session.id,
+                campaignId: session.campaign_id,
+                outletId,
+              });
+              wonReward = true;
+            } catch {
+              // Race: another request claimed the last slot between our count and insert.
+              wonReward = false;
+            }
+          }
+        }
+      }
+
+      return { insertedEntry: entry, wonReward };
     });
 
     return NextResponse.json(
-      { message: "entered", entry_id: insertedEntry.id },
+      { message: "entered", entry_id: insertedEntry.id, won_reward: wonReward },
       { status: 200 },
     );
   } catch (error) {

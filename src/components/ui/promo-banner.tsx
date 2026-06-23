@@ -14,7 +14,7 @@ const TICKER_ITEMS = [
   "✦",
   "MEET YOUR FAVOURITE ARTIST",
   "✦",
-  "TUBORG × ARBITARY",
+  "TILTYOURMUSIC × ARBITARY",
   "✦",
 ];
 
@@ -51,8 +51,8 @@ function ClockIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="10"
-      height="10"
+      width="9"
+      height="9"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -68,7 +68,7 @@ function ClockIcon() {
 }
 
 function CloseBtn({
-  size = 16,
+  size = 14,
   onDismiss,
 }: {
   size?: number;
@@ -103,7 +103,7 @@ function RegisterBtn({ className = "" }: { className?: string }) {
   return (
     <Link
       href={BANNER_CONFIG.registerHref}
-      className={`flex-shrink-0 bg-[#001f6c] text-white font-black uppercase tracking-widest rounded-lg hover:bg-[#002a8a] transition-colors duration-150 ${className}`}
+      className={`flex-shrink-0 bg-[#001f6c] text-white font-black uppercase tracking-widest rounded-md hover:bg-[#002a8a] transition-colors duration-150 ${className}`}
     >
       PARTICIPATE
     </Link>
@@ -121,12 +121,12 @@ function Countdown({
   if (!timeLeft.expired) {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 text-white font-medium tracking-widest uppercase px-3 py-1 rounded-full ${className}`}
-        style={{ background: "rgba(0,0,0,0.45)" }}
+        className={`inline-flex items-center gap-1 text-white font-medium tracking-widest uppercase rounded-full ${className}`}
+        style={{ background: "rgba(0,0,0,0.35)" }}
         aria-live="polite"
       >
         <ClockIcon />
-        CLOSES IN {pad(timeLeft.days)}D {pad(timeLeft.hours)}H
+        {pad(timeLeft.days)}D {pad(timeLeft.hours)}H {pad(timeLeft.minutes)}M
       </span>
     );
   }
@@ -134,33 +134,26 @@ function Countdown({
     <span
       className={`text-white/70 font-black uppercase tracking-widest ${className}`}
     >
-      EVENT CLOSED
+      CLOSED
     </span>
   );
 }
 
 /**
  * Pure-CSS marquee ticker.
- *
- * How it works:
- * - The outer div clips with overflow-hidden.
- * - Inside, two identical copies of the content sit side by side (inline-flex).
- * - A CSS keyframe translates the whole track from 0 to -50% (exactly one copy width),
- *   then loops — no JS measurement needed, works immediately on paint.
- * - `animation-play-state: paused` on hover lets users read if they want.
  */
 function Ticker() {
   const tickerContent = (
-    <span className="inline-flex items-center gap-8 pr-8 shrink-0">
+    <span className="inline-flex items-center gap-6 pr-6 shrink-0">
       {TICKER_ITEMS.map((item, i) =>
         item === "✦" ? (
-          <span key={i} className="text-white/50 text-[8px]" aria-hidden="true">
+          <span key={i} className="text-white/50 text-[7px]" aria-hidden="true">
             ✦
           </span>
         ) : (
           <span
             key={i}
-            className="whitespace-nowrap font-medium uppercase tracking-widest text-white text-[10px]"
+            className="whitespace-nowrap font-medium uppercase tracking-widest text-white text-[9px]"
           >
             {item}
           </span>
@@ -171,7 +164,6 @@ function Ticker() {
 
   return (
     <>
-      {/* Keyframe injected once — scoped name avoids collisions */}
       <style>{`
         @keyframes promo-marquee {
           0%   { transform: translateX(0); }
@@ -193,7 +185,6 @@ function Ticker() {
       `}</style>
 
       <div className="overflow-hidden w-full" aria-hidden="true">
-        {/* Track = two copies side by side → 200% wide → slide left by 50% = one copy */}
         <div className="promo-ticker-track inline-flex">
           {tickerContent}
           {tickerContent}
@@ -249,8 +240,6 @@ export default function PromoBanner() {
   };
 
   if (!mounted || dismissed) return null;
-
-  const pad = (n: number) => String(n).padStart(2, "0");
 
   const PARTICLES = [
     { t: 3, l: 1, sz: 8, dr: 8.0, dy: 0.0 },
@@ -320,40 +309,30 @@ export default function PromoBanner() {
         );
       })}
 
-      {/* ── Mobile (< 640px): 3 rows ── */}
-      <div className="sm:hidden relative px-3 pt-2 pb-1.5">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-white font-black text-[10px] tracking-widest uppercase px-2 py-1.5 rounded-full border border-white">
-            TUBORG × ARBITRARY
+      {/* ── Mobile (< 640px): 2 rows, ultra-compact ── */}
+      <div className="sm:hidden relative px-3 py-1.5">
+        {/* Row 1: badge + ticker + close */}
+        <div className="flex items-center gap-2">
+          <span className="flex-shrink-0 text-white font-black text-[8px] tracking-widest uppercase px-2 py-0.5 rounded-full border border-white/80 whitespace-nowrap">
+            TILTYOURMUSIC × ARBITRARY
           </span>
-          <CloseBtn size={14} onDismiss={handleDismiss} />
+          <div className="flex-1 min-w-0">
+            <Ticker />
+          </div>
+          <CloseBtn size={12} onDismiss={handleDismiss} />
         </div>
 
-        <Ticker />
-
-        <div className="flex items-center justify-between gap-2 mt-1.5">
-          {!timeLeft.expired ? (
-            <span
-              className="inline-flex items-center gap-1 text-white font-bold text-[9px] tracking-wider uppercase opacity-90"
-              aria-live="polite"
-            >
-              <ClockIcon />
-              CLOSES IN {pad(timeLeft.days)}D {pad(timeLeft.hours)}H{" "}
-              {pad(timeLeft.minutes)}M
-            </span>
-          ) : (
-            <span className="text-white/70 text-[9px] font-black uppercase tracking-widest">
-              EVENT CLOSED
-            </span>
-          )}
-          <RegisterBtn className="text-[10px] px-3 py-1.5" />
+        {/* Row 2: countdown + CTA — same line */}
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <Countdown timeLeft={timeLeft} className="text-[8px] px-2 py-0.5" />
+          <RegisterBtn className="text-[8px] px-2.5 py-1 tracking-widest" />
         </div>
       </div>
 
       {/* ── Tablet (640px–1023px): badge | ticker | countdown + CTA + close ── */}
       <div className="hidden sm:flex lg:hidden relative items-center gap-3 px-4 py-2">
         <span className="flex-shrink-0 text-white font-black text-[11px] tracking-widest uppercase px-2.5 py-1 rounded-full border border-white">
-          TUBORG × ARBITRARY
+          TILTYOURMUSIC × ARBITRARY
         </span>
 
         <div className="flex-1 min-w-0">
@@ -361,7 +340,7 @@ export default function PromoBanner() {
         </div>
 
         <div className="flex-shrink-0 flex items-center gap-2">
-          <Countdown timeLeft={timeLeft} className="text-[10px]" />
+          <Countdown timeLeft={timeLeft} className="text-[10px] px-2.5 py-1" />
           <RegisterBtn className="text-[10px] px-3 py-1.5" />
           <CloseBtn size={14} onDismiss={handleDismiss} />
         </div>
@@ -371,7 +350,7 @@ export default function PromoBanner() {
       <div className="hidden lg:flex relative items-center justify-between gap-2 px-6 py-2.5">
         <div className="flex-shrink-0">
           <span className="text-white font-black text-[12px] tracking-widest uppercase px-3 py-1 rounded-full border border-white">
-            TUBORG × ARBITRARY
+            TILTYOURMUSIC × ARBITRARY
           </span>
         </div>
         <div className="flex-1 flex justify-center">
@@ -384,7 +363,7 @@ export default function PromoBanner() {
           </p>
         </div>
         <div className="flex-shrink-0 flex items-center gap-2">
-          <Countdown timeLeft={timeLeft} className="text-[10px]" />
+          <Countdown timeLeft={timeLeft} className="text-[10px] px-3 py-1" />
           <RegisterBtn className="text-xs px-4 py-1.5" />
           <CloseBtn size={16} onDismiss={handleDismiss} />
         </div>

@@ -18,7 +18,7 @@ import type { Variants, Transition } from "framer-motion";
 import { normalisePhone } from "@/src/lib/tilt/phone";
 import { EMAIL_FORMAT_REGEX } from "@/src/lib/tilt/disposable-email";
 
-type PageStep = "form" | "success";
+type PageStep = "form" | "success" | "won";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -322,7 +322,8 @@ export default function TiltPage() {
       const message = typeof json?.message === "string" ? json.message : "";
       if (message === "entered" || message === "already_submitted") {
         sessionStorage.removeItem("tilt_lsid_fallback");
-        setStep("success");
+        const wonReward = json?.won_reward === true;
+        setStep(wonReward ? "won" : "success");
         return;
       }
 
@@ -333,6 +334,63 @@ export default function TiltPage() {
       setIsLoading(false);
     }
   };
+
+  // ── Success screen ───────────────────────────────────────────────────────
+  if (step === "won") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={riseVariants}
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "24px", textAlign: "center" }}
+        >
+          <motion.div
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            style={{
+              width: "96px", height: "96px", borderRadius: "24px",
+              background: "rgba(200,230,60,0.15)",
+              border: "2px solid rgba(200,230,60,0.5)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 0 40px rgba(200,230,60,0.2)",
+            }}
+          >
+            <span style={{ fontSize: "48px" }}>🍺</span>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <h1 style={{ color: "#c8e63c", fontSize: "28px", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>
+              You won a free beer!
+            </h1>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", marginTop: "10px" }}>
+              Show this screen to the outlet staff to claim your reward.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            style={{
+              background: "rgba(200,230,60,0.08)",
+              border: "1.5px solid rgba(200,230,60,0.3)",
+              borderRadius: "16px", padding: "20px 28px", width: "100%", maxWidth: "320px",
+            }}
+          >
+            <p style={{ color: "rgba(200,230,60,0.8)", fontSize: "10px", fontWeight: 900, textTransform: "uppercase", marginBottom: "8px" }}>
+              Instant Reward
+            </p>
+            <p style={{ color: "#fff", fontSize: "18px", fontWeight: 900 }}>1× Free Beer 🍺</p>
+            <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", marginTop: "6px" }}>
+              Valid at this outlet only. Non-transferable.
+            </p>
+          </motion.div>
+        </motion.div>
+      </div>
+    );
+  }
 
   // ── Success screen ───────────────────────────────────────────────────────
   if (step === "success") {
