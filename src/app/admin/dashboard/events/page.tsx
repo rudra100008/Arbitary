@@ -32,6 +32,8 @@ export default function AdminEvents() {
   const [eventStatus, setEventStatus] = useState("Upcoming");
   const [eventPriority, setEventPriority] = useState("low");
   const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("");
+  const [accentColor, setAccentColor] = useState("#FACC15");
   const [eventVenue, setEventVenue] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -49,6 +51,8 @@ export default function AdminEvents() {
     setEventStatus("Upcoming");
     setEventPriority("low");
     setEventDate("");
+    setEventTime("");
+    setAccentColor("#FACC15");
     setEventVenue("");
     setEventDescription("");
     setHeroImage({ url: "" });
@@ -95,6 +99,8 @@ export default function AdminEvents() {
           formattedDate = formattedDate.split("T")[0];
         }
         setEventDate(formattedDate);
+        setEventTime(ev.eventTime || "");
+        setAccentColor(ev.accentColor || "#FACC15");
         setEventVenue(ev.venue || "");
         setEventDescription(ev.description || "");
         setYoutubeUrl(ev.youtubeUrl || "");
@@ -330,6 +336,8 @@ export default function AdminEvents() {
         status: eventStatus,
         priority: eventPriority,
         date: eventDate,
+        eventTime: eventTime.trim() || null,
+        accentColor: accentColor.trim() || "#FACC15",
         venue: eventVenue,
         description: eventDescription,
         heroImageUrl: finalHeroUrl,
@@ -483,6 +491,10 @@ export default function AdminEvents() {
         setEventPriority={setEventPriority}
         eventDate={eventDate}
         setEventDate={setEventDate}
+        eventTime={eventTime}
+        setEventTime={setEventTime}
+        accentColor={accentColor}
+        setAccentColor={setAccentColor}
         eventVenue={eventVenue}
         setEventVenue={setEventVenue}
         eventDescription={eventDescription}

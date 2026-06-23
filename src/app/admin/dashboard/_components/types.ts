@@ -16,6 +16,7 @@ export interface AccessType {
   id: string | number;
   title: string;
   price: string;
+  pointCost?: number;
 }
 
 export interface TimelineItem {
