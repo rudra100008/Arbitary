@@ -131,7 +131,7 @@ const UserLoginPage = () => {
     }
   };
 
-  const handleCredentialsLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCredentialsLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
@@ -140,33 +140,12 @@ const UserLoginPage = () => {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        if (result.error.startsWith("RATE_LIMITED")) {
-          const seconds = Number(result.error.split(":")[1]) || 0;
-          const minutes = Math.ceil(seconds / 60);
-          setError(
-            minutes > 1
-              ? `Too many attempts. Please try again in about ${minutes} minutes.`
-              : "Too many attempts. Please try again in about a minute.",
-          );
-        } else {
-          setError(result.error);
-        }
-        setIsLoading(false);
-      } else {
-        router.push("/dashboard");
-      }
-    } catch {
-      setError("An unexpected error occurred. Please try again.");
-      setIsLoading(false);
-    }
+    signIn("credentials", {
+      email,
+      password,
+      redirect: true,
+      callbackUrl: "/dashboard",
+    });
   };
 
   const dismissError = () => {
@@ -263,9 +242,17 @@ const UserLoginPage = () => {
                 />
               </svg>
               <span className="flex-1 text-xs font-semibold">
-                {authError
-                  ? (errorMessages[authError] ?? error)
-                  : (errorMessages[error] ?? error ?? errorMessages.Default)}
+                {authError?.startsWith("RATE_LIMITED")
+                  ? (() => {
+                      const seconds = Number(authError.split(":")[1]) || 0;
+                      const minutes = Math.ceil(seconds / 60);
+                      return minutes > 1
+                        ? `Too many attempts. Please try again in about ${minutes} minutes.`
+                        : "Too many attempts. Please try again in about a minute.";
+                    })()
+                  : authError
+                    ? (errorMessages[authError] ?? error)
+                    : (errorMessages[error] ?? error ?? errorMessages.Default)}
               </span>
               <button
                 onClick={dismissError}

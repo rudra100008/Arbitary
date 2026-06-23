@@ -25,9 +25,9 @@ async function POST(
 
     if (!byEmail.allowed || !byIp.allowed) {
       const retry = Math.max(byEmail.retryAfterSeconds, byIp.retryAfterSeconds);
-      const errorUrl = new URL("/api/auth/callback/credentials", req.nextUrl.origin);
-      errorUrl.searchParams.set("error", `RATE_LIMITED:${retry}`);
-      return NextResponse.json({ url: errorUrl.toString() }, { status: 429 });
+      return NextResponse.redirect(
+        new URL(`/login?error=RATE_LIMITED:${retry}`, req.url),
+      );
     }
 
     const [user] = await db
@@ -36,9 +36,9 @@ async function POST(
       .where(eq(usersTable.email, email.toLowerCase()));
 
     if (user && !user.isVerified) {
-      const errorUrl = new URL("/api/auth/callback/credentials", req.nextUrl.origin);
-      errorUrl.searchParams.set("error", "VERIFY_EMAIL");
-      return NextResponse.json({ url: errorUrl.toString() }, { status: 403 });
+      return NextResponse.redirect(
+        new URL("/login?error=VERIFY_EMAIL", req.url),
+      );
     }
   }
 
