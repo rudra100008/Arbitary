@@ -623,7 +623,7 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
         const dx = startX - e.clientX;
         const dy = startY - e.clientY;
         const newW = Math.min(850, Math.max(300, startW + dx));
-        const newH = Math.min(675, Math.max(380, startH + dy));
+        const newH = Math.min(625, Math.max(380, startH + dy));
         monitorFull.style.width = `${newW}px`;
         monitorFull.style.height = `${newH}px`;
       };
