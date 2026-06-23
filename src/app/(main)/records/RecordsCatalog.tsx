@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useCallback, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  useState,
+  type CSSProperties,
+} from "react";
 import Script from "next/script";
 import {
   Tv,
@@ -63,7 +70,7 @@ const FALLING_NOTES: FallNote[] = [
   { side: "right", x: 10, size: 28, dur: 21, delay: -7, op: 0.4, icon: 3 },
   { side: "right", x: 150, size: 18, dur: 26, delay: -11, op: 0.3, icon: 0 },
   { side: "right", x: 96, size: 22, dur: 18, delay: -14, op: 0.35, icon: 1 },
-    { side: "left", x: 14, size: 24, dur: 16, delay: 0, op: 0.45, icon: 0 },
+  { side: "left", x: 14, size: 24, dur: 16, delay: 0, op: 0.45, icon: 0 },
   { side: "left", x: 72, size: 18, dur: 21, delay: -6, op: 0.3, icon: 1 },
   { side: "left", x: 40, size: 30, dur: 19, delay: -11, op: 0.4, icon: 2 },
   { side: "left", x: 104, size: 20, dur: 24, delay: -3, op: 0.35, icon: 3 },
@@ -214,7 +221,10 @@ function WaveformCanvas({
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const ratio = Math.max(
+        0,
+        Math.min(1, (clientX - rect.left) / rect.width),
+      );
       onSeek(ratio);
       progressRef.current = ratio;
       draw();
@@ -260,24 +270,29 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [closingId, setClosingId] = useState<number | null>(null);
-  const [closeDims, setCloseDims] = useState<{ w: number; h: number } | null>(null);
+  const [closeDims, setCloseDims] = useState<{ w: number; h: number } | null>(
+    null,
+  );
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Collapse: lock the card's current size, then shrink width + height to the
   // tile size on the next frame so both axes animate (height can't transition
   // from `auto`). overflow:hidden hides the body as it folds into the tile.
-  const startCollapse = useCallback((id: number, cardEl: HTMLElement | null) => {
-    if (cardEl) {
-      const r = cardEl.getBoundingClientRect();
-      setCloseDims({ w: Math.round(r.width), h: Math.round(r.height) });
-      setClosingId(id);
-    } else {
-      setClosingId(null);
-      setCloseDims(null);
-      setExpandedId((cur) => (cur === id ? null : cur));
-    }
-  }, []);
+  const startCollapse = useCallback(
+    (id: number, cardEl: HTMLElement | null) => {
+      if (cardEl) {
+        const r = cardEl.getBoundingClientRect();
+        setCloseDims({ w: Math.round(r.width), h: Math.round(r.height) });
+        setClosingId(id);
+      } else {
+        setClosingId(null);
+        setCloseDims(null);
+        setExpandedId((cur) => (cur === id ? null : cur));
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (closingId == null) return;
@@ -301,7 +316,6 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     setExpandedId((cur) => (cur === id ? null : cur));
   }, []);
 
-
   const S = useRef({
     currentTrack: null as Song | null,
     mode: "audio" as "audio" | "video",
@@ -317,7 +331,9 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     scrollGuardActive: false,
   });
   const initRef = useRef(false);
-  const actionsRef = useRef<{ onAudioEnded: () => void }>({ onAudioEnded: () => {} });
+  const actionsRef = useRef<{ onAudioEnded: () => void }>({
+    onAudioEnded: () => {},
+  });
   const bgRef = useRef<HTMLDivElement>(null);
 
   // Parallax scroll for hero background
@@ -328,7 +344,8 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     const onScroll = () => {
       rafId = requestAnimationFrame(() => {
         const scrollY = window.scrollY;
-        const heroBottom = el.parentElement?.getBoundingClientRect().bottom ?? 0;
+        const heroBottom =
+          el.parentElement?.getBoundingClientRect().bottom ?? 0;
         if (heroBottom > 0) {
           el.style.transform = `translateY(${scrollY * 0.35}px)`;
         }
@@ -370,7 +387,8 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     s.currentTrack = song;
     setPlayingId(song.id);
     setIsPlaying(true);
-    if (s.ytApiReady && s.ytAudioPlayer?.loadVideoById) s.ytAudioPlayer.loadVideoById(song.ytId);
+    if (s.ytApiReady && s.ytAudioPlayer?.loadVideoById)
+      s.ytAudioPlayer.loadVideoById(song.ytId);
     else s.pendingAudio = song;
 
     if (expandedId && expandedId !== song.id) {
@@ -426,7 +444,9 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     const tick = () => {
       const p = getProgress();
       playingProgressRef.current = p;
-      const bar = document.querySelector('[data-role="tile-progress"]') as HTMLElement | null;
+      const bar = document.querySelector(
+        '[data-role="tile-progress"]',
+      ) as HTMLElement | null;
       if (bar) bar.style.width = `${p * 100}%`;
       raf = requestAnimationFrame(tick);
     };
@@ -447,7 +467,8 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     s.mode = "video";
     s.currentTrack = song;
     buildMonitorFull(song);
-    if (s.ytApiReady && s.ytVideoPlayer?.loadVideoById) s.ytVideoPlayer.loadVideoById(song.ytId);
+    if (s.ytApiReady && s.ytVideoPlayer?.loadVideoById)
+      s.ytVideoPlayer.loadVideoById(song.ytId);
     showMonitor();
     attachScrollGuard();
   };
@@ -485,7 +506,8 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
 
   const buildMonitorFull = (song: Song) => {
     const svg = byId("monitorSvg");
-    if (svg) svg.innerHTML = monitorFrameSVG(MONITOR_W, MONITOR_H, song.labelColor);
+    if (svg)
+      svg.innerHTML = monitorFrameSVG(MONITOR_W, MONITOR_H, song.labelColor);
     const bevel = 14,
       scrW = MONITOR_W - bevel * 2,
       scrH = MONITOR_H - 44,
@@ -555,7 +577,8 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     if (idx < 0) return;
     const next = songs[(idx + dir + songs.length) % songs.length];
     s.currentTrack = next;
-    if (s.ytApiReady && s.ytVideoPlayer?.loadVideoById) s.ytVideoPlayer.loadVideoById(next.ytId);
+    if (s.ytApiReady && s.ytVideoPlayer?.loadVideoById)
+      s.ytVideoPlayer.loadVideoById(next.ytId);
     buildMonitorFull(next);
   };
 
@@ -563,6 +586,7 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
+    // eslint-disable-next-line react-hooks/immutability
     document.title = "Records | Arbitrary";
 
     const mm = byId("monitorMiniSvg");
@@ -578,14 +602,27 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
       s.ytAudioPlayer = new YT.Player("ytPlayerAudio", {
         width: "300",
         height: "200",
-        playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, playsinline: 1 },
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          modestbranding: 1,
+          playsinline: 1,
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         events: { onStateChange: (e: any) => onAudioStateChange(e) },
       });
       s.ytVideoPlayer = new YT.Player("ytPlayerVideo", {
         width: "100%",
         height: "100%",
-        playerVars: { autoplay: 1, controls: 1, modestbranding: 1, playsinline: 1, rel: 0 },
+        playerVars: {
+          autoplay: 1,
+          controls: 1,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         events: { onStateChange: (e: any) => onVideoStateChange(e) },
       });
@@ -596,17 +633,21 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onAudioStateChange = (e: any) => {
-      if (e.data === w.YT?.PlayerState?.ENDED) actionsRef.current.onAudioEnded();
+      if (e.data === w.YT?.PlayerState?.ENDED)
+        actionsRef.current.onAudioEnded();
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onVideoStateChange = (e: any) => {
       const PS = w.YT?.PlayerState;
       if (e.data === PS?.ENDED) skipVideo(1);
-      if (e.data === PS?.PLAYING) byId("monPlayBtn")?.classList.add("rc-playing");
-      if (e.data === PS?.PAUSED) byId("monPlayBtn")?.classList.remove("rc-playing");
+      if (e.data === PS?.PLAYING)
+        byId("monPlayBtn")?.classList.add("rc-playing");
+      if (e.data === PS?.PAUSED)
+        byId("monPlayBtn")?.classList.remove("rc-playing");
     };
 
     if (w.YT && w.YT.Player) initPlayers();
+    // eslint-disable-next-line react-hooks/immutability
     else w.onYouTubeIframeAPIReady = initPlayers;
 
     // ── top-left resize handle ──────────────────────────────────────────
@@ -681,7 +722,10 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
 
   return (
     <div className="rc-root">
-      <Script src="https://www.youtube.com/iframe_api" strategy="afterInteractive" />
+      <Script
+        src="https://www.youtube.com/iframe_api"
+        strategy="afterInteractive"
+      />
 
       {/* Falling music-note clusters on both edges */}
       <div className="rc-notes" aria-hidden="true">
@@ -742,13 +786,18 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                 <span />
               </span>
             </div>
-            <p className="text-zinc-400 font-bold uppercase tracking-widest text-sm">{totalLabel}</p>
+            <p className="text-zinc-400 font-bold uppercase tracking-widest text-sm">
+              {totalLabel}
+            </p>
           </div>
         </div>
       </section>
 
       {groups.map((g) => (
-        <section className="rc-shelf-section container mx-auto px-6" key={g.key}>
+        <section
+          className="rc-shelf-section container mx-auto px-6"
+          key={g.key}
+        >
           <div className="flex items-center gap-6 mb-8">
             <div className="flex flex-col">
               <span className="text-[#FACC15] font-bold uppercase tracking-widest text-xs whitespace-nowrap">
@@ -778,13 +827,20 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                     style={
                       cover
                         ? { backgroundImage: `url(${cover})` }
-                        : { background: song.coverColor, color: song.sleeveText }
+                        : {
+                            background: song.coverColor,
+                            color: song.sleeveText,
+                          }
                     }
                   >
                     {!cover && (
                       <span className="rc-tile-fallback">
-                        <span className="rc-tile-fallback-title">{song.title}</span>
-                        <span className="rc-tile-fallback-artist">{song.artist}</span>
+                        <span className="rc-tile-fallback-title">
+                          {song.title}
+                        </span>
+                        <span className="rc-tile-fallback-artist">
+                          {song.artist}
+                        </span>
                       </span>
                     )}
                     {playingId === song.id && expandedId !== song.id && (
@@ -798,6 +854,13 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                           <span
                             data-role="tile-progress"
                             className="rc-tile-progress-fill"
+<<<<<<< Updated upstream
+=======
+                            // eslint-disable-next-line react-hooks/refs
+                            style={{
+                              width: `${playingProgressRef.current * 100}%`,
+                            }}
+>>>>>>> Stashed changes
                           />
                         </span>
                       </>
@@ -812,14 +875,18 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                   style={{
                     ...(cover ? { backgroundImage: `url(${cover})` } : null),
                     ...(closing && closeDims
-                      ? { width: `${closeDims.w}px`, height: `${closeDims.h}px` }
+                      ? {
+                          width: `${closeDims.w}px`,
+                          height: `${closeDims.h}px`,
+                        }
                       : null),
                   }}
                   onTransitionEnd={(e) => {
                     if (
                       closing &&
                       e.target === e.currentTarget &&
-                      (e.propertyName === "width" || e.propertyName === "height")
+                      (e.propertyName === "width" ||
+                        e.propertyName === "height")
                     ) {
                       finishCollapse(song.id);
                     }
@@ -833,7 +900,9 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                       e.stopPropagation();
                       startCollapse(
                         song.id,
-                        (e.currentTarget as HTMLElement).closest(".rc-card") as HTMLElement | null,
+                        (e.currentTarget as HTMLElement).closest(
+                          ".rc-card",
+                        ) as HTMLElement | null,
                       );
                     }}
                     aria-label="Collapse"
@@ -865,12 +934,19 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                       <div className="rc-card-meta">
                         <h3>{song.title}</h3>
                         <p>
-                          {[song.artist, monthYearLabel(song.releaseMonth, song.releaseYear)]
+                          {[
+                            song.artist,
+                            monthYearLabel(song.releaseMonth, song.releaseYear),
+                          ]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
                       </div>
-                      <button type="button" className="rc-watch-btn " onClick={() => doWatch(song)}>
+                      <button
+                        type="button"
+                        className="rc-watch-btn "
+                        onClick={() => doWatch(song)}
+                      >
                         <Tv size={14} />
                         <span>Watch Now</span>
                       </button>
@@ -899,7 +975,12 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
             id="monitorResizeHandle"
             title="Drag to resize"
           >
-            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <svg
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
               <path d="M9 1L1 9M5 1L1 5M9 5L5 9" />
             </svg>
           </div>
@@ -913,7 +994,13 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
           </div>
           <div className="rc-monitor-frame-wrap" id="monitorFrameWrap">
             <div className="monitor-content" id="monitorContent">
-              <svg id="monitorSvg" width={MONITOR_W} height={MONITOR_H} viewBox={`0 0 ${MONITOR_W} ${MONITOR_H}`} style={{ display: "block" }} />
+              <svg
+                id="monitorSvg"
+                width={MONITOR_W}
+                height={MONITOR_H}
+                viewBox={`0 0 ${MONITOR_W} ${MONITOR_H}`}
+                style={{ display: "block" }}
+              />
               <div className="rc-yt-iframe-wrap" id="ytIframeWrap">
                 <div id="ytPlayerVideo" />
               </div>
@@ -921,10 +1008,19 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
           </div>
           <div className="rc-monitor-track" id="monitorTrack" />
           <div className="rc-monitor-controls">
-            <button className="rc-tt-btn" onClick={() => skipVideo(-1)} aria-label="Previous">
+            <button
+              className="rc-tt-btn"
+              onClick={() => skipVideo(-1)}
+              aria-label="Previous"
+            >
               <SkipBack size={14} />
             </button>
-            <button className="rc-tt-btn rc-big" id="monPlayBtn" onClick={monTogglePlay} aria-label="Play/Pause">
+            <button
+              className="rc-tt-btn rc-big"
+              id="monPlayBtn"
+              onClick={monTogglePlay}
+              aria-label="Play/Pause"
+            >
               <span className="rc-ic rc-ic-play">
                 <Play size={17} />
               </span>
@@ -932,13 +1028,28 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                 <Pause size={17} />
               </span>
             </button>
-            <button className="rc-tt-btn" onClick={() => skipVideo(1)} aria-label="Next">
+            <button
+              className="rc-tt-btn"
+              onClick={() => skipVideo(1)}
+              aria-label="Next"
+            >
               <SkipForward size={14} />
             </button>
           </div>
         </div>
-        <div className="rc-monitor-mini" id="monitorMini" onClick={expandMonitor} title="Open player">
-          <svg id="monitorMiniSvg" width="68" height="60" viewBox="0 0 68 60" style={{ display: "block" }} />
+        <div
+          className="rc-monitor-mini"
+          id="monitorMini"
+          onClick={expandMonitor}
+          title="Open player"
+        >
+          <svg
+            id="monitorMiniSvg"
+            width="68"
+            height="60"
+            viewBox="0 0 68 60"
+            style={{ display: "block" }}
+          />
         </div>
       </div>
 
@@ -956,7 +1067,15 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
       {/* Hidden persistent audio player */}
       <div
         id="ytPlayerAudio"
-        style={{ position: "fixed", width: "300px", height: "200px", left: "-9999px", top: "-9999px", opacity: 0.01, pointerEvents: "none" }}
+        style={{
+          position: "fixed",
+          width: "300px",
+          height: "200px",
+          left: "-9999px",
+          top: "-9999px",
+          opacity: 0.01,
+          pointerEvents: "none",
+        }}
       />
     </div>
   );
@@ -964,6 +1083,14 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
 
 function escapeHtml(s: string): string {
   return s.replace(/[<>&"']/g, (c) =>
-    c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === "&" ? "&amp;" : c === '"' ? "&quot;" : "&#39;",
+    c === "<"
+      ? "&lt;"
+      : c === ">"
+        ? "&gt;"
+        : c === "&"
+          ? "&amp;"
+          : c === '"'
+            ? "&quot;"
+            : "&#39;",
   );
 }

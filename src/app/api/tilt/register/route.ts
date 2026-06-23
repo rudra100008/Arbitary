@@ -211,8 +211,23 @@ export async function POST(req: NextRequest) {
 
           const w = Number(winnersInWindow ?? 0);
 
-          // No longer need a submissions-count query — the formula is time-based now.
-          if (shouldGrantReward(w, new Date(), start, end)) {
+          // Count total entries submitted today for this outlet (drives the dynamic cap)
+          const [{ scansToday }] = await tx
+            .select({ scansToday: count() })
+            .from(lotteryEntriesTable)
+            .innerJoin(lotterySessionsTable, eq(lotteryEntriesTable.sessionId, lotterySessionsTable.id))
+            .innerJoin(qrTokensTable, eq(lotterySessionsTable.tokenId, qrTokensTable.id))
+            .where(
+              and(
+                eq(qrTokensTable.outletId, outletId),
+                gte(lotteryEntriesTable.createdAt, start),
+                lt(lotteryEntriesTable.createdAt, end),
+              ),
+            );
+
+          const s = Number(scansToday ?? 1);
+
+          if (shouldGrantReward(w, s, new Date(), start, end)) {
             try {
               await tx.insert(instantRewardsTable).values({
                 entryId: entry.id,
