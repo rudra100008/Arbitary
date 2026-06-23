@@ -14,14 +14,29 @@ export const SOFT_CAP_DECAY = 0.7;
 /**
  * The hard cap on winners grows with total scans today for this outlet:
  *   absoluteMax = max(ABSOLUTE_MAX_REWARDS_FLOOR, scansToday * ABSOLUTE_MAX_RATE)
- *
- * Examples:
- *   30  scans → max(15,  30 * 0.20) = 15   (floor)
- *   100 scans → max(15, 100 * 0.20) = 20
- *   500 scans → max(15, 500 * 0.20) = 100
  */
-export const ABSOLUTE_MAX_RATE = 0.20;         // 20% of total scans today
-export const ABSOLUTE_MAX_REWARDS_FLOOR = 15;  // minimum cap when scan count is low
+export const ABSOLUTE_MAX_RATE = 0.20;
+export const ABSOLUTE_MAX_REWARDS_FLOOR = 15;
+
+/**
+ * No rewards are given until at least this many people have submitted today.
+ * Prevents testers / first few real users from winning every time.
+ */
+export const MIN_SCANS_BEFORE_REWARDS = 20;
+
+/**
+ * After this hour (NST, 24h), if winners < DAILY_REWARD_TARGET,
+ * probability is boosted aggressively to ensure the target is met
+ * before the window closes at midnight.
+ * 19 = 7:00 PM NST
+ */
+export const BOOST_AFTER_HOUR = 19;
+
+/**
+ * Win probability used during the boost phase (after 7PM, under target).
+ * High enough to reliably fill remaining slots within the remaining hours.
+ */
+export const BOOST_WIN_PROBABILITY = 0.80;
 
 /**
  * The reward window, in 24h local Nepal-time hours/minutes.

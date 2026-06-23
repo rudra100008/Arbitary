@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
 
           const w = Number(winnersInWindow ?? 0);
 
-          // Count total entries submitted today for this outlet (drives the dynamic cap)
+          // Count total entries submitted today for this outlet (drives threshold + dynamic cap)
           const [{ scansToday }] = await tx
             .select({ scansToday: count() })
             .from(lotteryEntriesTable)

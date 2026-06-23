@@ -14,9 +14,9 @@ function simulateOneDay(totalSubmissions: number): number {
     );
 
     let winners = 0;
-    for (const t of times) {
-        // Pass totalSubmissions as scansToday so the dynamic cap scales correctly
-        if (shouldGrantReward(winners, totalSubmissions, t, WINDOW_START, WINDOW_END)) winners++;
+    for (let i = 0; i < times.length; i++) {
+        // i+1 = scansToday so far (this person is the (i+1)th scan)
+        if (shouldGrantReward(winners, i + 1, times[i], WINDOW_START, WINDOW_END)) winners++;
     }
     return winners;
 }
