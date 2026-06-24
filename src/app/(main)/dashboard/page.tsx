@@ -128,8 +128,14 @@ function DashboardInner() {
         exact: true,
       });
     },
-    onError: (err: Error) =>
-      toast.error(err.message || "Failed to pick up task"),
+    onError: (err: Error) => {
+      if (err.message?.toLowerCase().includes("already picked up")) {
+        queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard"] });
+        toast.info("Resuming your task…");
+        return;
+      }
+      toast.error(err.message || "Failed to pick up task");
+    },
   });
 
   const cancelMutation = useMutation({
@@ -493,6 +499,14 @@ function DashboardInner() {
       )
       .catch(() => toast.error("Failed to link referral code"));
   }, []);
+
+  useEffect(() => {
+    const pendingTaskId = sessionStorage.getItem("facebook_pending_task_id");
+    if (!pendingTaskId) return;
+    sessionStorage.removeItem("facebook_pending_task_id");
+    queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard"] });
+    toast.info("Facebook connected! Your task is ready to continue.");
+  }, [queryClient]);
 
   return (
     <div className="bg-[#F5F5F0] pt-24 text-black min-h-screen flex flex-col selection:bg-[#FACC15] selection:text-black">

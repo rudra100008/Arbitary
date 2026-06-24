@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
 import { UserTaskItem } from "@/src/services/task.service";
+import { Check, Copy, ExternalLink, Loader2, X } from "lucide-react";
 
 type InstagramModalProps = {
   task: UserTaskItem;
@@ -33,6 +34,17 @@ export function InstagramModal({
   const [isUploading, setIsUploading] = useState(false);
 
   const instagramUsername = session?.user?.instagramUsername;
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && task.id) {
@@ -177,346 +189,202 @@ export function InstagramModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[52px] sm:pt-[56px] md:pt-[68px]">
+      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden modal-in">
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm mx-3 sm:mx-4 mt-2 md:mt-4 max-h-[calc(100vh-64px)] sm:max-h-[calc(100vh-72px)] md:max-h-[calc(100vh-80px)] overflow-y-auto scrollbar-hide modal-in">
         {/* Header */}
-        <div className="bg-gradient-to-br from-pink-500 via-purple-500 to-orange-400 px-6 pt-6 pb-8">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/80">
+        <div className="bg-gradient-to-br from-pink-500 via-purple-500 to-orange-400 px-4 pt-3 pb-5 sm:px-5 sm:pt-4 sm:pb-6 md:px-6 md:pt-5 md:pb-7 rounded-t-3xl">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-white/80">
               Instagram Task
             </span>
             <button
               onClick={onClose}
-              className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
             </button>
           </div>
-          <h2 className="text-xl font-black text-white">{task?.title || ""}</h2>
-          <p className="text-sm text-white/80 mt-1 line-clamp-2">
-            {task?.description || ""}
+          <h2 className="text-base sm:text-lg md:text-xl font-black text-white leading-tight">
+            {task.title || "Instagram post"}
+          </h2>
+          <p className="text-white/70 text-[11px] sm:text-xs md:text-sm mt-0.5">
+            Comment on this post
           </p>
         </div>
 
         {/* Body */}
-        <div className="p-6">
-          {verified ? (
-            <div className="flex flex-col items-center gap-3 py-6">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                <svg
-                  className="w-7 h-7 text-emerald-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2.5}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
-              <p className="text-lg font-black text-emerald-600">Verified!</p>
-              <p className="text-sm text-gray-500">Points have been awarded.</p>
+        <div className="p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4">
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-red-600 text-xs sm:text-sm">
+              {error}
             </div>
-          ) : submittedForReview ? (
-            <div className="flex flex-col items-center gap-3 py-6">
-              <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
-                <svg
-                  className="w-7 h-7 text-amber-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+          )}
+
+          {/* Verified success */}
+          {verified && (
+            <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-green-600 text-xs sm:text-sm flex items-center gap-2">
+              <Check className="w-4 h-4 flex-shrink-0" />
+              Task completed! Points earned.
+            </div>
+          )}
+
+          {/* Linked account */}
+          {instagramUsername && (
+            <div className="flex items-center gap-2 bg-pink-50 border border-pink-100 rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-200 rounded flex items-center justify-center flex-shrink-0 text-[10px]">
+                📷
               </div>
-              <p className="text-lg font-black text-amber-600">
-                Submitted for Review
+              <span className="text-pink-600 font-semibold text-xs sm:text-sm truncate">
+                Linked account: @{instagramUsername}
+              </span>
+            </div>
+          )}
+
+          {/* Screenshot upload flow */}
+          {needsScreenshot ? (
+            <div className="space-y-3">
+              <p className="text-gray-700 text-xs sm:text-sm font-semibold">
+                Please upload a screenshot of your comment as proof.
               </p>
-              <p className="text-sm text-gray-500">
-                An admin will review your proof and award points.
-              </p>
-            </div>
-          ) : !instagramUsername ? (
-            <div className="flex flex-col items-center gap-4 py-4">
-              <div className="w-14 h-14 rounded-full bg-pink-100 flex items-center justify-center">
-                <span className="text-2xl text-pink-600 font-black">📷</span>
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-gray-800">
-                  Link Instagram Account
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  You need to link your Instagram username in your profile
-                  settings first.
-                </p>
-              </div>
-              <a
-                href="/profile"
-                className="w-full py-3 px-5 bg-pink-600 hover:bg-pink-700 text-white font-bold text-sm rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm text-center"
-              >
-                Go to Profile Settings
-              </a>
-            </div>
-          ) : needsScreenshot ? (
-            <div className="flex flex-col gap-4">
-              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200">
-                <p className="text-xs font-bold text-amber-700">
-                  Could not verify your comment automatically. Please upload a
-                  screenshot showing your comment with the code on the Instagram
-                  post.
-                </p>
-              </div>
-              <label
-                className="flex flex-col items-center justify-center gap-1.5 px-3 py-2.5
-                           rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 border-dashed
-                           cursor-pointer hover:bg-white/20 transition-all duration-200"
-              >
-                {previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="w-full max-h-32 object-contain rounded-lg"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-1">
-                    <svg
-                      className="w-6 h-6 text-zinc-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    <span className="text-[10px] text-zinc-500 font-medium">
-                      Tap to upload screenshot
-                    </span>
-                  </div>
-                )}
+              {previewUrl && (
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="w-full rounded-xl object-cover max-h-40"
+                />
+              )}
+              <label className="block w-full py-2.5 rounded-2xl border-2 border-dashed border-gray-300 text-center text-gray-500 text-xs sm:text-sm cursor-pointer hover:border-pink-300 hover:text-pink-500 transition-colors">
+                {selectedFile ? selectedFile.name : "Tap to choose screenshot"}
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleFileSelect}
+                  accept="image/*"
                   className="hidden"
+                  onChange={handleFileSelect}
                 />
               </label>
-              {error && (
-                <div className="p-3 bg-red-50 rounded-2xl border border-red-200">
-                  <p className="text-xs font-medium text-red-600">{error}</p>
-                </div>
-              )}
-              {previewUrl && (
-                <button
-                  onClick={handleScreenshotSubmit}
-                  disabled={isUploading}
-                  className="w-full py-3 px-5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white font-bold text-sm rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed shadow-sm"
-                >
-                  {isUploading ? "Uploading..." : "Submit Screenshot"}
-                </button>
-              )}
+              <button
+                onClick={handleScreenshotSubmit}
+                disabled={isUploading || !selectedFile}
+                className="w-full py-3 rounded-2xl bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-black text-sm flex items-center justify-center gap-2 transition-colors"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                Submit for Review
+              </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              {/* Linked account info */}
-              <div className="flex items-center gap-2 p-3 bg-pink-50 rounded-xl border border-pink-200">
-                <span className="text-sm">📷</span>
-                <p className="text-xs font-bold text-pink-700">
-                  Linked account: @{instagramUsername}
-                </p>
-              </div>
-
-              {/* Step 1: Open Post */}
-              <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-pink-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+            <>
+              {/* Step 1 */}
+              <div className="flex gap-2 sm:gap-3">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-pink-500 text-white font-black text-xs sm:text-sm flex items-center justify-center flex-shrink-0 mt-0.5">
                   1
                 </div>
-                <div>
-                  <p className="font-bold text-gray-800 text-sm">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-900 text-xs sm:text-sm md:text-base leading-snug">
                     Open the Instagram post
                   </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-gray-500 text-[11px] sm:text-xs mt-0.5 leading-relaxed">
                     Click the button below to open the post in a new tab.
                   </p>
+                  <button
+                    onClick={handleOpenPost}
+                    className="mt-2 sm:mt-3 flex items-center justify-center gap-2 w-full py-2 sm:py-2.5 rounded-2xl border-2 border-pink-200 bg-pink-50 text-pink-600 font-bold text-xs sm:text-sm hover:bg-pink-100 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+                    Open Instagram Post
+                  </button>
                 </div>
               </div>
 
-              {task.postUrl && (
-                <button
-                  onClick={handleOpenPost}
-                  className="w-full py-2.5 px-4 bg-pink-50 hover:bg-pink-100 text-pink-700 font-bold text-xs rounded-2xl border border-pink-200 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                    />
-                  </svg>
-                  Open Instagram Post
-                </button>
-              )}
-
-              {/* Step 2: Comment with Code */}
-              <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-pink-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+              {/* Step 2 */}
+              <div className="flex gap-2 sm:gap-3">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-pink-500 text-white font-black text-xs sm:text-sm flex items-center justify-center flex-shrink-0 mt-0.5">
                   2
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-gray-800 text-sm">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-900 text-xs sm:text-sm md:text-base leading-snug">
                     Leave a real comment with your unique code
                   </p>
-                  {task.commentInstruction ? (
-                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-blue-400 mb-1">
-                        What to write
-                      </p>
-                      <p className="text-sm font-bold text-blue-800">
-                        {task.commentInstruction}{" "}
-                        <span className="font-mono text-blue-600">
-                          [your unique code]
-                        </span>
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Write a short comment about the post (a sentence or two),
-                      then paste your code anywhere in it — at the start, end,
-                      or middle. Make sure you&apos;re commenting as @
-                      {instagramUsername}.
-                    </p>
-                  )}
-                  <p className="text-[11px] text-amber-600 mt-1.5 font-medium">
+                  <p className="text-gray-500 text-[11px] sm:text-xs mt-0.5 leading-relaxed">
+                    Write a short comment about the post (a sentence or two),
+                    then paste your code anywhere in it — at the start, end, or
+                    middle. Make sure you&apos;re commenting as @
+                    {instagramUsername}.
+                  </p>
+                  <p className="text-amber-600 text-[10px] sm:text-[11px] mt-1.5 leading-snug">
                     ⚠️ Don&apos;t post the code by itself — comments with only a
                     code can get flagged as spam/bot activity.
                   </p>
+
+                  {/* Code box */}
+                  <div className="mt-2 sm:mt-3 flex items-center gap-2">
+                    {codeLoading ? (
+                      <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 sm:py-2.5 flex items-center gap-2">
+                        <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
+                        <span className="text-gray-400 text-xs">
+                          Loading code...
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 sm:py-2.5">
+                          <span className="text-pink-600 font-mono font-bold text-xs sm:text-sm">
+                            {verificationCode}
+                          </span>
+                        </div>
+                        <button
+                          onClick={copyCode}
+                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
+                        >
+                          <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {verificationCode ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 font-mono font-bold text-sm text-pink-700 tracking-wide select-all">
-                    {typeof verificationCode === "string"
-                      ? verificationCode
-                      : ""}
-                  </div>
-                  <button
-                    onClick={copyCode}
-                    className="w-10 h-10 rounded-2xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
-                    title="Copy code"
-                  >
-                    <svg
-                      className="w-4 h-4 text-gray-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              ) : codeLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 font-mono text-sm text-gray-400 italic animate-pulse">
-                    Generating your unique code...
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-red-500 font-medium px-1">
-                  Failed to load verification code. Please refresh and try
-                  again.
-                </div>
-              )}
-
-              {/* Step 3: Verify */}
-              <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+              {/* Step 3 */}
+              <div className="flex gap-2 sm:gap-3">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-green-500 text-white font-black text-xs sm:text-sm flex items-center justify-center flex-shrink-0 mt-0.5">
                   3
                 </div>
-                <div>
-                  <p className="font-bold text-gray-800 text-sm">Verify</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-900 text-xs sm:text-sm md:text-base leading-snug">
+                    Verify
+                  </p>
+                  <p className="text-gray-500 text-[11px] sm:text-xs mt-0.5 leading-relaxed">
                     Click verify after you&apos;ve posted your comment with the
                     code.
                   </p>
                 </div>
               </div>
 
-              {error && (
-                <div className="p-3 bg-red-50 rounded-2xl border border-red-200">
-                  <p className="text-xs font-medium text-red-600">{error}</p>
-                </div>
-              )}
-
+              {/* Verify button */}
               <button
                 onClick={handleVerify}
-                disabled={verifying}
-                className="w-full py-3 px-5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white font-bold text-sm rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
+                disabled={verifying || codeLoading}
+                className="w-full py-3 sm:py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 transition-colors"
               >
                 {verifying ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Verifying...
-                  </>
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <>
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    Verify & Earn{" "}
-                    {typeof task?.points === "number" ? task.points : 0} pts
-                  </>
+                  <Check className="w-4 h-4" />
                 )}
+                Verify &amp; Earn {task.points} pts
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>

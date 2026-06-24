@@ -30,6 +30,17 @@ export function FacebookModal({
   const isConnected = !!session?.user?.facebookAccessToken;
 
   useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen && isConnected && task.id) {
       setCodeLoading(true);
       fetch(`/api/user/tasks/facebook-complete?taskId=${task.id}`)
@@ -62,7 +73,10 @@ export function FacebookModal({
   if (!isOpen) return null;
 
   const handleConnect = () => {
-    signIn("facebook", { callbackUrl: window.location.href });
+    if (task?.id) {
+      sessionStorage.setItem("facebook_pending_task_id", String(task.id));
+    }
+    signIn("facebook", { callbackUrl: "/dashboard" });
   };
 
   const handleOpenPost = () => {
@@ -104,12 +118,12 @@ export function FacebookModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-start md:items-center justify-center pt-[60px] md:pt-0">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden modal-in">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 max-h-[calc(100vh-80px)] md:max-h-none overflow-y-auto md:overflow-visible modal-in">
         {/* Header */}
         <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 px-6 pt-6 pb-8">
           <div className="flex items-center justify-between mb-2">

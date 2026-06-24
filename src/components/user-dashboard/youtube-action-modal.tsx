@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 type ActionType = "like" | "comment";
@@ -28,6 +28,17 @@ export function YouTubeActionModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -131,12 +142,12 @@ export function YouTubeActionModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-start md:items-center justify-center pt-[60px] md:pt-0">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden modal-in">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 max-h-[calc(100vh-80px)] md:max-h-none overflow-y-auto md:overflow-visible modal-in">
         <div className={`bg-gradient-to-br ${headerGradient} px-6 pt-6 pb-8`}>
           <div className="flex items-center justify-between mb-2">
             <span className={`text-[10px] font-black uppercase tracking-widest ${headerLabelColor}`}>

@@ -31,7 +31,7 @@ const YT_API_SRC = "https://www.youtube.com/iframe_api";
  *  resolves every caller's promise once `window.YT.Player` is ready — the
  *  official, reliable way to get real play/pause state, unlike hand-rolled
  *  postMessage handshakes against the embed (which can silently never fire). */
-function loadYouTubeIframeApi(): Promise<NonNullable<Window['YT']>> {
+function loadYouTubeIframeApi(): Promise<NonNullable<Window["YT"]>> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("No window"));
   }
@@ -43,7 +43,7 @@ function loadYouTubeIframeApi(): Promise<NonNullable<Window['YT']>> {
     const previousCallback = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       previousCallback?.();
-      resolve(window.YT as NonNullable<Window['YT']>);
+      resolve(window.YT as NonNullable<Window["YT"]>);
     };
 
     if (!document.querySelector(`script[src="${YT_API_SRC}"]`)) {
@@ -174,7 +174,6 @@ const EventContentPage = () => {
     heroImageSrc.includes("res.cloudinary.com");
 
   const accentColor = event.accentColor || "#FACC15";
-  const isPoster = false; // "poster" mode deprecated, always use photo layout
   const hasTimeline = event.timelineItems && event.timelineItems.length > 0;
 
   return (
@@ -193,12 +192,8 @@ const EventContentPage = () => {
         }}
       />
       <main>
-        {/* Full-Page Hero: YouTube video, poster image, or photo image */}
-        <section
-          className={`relative w-full overflow-hidden bg-black ${
-            isPoster ? "" : "h-[50vh] md:h-[90vh]"
-          }`}
-        >
+        {/* Full-Page Hero: YouTube video or hero image (blurred backdrop + contained foreground, works for any aspect ratio) */}
+        <section className="relative w-full overflow-hidden bg-black h-[50vh] md:h-[90vh]">
           {showVideo && youtubeVideoId ? (
             <div className="absolute inset-0 flex items-center justify-center bg-black">
               <div className="relative w-full h-full">
@@ -218,181 +213,86 @@ const EventContentPage = () => {
                 }`}
               />
             </div>
-          ) : isPoster ? (
-            <>
-              {/* Blurred background fill */}
-              <div className="absolute inset-0 bg-zinc-900">
-                <Image
-                  src={heroImageSrc}
-                  alt=""
-                  aria-hidden="true"
-                  width={800}
-                  height={600}
-                  unoptimized={isDataUrl}
-                  className="w-full h-full object-cover blur-xl opacity-30"
-                />
-              </div>
-
-              {/* Compact back button — small pill, no min-height forcing */}
-              <div className="relative z-10 container mx-auto px-4 pt-3 md:pt-8">
-                <Link
-                  href="/events"
-                  className="inline-flex items-center gap-1.5 text-white/70 hover:text-[var(--accent-color)] font-bold uppercase tracking-widest text-[9px] transition-all group px-3 py-1.5 bg-black/30 backdrop-blur-md rounded-full border border-white/10"
-                >
-                  <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
-                  Back
-                </Link>
-              </div>
-
-              {/* Poster image — narrower on mobile, deep drop shadow */}
-              <div className="relative z-10 container mx-auto px-6 pb-6 md:pb-12 flex justify-center mt-3 md:mt-0">
-                <div className="w-full max-w-[220px] sm:max-w-xs md:max-w-sm lg:max-w-md aspect-[3/4] relative drop-shadow-[0_32px_48px_rgba(0,0,0,0.6)]">
-                  <Image
-                    src={heroImageSrc}
-                    alt={event.title}
-                    fill
-                    sizes="(max-width: 640px) 220px, (max-width: 768px) 320px, (max-width: 1024px) 384px, 448px"
-                    quality={100}
-                    unoptimized={isDataUrl}
-                    className="object-contain rounded-2xl"
-                  />
-                </div>
-              </div>
-            </>
           ) : (
-            <Image
-              src={heroImageSrc}
-              alt={event.title}
-              fill
-              sizes="100vw"
-              priority
-              quality={100}
-              unoptimized={isDataUrl}
-              className="object-cover"
-            />
+            <>
+              {/* Ambient blurred backdrop — fills the whole band regardless
+                  of the source image's aspect ratio. This layer is allowed
+                  to be soft/upscaled since it's decorative only; it's what
+                  makes a portrait poster or an odd-aspect photo still feel
+                  like a full-bleed hero instead of floating on bare black. */}
+              <Image
+                src={heroImageSrc}
+                alt=""
+                aria-hidden="true"
+                fill
+                sizes="100vw"
+                unoptimized={isDataUrl}
+                className="object-cover blur-3xl scale-110 opacity-40"
+              />
+
+              {/* Sharp foreground image — object-contain so it is scaled
+                  down to fit the band but NEVER upscaled or cropped past
+                  its real resolution. This is what actually fixes the blur:
+                  a portrait poster keeps its full clarity and proportions
+                  instead of being stretched edge-to-edge by object-cover. */}
+              <Image
+                src={heroImageSrc}
+                alt={event.title}
+                fill
+                sizes="100vw"
+                priority
+                quality={100}
+                unoptimized={isDataUrl}
+                className="object-contain"
+              />
+            </>
           )}
 
-          {/* Enhanced Bottom-to-Top Fade — only for photo-style heroes; poster
-              heroes are shown at full clarity since the poster's own text
-              would otherwise get washed out, and hidden while video plays */}
-          {!isPoster && (
-            <div
-              className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${
-                showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
-              }`}
-              style={{
-                background:
-                  "linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 40%), " +
-                  "linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 35%)",
-              }}
-            />
-          )}
+          {/* Enhanced Bottom-to-Top Fade — hidden while video plays */}
+          <div
+            className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${
+              showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
+            }`}
+            style={{
+              background:
+                "linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 40%), " +
+                "linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 35%)",
+            }}
+          />
 
-          {/* Hero Content: Top-Center Aligned — only rendered for photo-style
-              heroes, since poster-style heroes already contain their own
-              title/branding and would otherwise have two competing titles.
-              Fades out while the video is playing. */}
-          {!isPoster && (
-            <div
-              className={`absolute inset-0 flex flex-col items-center pt-24 md:pt-44 pointer-events-none transition-opacity duration-500 ${
-                showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
-              }`}
-            >
-              <div className="container mx-auto px-6 text-center animate-fade-in">
-                <span
-                  className="text-black text-[10px] font-black px-6 py-2 rounded-full tracking-[0.3em] uppercase mb-8 inline-block shadow-2xl"
-                  style={{ backgroundColor: accentColor }}
-                >
-                  {event.eventType}
-                </span>
-                <h1 className="text-3xl md:text-6xl lg:text-7xl font-black tracking-tighter uppercase leading-[0.8] text-white drop-shadow-2xl max-w-6xl mx-auto">
-                  {event.title}
-                </h1>
-              </div>
-            </div>
-          )}
-
-          {/* Back Button Floating — only for non-poster; poster has its own back button above the poster */}
-          {!isPoster && (
-            <div className="absolute top-20 md:top-32 left-4 md:left-10 z-20">
-              <Link
-                href="/events"
-                className="flex items-center gap-2 text-white/80 hover:text-[var(--accent-color)] font-bold uppercase tracking-widest text-[10px] transition-all group px-4 py-2 bg-black/20 backdrop-blur-md rounded-full border border-white/10 min-h-[44px]"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
-                Back
-              </Link>
-            </div>
-          )}
-        </section>
-
-        {/* Poster meta: event type badge → title → divider → meta pills */}
-        {isPoster && (
-          <div className="container mx-auto px-5 pt-6 md:pt-10 pb-6">
-            {/* Event type badge */}
-            <div className="flex justify-center mb-4">
+          {/* Hero Content: Top-Center Aligned — fades out while video plays */}
+          <div
+            className={`absolute inset-0 flex flex-col items-center pt-24 md:pt-44 pointer-events-none transition-opacity duration-500 ${
+              showVideo && isVideoPlaying ? "opacity-0" : "opacity-100"
+            }`}
+          >
+            <div className="container mx-auto px-6 text-center animate-fade-in">
               <span
-                className="text-black text-[9px] font-black px-4 py-1.5 rounded-full tracking-[0.3em] uppercase"
+                className="text-black text-[10px] font-black px-6 py-2 rounded-full tracking-[0.3em] uppercase mb-8 inline-block shadow-2xl"
                 style={{ backgroundColor: accentColor }}
               >
                 {event.eventType}
               </span>
-            </div>
-
-            {/* Title */}
-            <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tighter uppercase text-center leading-tight">
-              {event.title}
-            </h1>
-
-            {/* Accent divider */}
-            <div
-              className="mx-auto mt-5 mb-5 h-px w-16 opacity-40"
-              style={{ backgroundColor: accentColor }}
-            />
-
-            {/* Meta pills row */}
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <div className="flex items-center gap-1.5 bg-zinc-50 border border-black/8 rounded-full px-3 py-1.5">
-                <Calendar
-                  className="w-3.5 h-3.5 shrink-0"
-                  style={{ color: accentColor }}
-                />
-                <span className="font-black text-[11px] tracking-wide">
-                  {formatDate(event.eventDate)}
-                </span>
-              </div>
-              {event.eventTime && (
-                <div className="flex items-center gap-1.5 bg-zinc-50 border border-black/8 rounded-full px-3 py-1.5">
-                  <Clock
-                    className="w-3.5 h-3.5 shrink-0"
-                    style={{ color: accentColor }}
-                  />
-                  <span className="font-black text-[11px] tracking-wide">
-                    {event.eventTime}
-                  </span>
-                </div>
-              )}
-              {event.venue && (
-                <div className="flex items-center gap-1.5 bg-zinc-50 border border-black/8 rounded-full px-3 py-1.5">
-                  <MapPin
-                    className="w-3.5 h-3.5 shrink-0"
-                    style={{ color: accentColor }}
-                  />
-                  <span className="font-black text-[11px] tracking-wide">
-                    {event.venue}
-                  </span>
-                </div>
-              )}
+              <h1 className="text-3xl md:text-6xl lg:text-7xl font-black tracking-tighter uppercase leading-[0.8] text-white drop-shadow-2xl max-w-6xl mx-auto">
+                {event.title}
+              </h1>
             </div>
           </div>
-        )}
 
-        {/* Quick-Info Bar: date / time / venue at a glance, right below the
-            hero so visitors don't have to scroll to confirm logistics.
-            Poster-type events already show this info in the block above
-            (grouped with the title), so this bar only renders for
-            photo-type events to avoid showing the same info twice. */}
-        {!isPoster && (
+          {/* Back Button Floating */}
+          <div className="absolute top-20 md:top-32 left-4 md:left-10 z-20">
+            <Link
+              href="/events"
+              className="flex items-center gap-2 text-white/80 hover:text-[var(--accent-color)] font-bold uppercase tracking-widest text-[10px] transition-all group px-4 py-2 bg-black/20 backdrop-blur-md rounded-full border border-white/10 min-h-[44px]"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+              Back
+            </Link>
+          </div>
+        </section>
+
+        {/* Quick-Info Bar: date / time / venue at a glance, right below the hero */}
+        {
           <div className="container mx-auto px-6 pt-8">
             <div className="flex flex-wrap justify-center gap-4 md:gap-6 bg-zinc-50 border border-black/5 rounded-3xl px-6 py-5">
               <div className="flex items-center gap-3 min-h-[44px]">
@@ -428,7 +328,7 @@ const EventContentPage = () => {
               )}
             </div>
           </div>
-        )}
+        }
 
         {/* Sticky Anchor Nav — lets visitors jump straight to a section
             instead of scrolling and hunting */}

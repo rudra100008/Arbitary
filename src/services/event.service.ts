@@ -10,6 +10,7 @@ import { eq, desc, inArray, lt, gte } from "drizzle-orm";
 import { eventSchema } from "@/src/lib/validations/event";
 import { revalidatePath } from "next/cache";
 import { ServiceResult, ok, fail, failWithDetails } from "./result";
+import { deleteCloudinaryImage } from "@/src/lib/cloudinary";
 import type { Event, ContentSection, MediaItem, AccessType, TimelineItem } from "@/src/types/db";
 
 type EventWithRelations = Event & {
@@ -24,19 +25,32 @@ export type EventListItem = Pick<
 >;
 
 async function syncMediaItems(tx: any, sectionId: number, mediaItems: { id?: number; url: string }[]) {
-  const currentMedia: { id: number }[] = await tx.select({ id: mediaItemsTable.id }).from(mediaItemsTable).where(eq(mediaItemsTable.sectionId, sectionId));
-  const currentIds: number[] = currentMedia.map(m => m.id);
-  const inputIds: number[] = mediaItems.map(m => m.id).filter((id): id is number => id !== undefined);
+  const currentMedia: { id: number; url: string }[] = await tx
+    .select({ id: mediaItemsTable.id, url: mediaItemsTable.url })
+    .from(mediaItemsTable)
+    .where(eq(mediaItemsTable.sectionId, sectionId));
 
-  const mediaToDelete = currentIds.filter(id => !inputIds.includes(id));
-  const mediaToUpdate = mediaItems.filter(m => m.id !== undefined && currentIds.includes(m.id));
-  const mediaToInsert = mediaItems.filter(m => m.id === undefined);
+  const currentIds = currentMedia.map((m) => m.id);
+  const inputIds = mediaItems.map((m) => m.id).filter((id): id is number => id !== undefined);
+
+  const mediaToDelete = currentMedia.filter((m) => !inputIds.includes(m.id));
+  const mediaToUpdate = mediaItems.filter((m) => m.id !== undefined && currentIds.includes(m.id));
+  const mediaToInsert = mediaItems.filter((m) => m.id === undefined);
 
   if (mediaToDelete.length) {
-    await tx.delete(mediaItemsTable).where(inArray(mediaItemsTable.id, mediaToDelete));
+    await tx.delete(mediaItemsTable).where(inArray(mediaItemsTable.id, mediaToDelete.map((m) => m.id)));
+
+    for (const m of mediaToDelete) {
+      deleteCloudinaryImage(m.url);
+    }
   }
 
   for (const m of mediaToUpdate) {
+    const oldItem = currentMedia.find((c) => c.id === m.id);
+    if (oldItem && oldItem.url && oldItem.url !== m.url) {
+      deleteCloudinaryImage(oldItem.url);
+    }
+
     const idx = mediaItems.indexOf(m);
     await tx.update(mediaItemsTable)
       .set({ url: m.url, order: idx })
@@ -172,6 +186,11 @@ export const EventService = {
       if (id) {
         const eventIdNum = Number(id);
 
+        const [existing] = await tx
+          .select({ heroImageUrl: eventsTable.heroImageUrl })
+          .from(eventsTable)
+          .where(eq(eventsTable.id, eventIdNum));
+
         const [updated] = await tx
           .update(eventsTable)
           .set({ title, eventType, status, priority, eventDate, venue, description, heroImageUrl, imageType, eventTime, accentColor: accentColor || "#FACC15", youtubeUrl: normalizedYoutubeUrl })
@@ -181,6 +200,10 @@ export const EventService = {
         if (!updated) throw new Error(`Event ${id} not found`);
         finalEvent = updated;
         eventId = eventIdNum;
+
+        if (existing?.heroImageUrl && existing.heroImageUrl !== heroImageUrl) {
+          deleteCloudinaryImage(existing.heroImageUrl);
+        }
 
         // --- Diff Sync: Access Types ---
         const currentAccessTypes = await tx
@@ -352,12 +375,33 @@ export const EventService = {
   },
 
   async deleteEvent(eventId: number): Promise<ServiceResult<{ message: string }>> {
+    const [eventRow] = await db
+      .select({ heroImageUrl: eventsTable.heroImageUrl })
+      .from(eventsTable)
+      .where(eq(eventsTable.id, eventId));
+
+    const sectionIds = await db
+      .select({ id: contentSectionsTable.id })
+      .from(contentSectionsTable)
+      .where(eq(contentSectionsTable.eventId, eventId));
+
+    const mediaUrls = sectionIds.length
+      ? await db
+          .select({ url: mediaItemsTable.url })
+          .from(mediaItemsTable)
+          .where(inArray(mediaItemsTable.sectionId, sectionIds.map((s) => s.id)))
+      : [];
+
     const [deleted] = await db
       .delete(eventsTable)
       .where(eq(eventsTable.id, eventId))
       .returning();
 
     if (!deleted) return fail("Event not found", 404);
+
+    if (eventRow?.heroImageUrl) deleteCloudinaryImage(eventRow.heroImageUrl);
+    for (const { url } of mediaUrls) deleteCloudinaryImage(url);
+
     revalidatePath("/events");
     return ok({ message: "Event deleted successfully" });
   },

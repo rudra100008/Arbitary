@@ -13,6 +13,7 @@ import {
 } from "@/src/db/schema";
 import { eq, and, desc, sql, or, gte, lt, inArray, not, type SQL, isNotNull, ne, ilike } from "drizzle-orm";
 import { hammingDistance, PHASH_DUPLICATE_THRESHOLD } from "@/src/lib/image-analysis";
+import { deleteCloudinaryImage } from "@/src/lib/cloudinary";
 import { calculateStreak, getNextMilestone, toDateStr, getCycleStart } from "@/src/lib/streak-helper";
 import { getStreakMultiplier } from "@/src/lib/gamification";
 import {
@@ -730,6 +731,13 @@ export const TaskService = {
       if (existingRejected) {
         if (existingRejected.proofImageUrl) {
           await deleteCloudinaryImage(existingRejected.proofImageUrl);
+        }
+        if (
+          existingRejected.proofUrl &&
+          existingRejected.proofUrl !== existingRejected.proofImageUrl &&
+          existingRejected.proofUrl.includes("cloudinary.com")
+        ) {
+          await deleteCloudinaryImage(existingRejected.proofUrl);
         }
         await tx
           .delete(userTasksTable)
@@ -2079,9 +2087,18 @@ export const TaskService = {
       }
 
       if (newStatus === "Verified" || newStatus === "Rejected") {
-        const proofUrl = userTaskInfo.userTask.proofImageUrl;
-        if (proofUrl) {
-          deleteCloudinaryImage(proofUrl);
+        const imageUrl = userTaskInfo.userTask.proofImageUrl;
+        const linkUrl = userTaskInfo.userTask.proofUrl;
+
+        if (imageUrl) {
+          deleteCloudinaryImage(imageUrl);
+        }
+        if (
+          linkUrl &&
+          linkUrl !== imageUrl &&
+          linkUrl.includes("cloudinary.com")
+        ) {
+          deleteCloudinaryImage(linkUrl);
         }
       }
 
@@ -2143,38 +2160,6 @@ export const TaskService = {
     return ok({ message: result.data.message });
   },
 };
-
-async function deleteCloudinaryImage(url: string | null): Promise<void> {
-  if (!url) return;
-  try {
-    const uploadSegment = "/upload/";
-    const idx = url.indexOf(uploadSegment);
-    if (idx === -1) return;
-    const afterUpload = url.slice(idx + uploadSegment.length);
-    const withoutVersion = afterUpload.replace(/^v\d+\//, "");
-    const publicId = withoutVersion.replace(/\.[^.]+$/, "");
-
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.CLOUDINARY_API_KEY;
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
-    if (!cloudName || !apiKey || !apiSecret) return;
-
-    const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
-    await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ public_id: publicId }),
-      },
-    );
-  } catch {
-    // non-critical; orphaned images are acceptable
-  }
-}
 
 function extractVideoId(url: string | null): string | null {
   if (!url) return null;
