@@ -269,7 +269,7 @@ const UserLoginPage = () => {
             </div>
           )}
 
-          <form onSubmit={handleCredentialsLogin} className="space-y-4">
+          <form method="post" onSubmit={handleCredentialsLogin} className="space-y-4">
             <FormInput
               type="email"
               id="email"

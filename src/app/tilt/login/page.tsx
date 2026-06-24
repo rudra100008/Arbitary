@@ -225,6 +225,7 @@ export default function TiltLoginPage() {
           )}
 
           <form
+            method="post"
             onSubmit={handleSubmit}
             style={{ display: "flex", flexDirection: "column", gap: "16px" }}
           >

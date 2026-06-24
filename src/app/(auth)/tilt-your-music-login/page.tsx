@@ -144,7 +144,7 @@ const TildeLoginPage = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form method="post" onSubmit={handleSubmit} className="space-y-4">
                 <FormInput
                   type="email"
                   id="email"

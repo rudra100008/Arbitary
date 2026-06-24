@@ -106,7 +106,7 @@ const AdminLoginPage = () => {
           <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#FACC15]/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-black/5 rounded-full blur-2xl" />
 
-          <form onSubmit={handleLogin} className="space-y-6 relative z-10">
+          <form method="post" onSubmit={handleLogin} className="space-y-6 relative z-10">
             {/* Security badge */}
             <div className="flex items-center gap-2 bg-zinc-50 border border-black/5 rounded-xl px-4 py-2.5 mb-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
