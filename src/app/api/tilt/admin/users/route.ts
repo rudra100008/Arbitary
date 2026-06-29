@@ -46,7 +46,8 @@ export async function GET(req: NextRequest) {
             })
             .from(tiltUsersTable)
             .where(eq(tiltUsersTable.role, 'outlet'))
-            .orderBy(tiltUsersTable.createdAt);
+            .orderBy(tiltUsersTable.createdAt)
+            .limit(100);
 
         // ── Scan counts per outlet ─────────────────────────────────────────
         const scanCounts = await tiltDb
@@ -73,7 +74,8 @@ export async function GET(req: NextRequest) {
         const invited = await tiltDb
             .select()
             .from(invitedOutletsTable)
-            .orderBy(invitedOutletsTable.createdAt);
+            .orderBy(invitedOutletsTable.createdAt)
+            .limit(100);
 
         // ── Merge ──────────────────────────────────────────────────────────
         const scanMap = new Map(scanCounts.map((r) => [r.outletId, r.count]));

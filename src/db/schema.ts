@@ -1,5 +1,5 @@
 import { integer, pgTable, varchar, text, timestamp, serial, boolean, index, unique, AnyPgColumn, jsonb } from "drizzle-orm/pg-core";
-import { relations } from 'drizzle-orm';
+import { desc, relations } from 'drizzle-orm';
 
 // --- Events Tables ---
 
@@ -28,7 +28,9 @@ export const eventsTable = pgTable("events", {
      *  active nav state). Defaults to the site's existing yellow. */
     accentColor: varchar("accent_color", { length: 50 }).notNull().default("#FACC15"),
     createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+    eventDateIdx: index("idx_events_event_date").on(desc(table.eventDate)),
+}));
 
 export const contentSectionsTable = pgTable("content_sections", {
     id: serial("id").primaryKey(),
@@ -109,6 +111,7 @@ export const usersTable = pgTable("users", {
     lastLoginAtIdx: index("idx_users_last_login_at").on(table.lastLoginAt),
     fraudRiskScoreIdx: index("idx_users_fraud_risk_score").on(table.fraudRiskScore),
     isFlaggedIdx: index("idx_users_is_flagged").on(table.isFlagged),
+    monthlyPointsIdx: index("idx_users_monthly_points").on(desc(table.monthlyPoints)),
 }))
 
 // --- Task Table -----
@@ -134,7 +137,11 @@ export const tasksTable = pgTable("tasks", {
     isRecurring: boolean("is_recurring").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow(),
     createdByAdminId: integer("admin_id").references(() => usersTable.id),
-})
+}, (table) => ({
+    createdAtIdx: index("idx_tasks_created_at").on(desc(table.createdAt)),
+    isActiveCreatedIdx: index("idx_tasks_is_active_created").on(table.isActive, desc(table.createdAt)),
+    taskTypeActiveIdx: index("idx_tasks_type_active").on(table.taskType, table.isActive),
+}))
 
 export const userTasksTable = pgTable("user_tasks", {
     id: serial("id").primaryKey(),
@@ -163,6 +170,7 @@ export const userTasksTable = pgTable("user_tasks", {
     userIdIdx: index("idx_user_tasks_user_id").on(table.userId),
     taskIdIdx: index("idx_user_tasks_task_id").on(table.taskId),
     statusIdx: index("idx_user_tasks_status").on(table.status),
+    compositeIdx: index("idx_user_tasks_composite").on(table.userId, table.taskId, table.status),
 }))
 
 /**
@@ -229,7 +237,9 @@ export const referralsTable = pgTable("referrals", {
     referredId: integer("referred_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
     pointsAwarded: integer("points_awarded").default(0),
     createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+    referrerIdx: index("idx_referrals_referrer").on(table.referrerId),
+}));
 
 // --- Points Log ---
 export const pointsLogTable = pgTable("points_log", {
@@ -271,7 +281,9 @@ export const rateLimitsTable = pgTable("rate_limits", {
     key: varchar("key", { length: 255 }).primaryKey(),
     count: integer("count").notNull().default(0),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
+}, (table) => ({
+    expiresAtIdx: index("idx_rate_limits_expires").on(table.expiresAt),
+}));
 
 // --- Password Reset Tokens ---
 export const passwordResetTokensTable = pgTable("password_reset_tokens", {

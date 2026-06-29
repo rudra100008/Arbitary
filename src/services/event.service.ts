@@ -90,7 +90,8 @@ export const EventService = {
         })
         .from(eventsTable)
         .where(gte(eventsTable.eventDate, now))
-        .orderBy(desc(eventsTable.eventDate));
+        .orderBy(desc(eventsTable.eventDate))
+        .limit(100);
 
       return ok(events);
     } catch (err) {

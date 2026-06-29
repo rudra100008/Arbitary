@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
       .from(lotteryCampaignsTable)
       .leftJoin(lotteryEntriesTable, eq(lotteryEntriesTable.campaignId, lotteryCampaignsTable.id))
       .groupBy(lotteryCampaignsTable.id)
-      .orderBy(desc(lotteryCampaignsTable.createdAt));
+      .orderBy(desc(lotteryCampaignsTable.createdAt))
+      .limit(100);
 
     return NextResponse.json({ campaigns }, { status: 200 });
   } catch (error) {

@@ -56,7 +56,10 @@ export const lotteryCampaignsTable = pgTable("lottery_campaigns", {
   startsAt: timestamp("starts_at").notNull(),
   endsAt: timestamp("ends_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  outletIdx: index("idx_lottery_campaigns_outlet").on(table.outletId),
+  datesIdx: index("idx_lottery_campaigns_dates").on(table.startsAt, table.endsAt),
+}));
 
 export const qrTokensTable = pgTable(
   "qr_tokens",
@@ -75,6 +78,8 @@ export const qrTokensTable = pgTable(
   (table) => [
     index("qr_tokens_token_idx").on(table.token),
     index("qr_tokens_session_id_idx").on(table.sessionId),
+    index("idx_qr_tokens_outlet").on(table.outletId),
+    index("idx_qr_tokens_campaign").on(table.campaignId),
   ],
 );
 
@@ -88,7 +93,10 @@ export const lotterySessionsTable = pgTable("lottery_sessions", {
     .references(() => lotteryCampaignsTable.id),
   submittedAt: timestamp("submitted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  tokenIdx: index("idx_lottery_sessions_token").on(table.tokenId),
+  campaignIdx: index("idx_lottery_sessions_campaign").on(table.campaignId),
+}));
 
 export const lotteryEntriesTable = pgTable(
   "lottery_entries",

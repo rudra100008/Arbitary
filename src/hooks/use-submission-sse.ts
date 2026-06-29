@@ -29,7 +29,8 @@ export function useSubmissionSSE() {
             for (const tt of taskTypes) {
               queryClient.invalidateQueries({ queryKey: ["user-tasks", tt], exact: true });
             }
-            queryClient.invalidateQueries({ queryKey: ["user-points"], exact: true });
+            queryClient.invalidateQueries({ queryKey: ["user-tasks"] });
+            queryClient.invalidateQueries({ queryKey: ["user-points"] });
           }, 300);
         }
       } catch {

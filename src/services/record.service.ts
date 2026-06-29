@@ -22,7 +22,8 @@ export const RecordService = {
     const records = await db
       .select()
       .from(recordsTable)
-      .orderBy(desc(recordsTable.createdAt));
+      .orderBy(desc(recordsTable.createdAt))
+      .limit(200);
 
     return ok(records);
   },

@@ -6,6 +6,7 @@ import {
   useMutation,
   useQueryClient,
   useInfiniteQuery,
+  type InfiniteData,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { StatsHeader } from "@/src/components/user-dashboard/stats-header";
@@ -102,6 +103,26 @@ function DashboardInner() {
   };
 
   // ── Mutations ──────────────────────────────────────────────────────────────
+
+  const optimisticRemoveTask = async (taskId: number, tab: string) => {
+    const qk = ["user-tasks", "dashboard", tab] as const;
+    await queryClient.cancelQueries({ queryKey: qk });
+    const previous = queryClient.getQueryData<InfiniteData<DashboardResponse>>(qk);
+    if (previous) {
+      queryClient.setQueryData<InfiniteData<DashboardResponse>>(qk, {
+        ...previous,
+        pages: previous.pages.map((page) => ({
+          ...page,
+          available: page.available.filter((t) => t.id !== taskId),
+          inProgress: page.inProgress.filter((t) => t.id !== taskId),
+          rejected: page.rejected.filter((t) => t.id !== taskId),
+          completed: page.completed.filter((t) => t.id !== taskId),
+          systemTasks: page.systemTasks.filter((t) => t.id !== taskId),
+        })),
+      });
+    }
+    return { previous, qk, tab };
+  };
   const pickupMutation = useMutation({
     mutationFn: async ({
       taskId,
@@ -155,15 +176,21 @@ function DashboardInner() {
       }
       return res.json();
     },
-    onSuccess: (_data, variables) => {
-      toast.success("Task cancelled!");
+    onMutate: async ({ taskId, tab }) => {
+      return optimisticRemoveTask(taskId, tab);
+    },
+    onError: (err: Error, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.qk, context.previous);
+      }
+      toast.error(err.message || "Failed to cancel task");
+    },
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["user-tasks", "dashboard", variables.tab],
         exact: true,
       });
     },
-    onError: (err: Error) =>
-      toast.error(err.message || "Failed to cancel task"),
   });
 
   const completeMutation = useMutation({
@@ -200,15 +227,21 @@ function DashboardInner() {
       }
       return res.json();
     },
-    onSuccess: (_data, variables) => {
-      toast.success("Proof submitted! Pending verification.");
+    onMutate: async ({ taskId, tab }) => {
+      return optimisticRemoveTask(taskId, tab);
+    },
+    onError: (err: Error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.qk, context.previous);
+      }
+      toast.error(err.message || "Failed to submit proof");
+    },
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["user-tasks", "dashboard", variables.tab],
         exact: true,
       });
     },
-    onError: (err: Error) =>
-      toast.error(err.message || "Failed to submit proof"),
   });
 
   const claimDailyLogin = useMutation({
@@ -332,19 +365,36 @@ function DashboardInner() {
       }
       return res.json();
     },
-    onSuccess: () => {
-      toast.success("Task completed! Points awarded.");
-      queryClient.invalidateQueries({
-        queryKey: ["user-tasks", "dashboard"],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["user-tasks", "completed"],
-      });
-      queryClient.invalidateQueries({ queryKey: ["user-points"] });
+    onMutate: async ({ taskId }) => {
+      const qk = ["user-tasks", "dashboard"] as const;
+      await queryClient.cancelQueries({ queryKey: qk });
+      const previous = queryClient.getQueryData<InfiniteData<DashboardResponse>>(qk);
+      if (previous) {
+        queryClient.setQueryData<InfiniteData<DashboardResponse>>(qk, {
+          ...previous,
+          pages: previous.pages.map((page) => ({
+            ...page,
+            available: page.available.filter((t) => t.id !== taskId),
+            inProgress: page.inProgress.filter((t) => t.id !== taskId),
+            rejected: page.rejected.filter((t) => t.id !== taskId),
+            completed: page.completed.filter((t) => t.id !== taskId),
+            systemTasks: page.systemTasks.filter((t) => t.id !== taskId),
+          })),
+        });
+      }
+      return { previous, qk };
     },
-    onError: (err: Error) => {
+    onError: (err: Error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.qk, context.previous);
+      }
       const msg = err.message || "Failed to complete task";
       toast.error(`Error: ${msg}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-tasks", "dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["user-tasks", "completed"] });
+      queryClient.invalidateQueries({ queryKey: ["user-points"] });
     },
   });
 

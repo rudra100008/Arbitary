@@ -1966,7 +1966,9 @@ export const TaskService = {
       .from(userTasksTable)
       .innerJoin(tasksTable, eq(userTasksTable.taskId, tasksTable.id))
       .innerJoin(usersTable, eq(userTasksTable.userId, usersTable.id))
-      .where(eq(userTasksTable.status, "Pending Verification"));
+      .where(eq(userTasksTable.status, "Pending Verification"))
+      .orderBy(desc(userTasksTable.submittedAt))
+      .limit(100);
 
     const mapped = submissions.map((s) => ({
       id: s.userTask.id,
