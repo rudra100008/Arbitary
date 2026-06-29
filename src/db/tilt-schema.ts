@@ -119,11 +119,11 @@ export const lotteryEntriesTable = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    index("lottery_entries_campaign_email_idx").on(
+    uniqueIndex("lottery_entries_campaign_email_idx").on(
       table.campaignId,
       table.email,
     ),
-    index("lottery_entries_campaign_phone_hash_idx").on(
+    uniqueIndex("lottery_entries_campaign_phone_hash_idx").on(
       table.campaignId,
       table.phoneHash,
     ),

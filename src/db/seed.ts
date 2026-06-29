@@ -4,8 +4,6 @@ import { db } from './index';
 import { usersTable } from "./schema";
 import bcrypt from "bcryptjs";
 
-
-
 async function createAdmin() {
     const adminEmail = 'admin123@gmail.com';
     const adminPassword = 'admin12345';
