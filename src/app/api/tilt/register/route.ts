@@ -253,20 +253,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     if (isUniqueViolation(error)) {
-      const session = await getSessionFromCookie(req.cookies);
-      if (session) {
-        const [existingEntry] = await tiltDb
-          .select({ id: lotteryEntriesTable.id })
-          .from(lotteryEntriesTable)
-          .where(eq(lotteryEntriesTable.sessionId, session.id));
-
-        if (existingEntry) {
-          return NextResponse.json(
-            { message: "already_submitted", entry_id: existingEntry.id },
-            { status: 200 },
-          );
-        }
-      }
+      return jsonError(409, "This email or phone has already been entered for this campaign", "DUPLICATE_ENTRY");
     }
 
     console.error("[tilt/register]", error);
