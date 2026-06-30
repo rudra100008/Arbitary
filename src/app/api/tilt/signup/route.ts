@@ -5,9 +5,16 @@ import { tiltDb } from '@/src/db/tilt-db';
 import { tiltUsersTable, invitedOutletsTable } from '@/src/db/tilt-schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
+import { checkRateLimit, getIp } from '@/src/lib/tilt/rate-limit';
 
 export async function POST(req: NextRequest) {
     try {
+        const ip = getIp(req);
+        // Limit to 5 signup attempts per minute per IP to prevent spam bots
+        if (!checkRateLimit(`signup_${ip}`, 5, 60000)) {
+            return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+        }
+
         const { name, email, password, address } = await req.json();
 
         // ── Basic validation ───────────────────────────────────────────────

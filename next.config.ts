@@ -20,6 +20,7 @@ const csp = [
 ].join('; ');
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   allowedDevOrigins: ['*.vercel.app'],
 
   images: {

@@ -6,6 +6,8 @@ import { qrTokensTable, lotterySessionsTable, instantRewardsTable } from "@/src/
 import { DAILY_REWARD_TARGET } from "@/src/lib/tilt/reward-config";
 import { getRewardWindow } from "@/src/lib/tilt/reward-window";
 
+export const revalidate = 60;
+
 const TILT_JWT_SECRET = new TextEncoder().encode(
   process.env.TILT_JWT_SECRET ?? "tilt-fallback-secret-change-in-production",
 );

@@ -125,8 +125,23 @@ async function consumeToken(token: string): Promise<ConsumeTokenResult> {
   return { ok: true, sessionId: newSessionId };
 }
 
+import { checkRateLimit, getIp } from "@/src/lib/tilt/rate-limit";
+
 export async function POST(req: NextRequest) {
   try {
+    const ip = getIp(req);
+    // Limit to 20 redeem attempts per minute per IP to prevent token brute force
+    if (!checkRateLimit(`redeem_${ip}`, 20, 60000)) {
+        return NextResponse.json(
+        {
+            error: "Too many requests",
+            code: "RATE_LIMITED",
+            next: invalidPath("rate_limited"),
+        },
+        { status: 429 },
+        );
+    }
+
     const body = await req.json().catch(() => ({}));
     const token = typeof body?.token === "string" ? body.token.trim() : "";
     const result = await consumeToken(token);

@@ -6,6 +6,7 @@ import { tiltUsersTable } from '@/src/db/tilt-schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
+import { checkRateLimit, getIp } from '@/src/lib/tilt/rate-limit';
 
 const TILT_JWT_SECRET = new TextEncoder().encode(
     process.env.TILT_JWT_SECRET ?? 'tilt-fallback-secret-change-in-production'
@@ -13,6 +14,12 @@ const TILT_JWT_SECRET = new TextEncoder().encode(
 
 export async function POST(req: NextRequest) {
     try {
+        const ip = getIp(req);
+        // Limit to 10 login attempts per minute per IP
+        if (!checkRateLimit(`login_${ip}`, 10, 60000)) {
+            return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+        }
+
         const { email, password } = await req.json();
 
         if (!email?.trim() || !password) {

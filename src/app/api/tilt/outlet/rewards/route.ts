@@ -5,6 +5,8 @@ import { tiltDb } from "@/src/db/tilt-db";
 import { instantRewardsTable } from "@/src/db/tilt-schema";
 import { DAILY_REWARD_TARGET } from "@/src/lib/tilt/reward-config";
 
+export const revalidate = 60;
+
 const TILT_JWT_SECRET = new TextEncoder().encode(
   process.env.TILT_JWT_SECRET ?? "tilt-fallback-secret-change-in-production",
 );

@@ -19,6 +19,7 @@ import {
   getSessionFromId,
 } from "@/src/lib/tilt/get-session-from-cookie";
 import { hashPhone, normalisePhone } from "@/src/lib/tilt/phone";
+import { checkRateLimit, getIp } from "@/src/lib/tilt/rate-limit";
 
 type ErrorResponse = {
   error: string;
@@ -42,6 +43,12 @@ function readTrimmedString(body: Record<string, unknown>, key: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getIp(req);
+    // Limit to 10 registrations per minute per IP to prevent spam bots
+    if (!checkRateLimit(`register_${ip}`, 10, 60000)) {
+        return jsonError(429, "Too many requests. Please try again later.", "RATE_LIMITED");
+    }
+
     const body = (await req.json().catch(() => ({}))) as Record<
       string,
       unknown
