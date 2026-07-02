@@ -1395,7 +1395,7 @@ export default function ParticipantPage() {
       <div className="border-t border-black/8 px-8 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/25">
-            Arbitrary × Tuborg
+            TiltYourMusic × Arbitrary
           </p>
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black/25">
             {existing.song && existing.dance
