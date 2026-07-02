@@ -135,18 +135,27 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                     if (existingUser) {
                         const updateData: Record<string, string | boolean | Date | null | undefined> = {
                             name: user.name,
-                            image: user.image,
                             lastLoginAt: new Date(),
                             isVerified: true,
                         };
-                        if (account.provider === "google" && !existingUser.googleId) {
-                            updateData.googleId = account.providerAccountId;
+                        // Only set the active avatar if the user doesn't already have one
+                        if (!existingUser.image) {
+                            updateData.image = user.image;
+                        }
+                        if (account.provider === "google") {
+                            if (!existingUser.googleId) {
+                                updateData.googleId = account.providerAccountId;
+                            }
                             if (account.refresh_token) {
                                 updateData.googleRefreshToken = encryptToken(account.refresh_token);
                             }
+                            // Always keep the stored Google avatar fresh
+                            updateData.googleImage = user.image;
                         }
                         if (account.provider === "facebook") {
                             updateData.facebookId = account.providerAccountId;
+                            // Always keep the stored Facebook avatar fresh
+                            updateData.facebookImage = user.image;
                         }
                         await db
                             .update(usersTable)
@@ -160,6 +169,8 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                             googleId: account.provider === "google" ? account.providerAccountId : null,
                             googleRefreshToken: account.provider === "google" && account.refresh_token ? encryptToken(account.refresh_token) : null,
                             facebookId: account.provider === "facebook" ? account.providerAccountId : null,
+                            googleImage: account.provider === "google" ? user.image : null,
+                            facebookImage: account.provider === "facebook" ? user.image : null,
                             provider: account.provider,
                             role: "USER",
                             lastLoginAt: new Date(),
@@ -202,7 +213,9 @@ export const authOptions: import("next-auth").NextAuthOptions = {
 
             if (account?.provider === "google") {
                 token.googleAccessToken = account.access_token;
-                token.googleRefreshToken = account.refresh_token;
+                if (account.refresh_token) {
+                    token.googleRefreshToken = account.refresh_token;
+                }
                 token.googleTokenExpiry = account.expires_at;
             }
 
@@ -265,6 +278,8 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                     }
                     if (dbUser.facebookId) token.facebookId = dbUser.facebookId;
                     if (dbUser.instagramUsername) token.instagramUsername = dbUser.instagramUsername;
+                    token.googleImage = dbUser.googleImage ?? undefined;
+                    token.facebookImage = dbUser.facebookImage ?? undefined;
                 } else if (trigger === "signIn") {
                     console.warn("JWT signIn: DB user not found for email", token.email);
                 }
@@ -290,6 +305,8 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                 session.user.instagramUsername = token.instagramUsername as string | undefined;
                 session.user.facebookId = token.facebookId as string;
                 session.user.facebookAccessToken = token.facebookAccessToken as string | undefined;
+                session.user.googleImage = token.googleImage as string | undefined;
+                session.user.facebookImage = token.facebookImage as string | undefined;
             }
             return session;
         },

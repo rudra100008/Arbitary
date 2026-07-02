@@ -249,6 +249,9 @@ export default function ProfilePage() {
                 googleId={user?.googleId}
                 facebookId={session?.user?.facebookId}
                 instagramUsername={session?.user?.instagramUsername}
+                googleImage={session?.user?.googleImage}
+                facebookImage={session?.user?.facebookImage}
+                image={user?.image}
                 onUpdateSession={update}
               />
             )}

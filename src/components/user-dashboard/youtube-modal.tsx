@@ -49,6 +49,37 @@ export function YoutubeModal({
   const reportingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const videoId = getYoutubeId(url);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevRequiredSeconds, setPrevRequiredSeconds] = useState(requiredSeconds);
+  const [prevVideoId, setPrevVideoId] = useState(videoId);
+
+  if (
+    isOpen !== prevIsOpen ||
+    requiredSeconds !== prevRequiredSeconds ||
+    videoId !== prevVideoId
+  ) {
+    setPrevIsOpen(isOpen);
+    setPrevRequiredSeconds(requiredSeconds);
+    setPrevVideoId(videoId);
+    if (isOpen) {
+      setWatchedSeconds(0);
+      setIsPlaying(false);
+      setIsCompleted(false);
+      setPlayerReady(false);
+      setSessionError(null);
+      setLocalRequiredSeconds(requiredSeconds);
+    }
+  }
+
+  // Update refs outside of the render phase to comply with React's strict mode and eslint rules
+  useEffect(() => {
+    if (isOpen) {
+      watchedSecondsRef.current = 0;
+      completedRef.current = false;
+    }
+  }, [isOpen, videoId]);
+
   const startSession = useCallback(async () => {
     if (sessionIdRef.current) return sessionIdRef.current;
 
@@ -196,16 +227,17 @@ export function YoutubeModal({
     [taskId, startSession, handleComplete],
   );
 
-  const videoId = getYoutubeId(url);
-
   // Portal mount
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional:
   // createPortal needs document.body, which only exists client-side. This
   // one-time flag is the standard way to detect "mounted on client" and
   // unavoidably costs one extra render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    return () => setMounted(false);
+    return () => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMounted(false);
+    };
   }, []);
 
   // Lock body scroll when open
@@ -220,19 +252,7 @@ export function YoutubeModal({
     };
   }, [isOpen]);
 
-  // Session reset on modal open (preserve existing sessionId for resume)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    setWatchedSeconds(0);
-    watchedSecondsRef.current = 0;
-    setIsPlaying(false);
-    setIsCompleted(false);
-    setPlayerReady(false);
-    completedRef.current = false;
-    setSessionError(null);
-    setLocalRequiredSeconds(requiredSeconds);
-  }, [isOpen, requiredSeconds]);
+  // Session reset on modal open is handled during render phase above.
 
   // Pause session and cancel in-flight requests on modal close
   useEffect(() => {
@@ -256,7 +276,7 @@ export function YoutubeModal({
         if (playerRef.current) {
           try {
             playerRef.current.pauseVideo();
-          } catch (_) {}
+          } catch {}
         }
         isPausedByVisibilityRef.current = true;
         setIsPlaying(false);
@@ -273,13 +293,6 @@ export function YoutubeModal({
   // Init / destroy YouTube player
   useEffect(() => {
     if (!isOpen || !videoId) return;
-
-    setWatchedSeconds(0);
-    watchedSecondsRef.current = 0;
-    setIsPlaying(false);
-    setIsCompleted(false);
-    setPlayerReady(false);
-    completedRef.current = false;
 
     function initPlayer() {
       if (playerRef.current) {
@@ -346,7 +359,7 @@ export function YoutubeModal({
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
-        } catch (_) {}
+        } catch {}
         playerRef.current = null;
       }
       setPlayerReady(false);

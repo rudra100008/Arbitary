@@ -177,7 +177,7 @@ export async function hasMxRecord(domain: string): Promise<boolean> {
 export async function validateEmailDomain(
   domain: string,
 ): Promise<{ valid: true } | { valid: false; correctedTo: string | null }> {
-  let lower = domain.toLowerCase();
+  const lower = domain.toLowerCase();
 
   const tldFixed = fixCommonTld(lower);
   if (tldFixed !== lower) {

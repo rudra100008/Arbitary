@@ -1,47 +1,17 @@
 import { getServerSession } from "next-auth";
-import { encode, decode } from "next-auth/jwt";
-import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { authOptions } from "@/src/auth";
 import { db } from "@/src/db";
 import { usersTable } from "@/src/db/schema";
 import { encryptToken, decryptToken } from "@/src/lib/token-crypto";
+import { updateJwtToken } from "@/src/lib/jwt-session";
 import { ServiceResult, ok, fail } from "./result";
 
-async function updateJwtToken(updates: Record<string, unknown>): Promise<void> {
-  try {
-    const cookieStore = await cookies();
-    const secret = process.env.NEXTAUTH_SECRET!;
-    const nextAuthUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const secure = nextAuthUrl.startsWith("https://");
-    const cookieName = secure ? "__Secure-next-auth.session-token" : "next-auth.session-token";
-    const maxAge = 30 * 24 * 60 * 60;
-
-    const currentCookie = cookieStore.get(cookieName)?.value;
-    if (!currentCookie) return;
-
-    const current = await decode({ token: currentCookie, secret });
-    if (!current) return;
-
-    const updated = { ...current, ...updates };
-    const newToken = await encode({ token: updated, secret, maxAge });
-
-    cookieStore.set(cookieName, newToken, {
-      httpOnly: true,
-      secure,
-      sameSite: "lax",
-      maxAge,
-      path: "/",
-    });
-  } catch (e) {
-    console.error("JWT update failed:", e);
-  }
-}
 
 export const YouTubeService = {
   async getAccessToken(): Promise<ServiceResult<string>> {
     const session = await getServerSession(authOptions);
-    const s = session as any;
+    const s = session as typeof session & { googleAccessToken?: string, googleTokenExpiry?: number, googleRefreshToken?: string };
     const token = s?.googleAccessToken;
     if (!token) return fail("YouTube not linked. Sign in with Google.", 401);
 
@@ -55,7 +25,7 @@ export const YouTubeService = {
 
   async getAuthorizedClient(userId: number): Promise<ServiceResult<string>> {
     const session = await getServerSession(authOptions);
-    const s = session as any;
+    const s = session as typeof session & { googleAccessToken?: string, googleTokenExpiry?: number, googleRefreshToken?: string };
     let token: string | undefined = s?.googleAccessToken;
     let expiry: number | undefined = s?.googleTokenExpiry;
     let refreshToken: string | undefined = s?.googleRefreshToken;
@@ -115,6 +85,7 @@ export const YouTubeService = {
           }
         } else {
           console.error(`[youtube] getAuthorizedClient: refresh returned no access_token:`, data);
+          return fail("Your Google connection expired. Please reconnect your account in settings.", 401);
         }
       } catch {
         return fail("Failed to refresh Google token. Sign out and sign back in.", 401);
@@ -224,7 +195,7 @@ export const YouTubeService = {
       const commentsData = await commentsRes.json();
 
       return commentsData.items?.some(
-        (item: any) =>
+        (item: { snippet?: { topLevelComment?: { snippet?: { authorChannelId?: { value?: string } } } } }) =>
           item.snippet?.topLevelComment?.snippet?.authorChannelId?.value === myChannelId,
       ) ?? false;
     } catch (e) {

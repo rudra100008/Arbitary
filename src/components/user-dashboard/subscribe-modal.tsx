@@ -21,6 +21,7 @@ export function SubscribeModal({
   const [error, setError] = useState("");
   const [needsScreenshot, setNeedsScreenshot] = useState(false);
   const [privacyBlocked, setPrivacyBlocked] = useState(false);
+  const [needsGoogleLink, setNeedsGoogleLink] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -49,6 +50,7 @@ export function SubscribeModal({
     setError("");
     setPrivacyBlocked(false);
     setNeedsScreenshot(false);
+    setNeedsGoogleLink(false);
     try {
       const res = await fetch("/api/user/tasks/youtube-complete", {
         method: "POST",
@@ -57,6 +59,12 @@ export function SubscribeModal({
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 401) {
+          setNeedsGoogleLink(true);
+          setError(data.error || "Link your YouTube account");
+          setVerifying(false);
+          return;
+        }
         throw new Error(data.error || "Verification failed");
       }
       if (data.privacyBlocked) {
@@ -169,6 +177,23 @@ export function SubscribeModal({
               </div>
               <p className="text-lg font-black text-emerald-600">Subscribed!</p>
               <p className="text-sm text-gray-500">Points have been awarded.</p>
+            </div>
+          ) : needsGoogleLink ? (
+            <div className="flex flex-col gap-4">
+              <div className="p-3 bg-red-50 rounded-2xl border border-red-200">
+                <p className="text-xs font-bold text-red-700">
+                  Your YouTube account is not linked.
+                </p>
+                <p className="text-xs text-red-600 mt-1">
+                  {error || "Link your Google account in profile settings."}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-full py-3 px-5 bg-gray-500 hover:bg-gray-600 text-white font-bold text-sm rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm"
+              >
+                Close
+              </button>
             </div>
           ) : privacyBlocked ? (
             <div className="flex flex-col gap-4">

@@ -15,13 +15,19 @@ const AdminLoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // If already logged in as admin, redirect to dashboard
+  // If already logged in as admin, redirect to dashboard or callbackUrl
   useEffect(() => {
     if (
       status === "authenticated" &&
       session?.user?.role === "ADMIN"
     ) {
-      router.replace("/admin/dashboard");
+      const urlParams = new URLSearchParams(window.location.search);
+      const callbackUrl = urlParams.get("callbackUrl");
+      if (callbackUrl && callbackUrl.startsWith("/")) {
+        router.replace(callbackUrl);
+      } else {
+        router.replace("/admin/dashboard");
+      }
     }
   }, [status, session, router]);
 
@@ -59,7 +65,13 @@ const AdminLoginPage = () => {
           return;
         }
 
-        router.push("/admin/dashboard");
+        const urlParams = new URLSearchParams(window.location.search);
+        const callbackUrl = urlParams.get("callbackUrl");
+        if (callbackUrl && callbackUrl.startsWith("/")) {
+          router.push(callbackUrl);
+        } else {
+          router.push("/admin/dashboard");
+        }
       }
     } catch {
       setError("Something went wrong. Please try again.");

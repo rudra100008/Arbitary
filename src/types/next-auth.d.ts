@@ -18,8 +18,9 @@ declare module "next-auth" {
             instagramUsername?: string | null;
             googleId?: string | null;
             facebookId?: string;
-            facebookId?: string;
             facebookAccessToken?: string;
+            googleImage?: string | null;
+            facebookImage?: string | null;
         } & DefaultSession["user"];
     }
 
@@ -38,5 +39,7 @@ declare module "next-auth/jwt" {
         googleRefreshToken?: string;
         googleTokenExpiry?: number;
         instagramUsername?: string | null;
+        googleImage?: string | null;
+        facebookImage?: string | null;
     }
 }

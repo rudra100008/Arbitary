@@ -2,7 +2,8 @@
 import { type ImageAnalysis } from "@/src/hooks/useScreenshotUpload";
 // task-list.tsx
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { TaskCard } from "./task-card";
 import { UserTaskItem } from "@/src/services/task.service";
 
@@ -43,6 +44,8 @@ type TaskListProps = {
   hasMore?: boolean;
   loadingMore?: boolean;
   streak?: number;
+  justClaimedTaskId?: number | null;
+  onScrollComplete?: () => void;
 };
 
 function TaskSection({
@@ -67,8 +70,9 @@ function TaskSection({
   | "activeTab"
   | "isAnimating"
   | "slideDirection"
+  | "justClaimedTaskId"
+  | "onScrollComplete"
 >) {
-  if (tasks.length === 0) return null;
   return (
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-2.5 px-0.5">
@@ -145,6 +149,8 @@ export function TaskList({
   hasMore,
   loadingMore,
   streak = 0,
+  justClaimedTaskId,
+  onScrollComplete,
   ...cardProps
 }: TaskListProps) {
   const [difficultyFilter, setDifficultyFilter] = useState<string>("all");
@@ -187,6 +193,38 @@ export function TaskList({
   // Whether any client-side filter is active (used for the "clear" helper)
   const hasActiveFilter =
     recurrenceFilter !== "all" || difficultyFilter !== "all";
+
+  const prefersReducedMotion = useReducedMotion();
+
+  // Fixed order: In Progress → Rejected → Available (always)
+  const sections = useMemo(() => {
+    const list = [];
+    if (inProgressTasks.length > 0) {
+      list.push({
+        key: "inProgress" as const,
+        title: "In Progress",
+        accentColor: "bg-orange-400 animate-pulse",
+        tasks: inProgressTasks,
+      });
+    }
+    if (rejectedTasks.length > 0) {
+      list.push({
+        key: "rejected" as const,
+        title: "Rejected",
+        accentColor: "bg-red-400",
+        tasks: rejectedTasks,
+      });
+    }
+    if (filteredAvailable.length > 0) {
+      list.push({
+        key: "available" as const,
+        title: "Available",
+        accentColor: "bg-slate-300",
+        tasks: filteredAvailable,
+      });
+    }
+    return list;
+  }, [inProgressTasks, rejectedTasks, filteredAvailable]);
 
   return (
     <div className="px-5 pb-6 min-h-64">
@@ -284,27 +322,41 @@ export function TaskList({
               </div>
             )}
 
-            <TaskSection
-              title="In Progress"
-              accentColor="bg-orange-400 animate-pulse"
-              tasks={inProgressTasks}
-              streak={streak}
-              {...cardProps}
-            />
-            <TaskSection
-              title="Rejected"
-              accentColor="bg-red-400"
-              tasks={rejectedTasks}
-              streak={streak}
-              {...cardProps}
-            />
-            <TaskSection
-              title="Available"
-              accentColor="bg-slate-300"
-              tasks={filteredAvailable}
-              streak={streak}
-              {...cardProps}
-            />
+            <motion.div layout={!prefersReducedMotion}>
+              <AnimatePresence initial={false}>
+                {sections.map((sec) => (
+                  <motion.div
+                    key={sec.key}
+                    layout={!prefersReducedMotion}
+                    initial={prefersReducedMotion ? false : { opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    onAnimationComplete={() => {
+                      if (
+                        sec.key === "inProgress" &&
+                        justClaimedTaskId &&
+                        onScrollComplete
+                      ) {
+                        const el = document.getElementById(`task-card-${justClaimedTaskId}`);
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }
+                        onScrollComplete();
+                      }
+                    }}
+                  >
+                    <TaskSection
+                      title={sec.title}
+                      accentColor={sec.accentColor}
+                      tasks={sec.tasks}
+                      streak={streak}
+                      {...cardProps}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
 
             {/* Empty state when filters narrow to zero but tasks exist elsewhere */}
             {filteredAvailable.length === 0 &&

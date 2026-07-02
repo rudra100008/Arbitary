@@ -400,7 +400,16 @@ export const TaskService = {
         ),
       );
 
-    const activeTaskIds = activeUserTasksRows
+    // Filter out expired recurring tasks from active tasks so they appear in 'available' instead
+    const validActiveUserTasksRows = activeUserTasksRows.filter((row) => {
+      return !(
+        row.tasks.isRecurring &&
+        row.user_tasks.assignedAt &&
+        row.user_tasks.assignedAt < todayStart
+      );
+    });
+
+    const activeTaskIds = validActiveUserTasksRows
       .map((r) => r.tasks.id)
       .filter((id): id is number => id !== null);
 
@@ -496,7 +505,7 @@ export const TaskService = {
 
     // ── Map active tasks through mapTasksToItems ──
     const activeMapped = mapTasksToItems({
-      tasks: activeUserTasksRows.map((r) => r.tasks),
+      tasks: validActiveUserTasksRows.map((r) => r.tasks),
       userTasksMap,
       shareTaskMap,
       dailyLoginStr,
@@ -785,7 +794,16 @@ export const TaskService = {
           ),
         );
 
-      if (existingActiveTasks.length > 0) {
+      // Filter out any active tasks that are expired recurring tasks
+      const actuallyActive = existingActiveTasks.filter((row) => {
+        return !(
+          row.task.isRecurring &&
+          row.userTask.assignedAt &&
+          row.userTask.assignedAt < todayStart
+        );
+      });
+
+      if (actuallyActive.length > 0) {
         return fail(
           `You can only pick up one ${targetTask.taskType} task at a time.`,
           400,
@@ -1244,7 +1262,7 @@ export const TaskService = {
     if (isYtSubscribe(task) || isYtLike(task) || isYtComment(task)) {
       const tokenResult = await YouTubeService.getAuthorizedClient(userId);
       if (!tokenResult.success) {
-        return fail("Link your YouTube account in settings first", 401);
+        return fail(tokenResult.error || "Link your YouTube account in settings first", 401);
       }
       const accessToken = tokenResult.data;
 

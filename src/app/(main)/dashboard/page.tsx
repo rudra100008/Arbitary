@@ -48,6 +48,7 @@ function DashboardInner() {
   const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>(
     {},
   );
+  const [justClaimedTaskId, setJustClaimedTaskId] = useState<number | null>(null);
   const [slideDirection, setSlideDirection] = useState<"left" | "right">(
     "right",
   );
@@ -144,6 +145,7 @@ function DashboardInner() {
     },
     onSuccess: (_data, variables) => {
       toast.success("Task picked up!");
+      setJustClaimedTaskId(variables.taskId);
       queryClient.invalidateQueries({
         queryKey: ["user-tasks", "dashboard", variables.tab],
         exact: true,
@@ -681,6 +683,8 @@ function DashboardInner() {
                   slideDirection={slideDirection}
                   expandedTasks={expandedTasks}
                   onToggleExpand={toggleExpand}
+                  justClaimedTaskId={justClaimedTaskId}
+                  onScrollComplete={() => setJustClaimedTaskId(null)}
                   onPickup={(id) =>
                     pickupMutation.mutate({ taskId: id, tab: activeTab })
                   }

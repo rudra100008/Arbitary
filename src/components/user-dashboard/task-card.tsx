@@ -281,6 +281,7 @@ export function TaskCard({
 
   return (
     <motion.div
+      id={`task-card-${task.id}`}
       ref={cardRef}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}

@@ -13,6 +13,9 @@ interface SettingsTabProps {
   googleId?: string | null;
   facebookId?: string;
   instagramUsername?: string | null;
+  googleImage?: string | null;
+  facebookImage?: string | null;
+  image?: string | null;
   onUpdateSession?: () => void;
 }
 
@@ -22,6 +25,9 @@ export default function SettingsTab({
   googleId,
   facebookId,
   instagramUsername,
+  googleImage,
+  facebookImage,
+  image,
   onUpdateSession,
 }: SettingsTabProps) {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -31,6 +37,28 @@ export default function SettingsTab({
   const [passwordError, setPasswordError] = useState("");
   const [igUsername, setIgUsername] = useState(instagramUsername || "");
   const [isSavingIg, setIsSavingIg] = useState(false);
+  const [switchingAvatar, setSwitchingAvatar] = useState<"google" | "facebook" | null>(null);
+
+  const handleSwitchAvatar = async (source: "google" | "facebook") => {
+    setSwitchingAvatar(source);
+    try {
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || "Failed to switch avatar");
+      }
+      toast.success("Profile picture updated!");
+      onUpdateSession?.();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to switch avatar");
+    } finally {
+      setSwitchingAvatar(null);
+    }
+  };
 
   const changePasswordMutation = useMutation({
     mutationFn: async () => {
@@ -79,6 +107,57 @@ export default function SettingsTab({
         <SectionHeader label="Account" title="Settings" />
 
         <div className="px-6 pb-6">
+
+          {/* ── Avatar Switcher ────────────────────────────────────────────── */}
+          {(googleImage || facebookImage) && (googleImage !== facebookImage) && (
+            <div className="mb-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 mb-3">
+                Profile Picture
+              </p>
+              <div className="flex gap-3">
+                {googleImage && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <button
+                      onClick={() => handleSwitchAvatar("google")}
+                      disabled={!!switchingAvatar}
+                      className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-60
+                                 ${image === googleImage ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200 hover:border-emerald-400"}`}
+                      title="Use Google profile photo"
+                    >
+                      <img src={googleImage} alt="Google avatar" className="w-full h-full object-cover" />
+                      {switchingAvatar === "google" && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </button>
+                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide">Google</span>
+                  </div>
+                )}
+                {facebookImage && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <button
+                      onClick={() => handleSwitchAvatar("facebook")}
+                      disabled={!!switchingAvatar}
+                      className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-60
+                                 ${image === facebookImage ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200 hover:border-[#1877F2]"}`}
+                      title="Use Facebook profile photo"
+                    >
+                      <img src={facebookImage} alt="Facebook avatar" className="w-full h-full object-cover" />
+                      {switchingAvatar === "facebook" && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </button>
+                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide">Facebook</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-2">Click a photo to set it as your active profile picture.</p>
+            </div>
+          )}
+
           <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 mb-3">
             Connected Accounts
           </p>
@@ -125,12 +204,22 @@ export default function SettingsTab({
                 </div>
               </div>
               {googleId ? (
-                <span
-                  className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
-                             bg-emerald-50 text-emerald-600 border border-emerald-100"
-                >
-                  Connected
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                               bg-emerald-50 text-emerald-600 border border-emerald-100"
+                  >
+                    Connected
+                  </span>
+                  <button
+                    onClick={() => signIn("google", { callbackUrl: window.location.href })}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                               bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200
+                               transition-all duration-200 hover:scale-105 active:scale-95"
+                  >
+                    Reconnect
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => signIn("google", { callbackUrl: window.location.href })}
@@ -170,16 +259,25 @@ export default function SettingsTab({
                   </p>
                 </div>
               </div>
- <span
-    className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
-                    ${
-                      facebookId
-                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                        : "bg-gray-100 text-gray-400"
-                    }`}
-  >
-    {facebookId ? "Connected" : "Not linked"}
-  </span>            </div>
+ <div className="flex items-center gap-2">
+                  {facebookId ? (
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                          bg-emerald-50 text-emerald-600 border border-emerald-100`}
+                    >
+                      Connected
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => signIn("facebook", { callbackUrl: window.location.href })}
+                      className="text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider
+                                 bg-[#1877F2] text-white hover:bg-blue-700
+                                 transition-all duration-200 hover:scale-105 active:scale-95"
+                    >
+                      Link
+                    </button>
+                  )}
+                </div>            </div>
 
             {/* Instagram */}
             <div
