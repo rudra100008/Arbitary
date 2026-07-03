@@ -37,13 +37,26 @@ export default function MainLayout({
   // role-casing inconsistencies found across the codebase.
   useEffect(() => {
     if (status !== "authenticated") return;
-    const userRole = ((session?.user as any)?.role ?? "")
-      .toString()
-      .toUpperCase();
+    const userRole = (session?.user?.role ?? "").toString().toUpperCase();
     if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
       router.push("/admin/dashboard");
     }
   }, [status, session, router]);
+
+  // Backfill redirect: existing users who signed up before the
+  // age-verification requirement was introduced have no dateOfBirth on
+  // file. Send them to complete it before they can use the rest of the
+  // app. Skipped for admins (handled by the redirect above) and while
+  // already on the backfill page itself.
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const userRole = (session?.user?.role ?? "").toString().toUpperCase();
+    if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") return;
+    if (pathname.startsWith("/complete-birthday")) return;
+    if (!session?.user?.dateOfBirth) {
+      router.push("/complete-birthday");
+    }
+  }, [status, session, pathname, router]);
 
   // Real-time notifications — start SSE FIRST so the connection is open
   // before useDailyLogin fires and the server calls NotificationService.deliver().
@@ -57,7 +70,7 @@ export default function MainLayout({
   // goes out — otherwise the server sees no live listener and can only fall
   // back to email for the notification.
   const userId =
-    status === "authenticated" ? ((session?.user as any)?.id ?? null) : null;
+    status === "authenticated" ? (session?.user?.id ?? null) : null;
   useDailyLogin({ userId });
 
   const showFooter = !NO_FOOTER_ROUTES.some((route) =>

@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/src/auth";
 import { ServiceResult, fail, ok } from "./result";
+import { isEligibleAge } from "@/src/lib/age";
 
 export interface SessionUser {
   id: number;
@@ -9,6 +10,7 @@ export interface SessionUser {
   name?: string | null;
   image?: string | null;
   facebookId?: string;
+  dateOfBirth?: string | null;
 }
 
 export async function getOptionalUser(): Promise<SessionUser | null> {
@@ -22,6 +24,7 @@ export async function getOptionalUser(): Promise<SessionUser | null> {
     name: user.name,
     image: user.image,
     facebookId: user.facebookId,
+    dateOfBirth: user.dateOfBirth ?? null,
   };
 }
 
@@ -37,6 +40,21 @@ export async function requireAdmin(): Promise<ServiceResult<SessionUser>> {
   const role = user.role.toLowerCase();
   if (role !== "admin" && role !== "super_admin") {
     return fail("Forbidden: Admins only", 403);
+  }
+  return ok(user);
+}
+
+/**
+ * Like requireUser(), but additionally enforces the 21+ age gate for
+ * promotional participation. Checks the session's dateOfBirth (already
+ * loaded via the JWT — no extra DB hit). Missing/invalid birthdays are
+ * always treated as ineligible, never assumed eligible.
+ */
+export async function requireEligibleParticipant(): Promise<ServiceResult<SessionUser>> {
+  const user = await getOptionalUser();
+  if (!user) return fail("Unauthorized", 401);
+  if (!isEligibleAge(user.dateOfBirth)) {
+    return fail("You must be 21 or older to participate in this promotion", 403);
   }
   return ok(user);
 }

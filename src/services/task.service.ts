@@ -978,6 +978,25 @@ export const TaskService = {
     return ok({ message: "Task status updated" });
   },
 
+  /**
+   * Cheap, lock-free check for whether the user has already claimed today's
+   * daily login reward. Intended to run BEFORE the rate limiter, so that
+   * repeat/expected "already claimed" checks (e.g. from page reloads) never
+   * consume rate-limit budget that's meant to protect the write path.
+   *
+   * This is a plain read with no `FOR UPDATE` lock — it's a fast-path
+   * optimization only. The authoritative, race-safe check still happens
+   * inside claimDailyLogin's locked transaction below.
+   */
+  async hasDailyLoginClaimedToday(userId: number): Promise<boolean> {
+    const today = new Date().toISOString().split("T")[0];
+    const [existing] = await db
+      .select({ claimedAt: dailyLoginTable.claimedAt })
+      .from(dailyLoginTable)
+      .where(eq(dailyLoginTable.userId, userId));
+    return existing ? toDateStr(existing.claimedAt) === today : false;
+  },
+
   async claimDailyLogin(
     userId: number,
   ): Promise<ServiceResult<DailyLoginResult>> {
@@ -1000,7 +1019,7 @@ export const TaskService = {
 
       const lastClaimedStr = existing ? toDateStr(existing.claimedAt) : null;
       if (lastClaimedStr === today) {
-        return fail("You already claimed your daily login reward today", 429);
+        return fail("You already claimed your daily login reward today", 429, "ALREADY_CLAIMED");
       }
 
       const { newStreak, bonus } = calculateStreak(

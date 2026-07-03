@@ -16,6 +16,10 @@ const signupSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email format"),
   password: z.string().min(8, "Password must be at least 8 characters").max(100, "Password too long"),
+  dateOfBirth: z
+    .string()
+    .refine((val) => !Number.isNaN(new Date(val).getTime()), "Enter a valid date of birth")
+    .refine((val) => new Date(val).getTime() <= Date.now(), "Date of birth can't be in the future"),
   referralCode: z.string().max(20).optional(),
   fingerprint: z.string().max(255).optional(),
   turnstileToken: z.string().optional(),
