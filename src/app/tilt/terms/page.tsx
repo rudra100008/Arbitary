@@ -43,13 +43,12 @@ export default function TiltTermsPage() {
             your explicit consent.
           </p>
 
+          {/* Adjusted to general "Rewards & Experiences" and simplified winner text */}
           <h2 style={{ color: "#c8e63c", fontSize: "13px", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>
-            Prizes
+            Rewards & Experiences
           </h2>
           <p>
-            Prizes are awarded at the discretion of Tilt Your Music and
-            participating outlets. Instant rewards are valid only at the outlet
-            where the entry was submitted and are non-transferable.
+            Instant rewards are valid only at the outlet where the entry was submitted, are subject to availability, and are non-transferable. Selection of the winners for the main experience is conducted at the sole discretion of Tilt Your Music, and the rewards cannot be exchanged for cash or material alternatives.
           </p>
 
           <h2 style={{ color: "#c8e63c", fontSize: "13px", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>
