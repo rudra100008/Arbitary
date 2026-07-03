@@ -110,7 +110,6 @@ export default function TiltPage() {
   const [phoneValue, setPhoneValue] = useState("");
   const [emailValue, setEmailValue] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [dataConsent, setDataConsent] = useState(false);
 
   const validatePhone = useCallback((value: string): string | null => {
     const normalised = normalisePhone(value, "977");
@@ -282,12 +281,6 @@ export default function TiltPage() {
       return;
     }
 
-    if (!dataConsent) {
-      setError("You must agree to the collection and processing of your personal data.");
-      setIsLoading(false);
-      return;
-    }
-
     const fd = new FormData(e.currentTarget);
     const data = {
       full_name: fd.get("full_name") as string,
@@ -296,7 +289,7 @@ export default function TiltPage() {
       address: fd.get("address") as string,
       sid: sidFallback,
       age_confirmed: ageConfirmed,
-      data_consent: dataConsent,
+      data_consent: true,
     };
 
     try {
@@ -329,7 +322,6 @@ export default function TiltPage() {
           PHONE_ALREADY_ENTERED:
             "This phone number has already been entered for this campaign.",
           UNDERAGE: "You must be 21 or older to enter.",
-          CONSENT_REQUIRED: "You must agree to data processing.",
           INTERNAL_ERROR: "Something went wrong. Please try again.",
         };
 
@@ -801,34 +793,28 @@ export default function TiltPage() {
                     flexShrink: 0,
                   }}
                 />
-                I confirm I am 21 or older
+                I confirm that I am 21 years of age or older
               </label>
-              <label
+              <div
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "10px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  color: "rgba(255,255,255,0.7)",
-                  lineHeight: 1.4,
+                  fontSize: "11px",
+                  color: "rgba(255,255,255,0.5)",
+                  lineHeight: 1.5,
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={dataConsent}
-                  onChange={(e) => setDataConsent(e.target.checked)}
-                  style={{
-                    marginTop: "2px",
-                    accentColor: "#c8e63c",
-                    width: "16px",
-                    height: "16px",
-                    flexShrink: 0,
-                  }}
-                />
-                I agree to the collection and processing of my personal data for
-                the purpose of this lottery campaign
-              </label>
+                By clicking "Register", you agree to our{" "}
+                <a
+                  href="/tilt/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#c8e63c", textDecoration: "underline" }}
+                >
+                  Terms of participation
+                </a>
+                . We will use your email and phone number strictly to manage
+                your entry, prevent duplicate accounts, and contact you if
+                you win.
+              </div>
             </motion.div>
 
             <motion.div
