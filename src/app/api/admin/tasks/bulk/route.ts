@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
 
   const result = await TaskService.bulkCreateTasks(parsed.data.tasks);
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+    return NextResponse.json(
+      { error: result.error, code: result.code },
+      { status: result.status ?? 500 },
+    );
   }
 
   return NextResponse.json(

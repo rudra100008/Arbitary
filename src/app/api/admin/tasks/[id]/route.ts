@@ -51,7 +51,10 @@ export async function PUT(
 
   const result = await TaskService.updateTask(taskId, parsed.data);
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 404 });
+    return NextResponse.json(
+      { error: result.error, code: result.code },
+      { status: result.status ?? 404 },
+    );
   }
 
   return NextResponse.json(

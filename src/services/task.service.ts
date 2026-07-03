@@ -32,6 +32,13 @@ import type { Task, UserTask } from "@/src/types/db";
 import { TASK_STATUS } from "@/src/lib/constants/task-status";
 import { NotificationService } from "./notification.service";
 import { submissionRejectedEmailHtml } from "@/src/lib/emails/submission-rejected";
+import { FeatureFlagService, TogglePlatform } from "./feature-flag.service";
+
+/** Platforms that are gated by a feature flag ("facebook" | "instagram"). */
+function asToggleablePlatform(platform: string | null | undefined): TogglePlatform | null {
+  if (platform === "facebook" || platform === "instagram") return platform;
+  return null;
+}
 
 export type UserTaskItem = {
   id: number;
@@ -199,8 +206,26 @@ export const TaskService = {
     const today = new Date().toISOString().split("T")[0];
     const dailyLoginStr = toDateStr(user?.dailyLoginDate);
 
+    // Never show tasks for a disabled platform in the "available" list —
+    // users shouldn't be able to pick up something they can't complete.
+    // (Completed history is left alone: a task the user already finished
+    // should still show up there even if the platform is later disabled.)
+    const disabledPlatforms: TogglePlatform[] = [];
+    if (filter === 'available' || filter === undefined) {
+      const flagsResult = await FeatureFlagService.getFlags();
+      if (flagsResult.success) {
+        for (const platform of ["facebook", "instagram"] as TogglePlatform[]) {
+          if (!flagsResult.data[platform]) disabledPlatforms.push(platform);
+        }
+      }
+    }
+
     // Build WHERE conditions
     const conditions: (SQL | undefined)[] = [];
+
+    if (disabledPlatforms.length > 0) {
+      conditions.push(not(inArray(tasksTable.platform, disabledPlatforms)));
+    }
 
     if (filter === 'available' || filter === 'completed') {
       // Find tasks the user has Completed/Verified — with time-period awareness
@@ -415,6 +440,15 @@ export const TaskService = {
 
     // ── Available tasks (paginated) ──
     const availableConditions: (SQL | undefined)[] = [];
+
+    const dashboardFlagsResult = await FeatureFlagService.getFlags();
+    if (dashboardFlagsResult.success) {
+      const dashboardDisabledPlatforms: TogglePlatform[] = (["facebook", "instagram"] as TogglePlatform[])
+        .filter((platform) => !dashboardFlagsResult.data[platform]);
+      if (dashboardDisabledPlatforms.length > 0) {
+        availableConditions.push(not(inArray(tasksTable.platform, dashboardDisabledPlatforms)));
+      }
+    }
 
     if (taskType && taskType !== "all") {
       availableConditions.push(
@@ -715,6 +749,18 @@ export const TaskService = {
       const dlResult = await this.claimDailyLogin(userId);
       if (!dlResult.success) return dlResult;
       return ok({ message: dlResult.data.message });
+    }
+
+    const gatedPlatform = asToggleablePlatform(targetTask.platform);
+    if (gatedPlatform) {
+      const platformEnabled = await FeatureFlagService.isPlatformEnabled(gatedPlatform);
+      if (!platformEnabled) {
+        return fail(
+          `${gatedPlatform === "facebook" ? "Facebook" : "Instagram"} tasks are temporarily unavailable.`,
+          403,
+          "FEATURE_DISABLED",
+        );
+      }
     }
 
     const now = new Date();
@@ -1857,6 +1903,18 @@ export const TaskService = {
     expiresAt?: string | null;
     isRecurring?: boolean;
   }): Promise<ServiceResult<Task>> {
+    const gatedCreatePlatform = asToggleablePlatform(input.platform);
+    if (gatedCreatePlatform) {
+      const platformEnabled = await FeatureFlagService.isPlatformEnabled(gatedCreatePlatform);
+      if (!platformEnabled) {
+        return fail(
+          `${gatedCreatePlatform === "facebook" ? "Facebook" : "Instagram"} is currently disabled — enable it in Settings before creating tasks for it.`,
+          400,
+          "FEATURE_DISABLED",
+        );
+      }
+    }
+
     const resolvedTaskType =
       input.platform === "youtube" && input.watchDuration
         ? "VIDEO_WATCH"
@@ -1910,6 +1968,18 @@ export const TaskService = {
       isRecurring?: boolean;
     },
   ): Promise<ServiceResult<Task>> {
+    const gatedUpdatePlatform = asToggleablePlatform(input.platform);
+    if (gatedUpdatePlatform) {
+      const platformEnabled = await FeatureFlagService.isPlatformEnabled(gatedUpdatePlatform);
+      if (!platformEnabled) {
+        return fail(
+          `${gatedUpdatePlatform === "facebook" ? "Facebook" : "Instagram"} is currently disabled — enable it in Settings before saving tasks for it.`,
+          400,
+          "FEATURE_DISABLED",
+        );
+      }
+    }
+
     const resolvedTaskType =
       input.platform === "youtube" && input.watchDuration
         ? "VIDEO_WATCH"
@@ -1966,6 +2036,20 @@ export const TaskService = {
       isRecurring?: boolean;
     }>,
   ): Promise<ServiceResult<{ count: number }>> {
+    const bulkFlagsResult = await FeatureFlagService.getFlags();
+    if (bulkFlagsResult.success) {
+      for (const t of tasks) {
+        const gatedBulkPlatform = asToggleablePlatform(t.platform);
+        if (gatedBulkPlatform && !bulkFlagsResult.data[gatedBulkPlatform]) {
+          return fail(
+            `${gatedBulkPlatform === "facebook" ? "Facebook" : "Instagram"} is currently disabled — enable it in Settings before creating tasks for it.`,
+            400,
+            "FEATURE_DISABLED",
+          );
+        }
+      }
+    }
+
     const values = tasks.map((t) => {
       const resolvedTaskType =
         t.platform === "youtube" && t.watchDuration

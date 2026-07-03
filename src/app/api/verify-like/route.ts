@@ -1,5 +1,6 @@
 import { authOptions } from "@/src/auth";
 import { findCodeInComments } from "@/src/lib/facebook";
+import { FeatureFlagService } from "@/src/services/feature-flag.service";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -7,6 +8,14 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.facebookAccessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const facebookEnabled = await FeatureFlagService.isPlatformEnabled("facebook");
+  if (!facebookEnabled) {
+    return NextResponse.json(
+      { error: "Facebook tasks are temporarily unavailable.", code: "FEATURE_DISABLED" },
+      { status: 403 },
+    );
   }
 
   const body = await req.json().catch(() => ({}));

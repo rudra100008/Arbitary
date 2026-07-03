@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
 import { UserTaskItem } from "@/src/services/task.service";
+import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
 
 type FacebookModalProps = {
   task: UserTaskItem;
@@ -28,6 +29,8 @@ export function FacebookModal({
   const [codeLoading, setCodeLoading] = useState(false);
 
   const isConnected = !!session?.user?.facebookId;
+  const { flags } = usePlatformFlags();
+  const isPlatformDisabled = !flags.facebook;
 
   useEffect(() => {
     if (isOpen) {
@@ -41,7 +44,7 @@ export function FacebookModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && isConnected && task.id) {
+    if (isOpen && isConnected && task.id && !isPlatformDisabled) {
       setCodeLoading(true);
       fetch(`/api/user/tasks/facebook-complete?taskId=${task.id}`)
         .then(async (res) => {
@@ -68,11 +71,12 @@ export function FacebookModal({
           setCodeLoading(false);
         });
     }
-  }, [isOpen, isConnected, task.id]);
+  }, [isOpen, isConnected, task.id, isPlatformDisabled]);
 
   if (!isOpen) return null;
 
   const handleConnect = () => {
+    if (isPlatformDisabled) return;
     if (task?.id) {
       sessionStorage.setItem("facebook_pending_task_id", String(task.id));
     }
@@ -92,6 +96,7 @@ export function FacebookModal({
   };
 
   const handleVerify = async () => {
+    if (isPlatformDisabled) return;
     setVerifying(true);
     setError("");
     try {
@@ -157,7 +162,29 @@ export function FacebookModal({
 
         {/* Body */}
         <div className="p-6">
-          {verified ? (
+          {isPlatformDisabled ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
+                <svg
+                  className="w-7 h-7 text-amber-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                  />
+                </svg>
+              </div>
+              <p className="font-bold text-gray-800">Temporarily unavailable</p>
+              <p className="text-sm text-gray-500">
+                Facebook tasks are currently disabled. Please check back later.
+              </p>
+            </div>
+          ) : verified ? (
             <div className="flex flex-col items-center gap-3 py-6">
               <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
                 <svg

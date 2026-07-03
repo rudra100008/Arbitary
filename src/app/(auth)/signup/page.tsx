@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Script from "next/script";
 import FormInput from "@/src/components/layout/form-input";
+import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
 
 declare global {
   interface Window {
@@ -20,6 +21,8 @@ const errorMessages: Record<string, string> = {
   OAuthSignin: "Google sign-up failed. Please try again.",
   OAuthCallback: "Something went wrong during Google sign-up.",
   OAuthAccountNotLinked: "This email is already linked to another account.",
+  FACEBOOK_DISABLED:
+    "Facebook sign-up is temporarily unavailable. Please use Google or email instead.",
   Default: "An unexpected error occurred.",
 };
 
@@ -35,6 +38,7 @@ const UserSignupPage = () => {
   const refCode = searchParams.get("ref");
   const [agreed, setAgreed] = useState(false);
   const turnstileRef = useRef<HTMLDivElement>(null);
+  const { flags } = usePlatformFlags();
 
   useEffect(() => {
     setMounted(true);
@@ -550,35 +554,37 @@ const UserSignupPage = () => {
               </svg>
               {isLoading ? "Signing up…" : "Continue with Google"}
             </button>
-            <button
-              type="button"
-              onClick={handleFacebookSignup}
-              disabled={isLoading}
-              className="w-full py-2.5 px-3 flex items-center justify-center gap-2.5
+            {flags.facebook && (
+              <button
+                type="button"
+                onClick={handleFacebookSignup}
+                disabled={isLoading}
+                className="w-full py-2.5 px-3 flex items-center justify-center gap-2.5
                          text-sm font-medium text-gray-700
                          bg-white border border-gray-200 hover:border-gray-300
                          rounded-xl hover:bg-gray-50
                          transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]
                          disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg
-                width={16}
-                height={16}
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 1024 1024"
-                id="facebook"
               >
-                <path
-                  fill="#1877f2"
-                  d="M1024,512C1024,229.23016,794.76978,0,512,0S0,229.23016,0,512c0,255.554,187.231,467.37012,432,505.77777V660H302V512H432V399.2C432,270.87982,508.43854,200,625.38922,200,681.40765,200,740,210,740,210V336H675.43713C611.83508,336,592,375.46667,592,415.95728V512H734L711.3,660H592v357.77777C836.769,979.37012,1024,767.554,1024,512Z"
-                ></path>
-                <path
-                  fill="#fff"
-                  d="M711.3,660,734,512H592V415.95728C592,375.46667,611.83508,336,675.43713,336H740V210s-58.59235-10-114.61078-10C508.43854,200,432,270.87982,432,399.2V512H302V660H432v357.77777a517.39619,517.39619,0,0,0,160,0V660Z"
-                ></path>
-              </svg>
-              {isLoading ? "Signing in…" : "Continue with Facebook"}
-            </button>
+                <svg
+                  width={16}
+                  height={16}
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 1024 1024"
+                  id="facebook"
+                >
+                  <path
+                    fill="#1877f2"
+                    d="M1024,512C1024,229.23016,794.76978,0,512,0S0,229.23016,0,512c0,255.554,187.231,467.37012,432,505.77777V660H302V512H432V399.2C432,270.87982,508.43854,200,625.38922,200,681.40765,200,740,210,740,210V336H675.43713C611.83508,336,592,375.46667,592,415.95728V512H734L711.3,660H592v357.77777C836.769,979.37012,1024,767.554,1024,512Z"
+                  ></path>
+                  <path
+                    fill="#fff"
+                    d="M711.3,660,734,512H592V415.95728C592,375.46667,611.83508,336,675.43713,336H740V210s-58.59235-10-114.61078-10C508.43854,200,432,270.87982,432,399.2V512H302V660H432v357.77777a517.39619,517.39619,0,0,0,160,0V660Z"
+                  ></path>
+                </svg>
+                {isLoading ? "Signing in…" : "Continue with Facebook"}
+              </button>
+            )}
 
             <Script
               src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"

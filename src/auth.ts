@@ -12,6 +12,7 @@ import FacebookProvider from "next-auth/providers/facebook";
 import { ReferralService } from "@/src/services/referral.service";
 import { encryptToken, decryptToken } from "@/src/lib/token-crypto";
 import { cookies } from "next/headers";
+import { FeatureFlagService } from "@/src/services/feature-flag.service";
 
 export const authOptions: import("next-auth").NextAuthOptions = {
     providers: [
@@ -109,6 +110,13 @@ export const authOptions: import("next-auth").NextAuthOptions = {
 
     callbacks: {
         async signIn({ user, account, profile, email, credentials }) {
+            if (account?.provider === "facebook") {
+                const facebookEnabled = await FeatureFlagService.isPlatformEnabled("facebook");
+                if (!facebookEnabled) {
+                    console.warn("Rejected Facebook sign-in attempt: Facebook integration is currently disabled");
+                    return "/login?error=FACEBOOK_DISABLED";
+                }
+            }
             if (account?.provider === "google") {
                 try {
                     const existingByGoogleId = await db.query.usersTable.findFirst({

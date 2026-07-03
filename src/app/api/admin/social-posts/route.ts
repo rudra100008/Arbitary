@@ -115,7 +115,7 @@ async function fetchFacebookPosts(): Promise<SocialPost[]> {
 }
 
 async function fetchInstagramPosts(type?: string): Promise<SocialPost[]> {
-    const { InstagramService } = await import("@/src/lib/instagram");
+  const { InstagramService } = await import("@/src/lib/instagram");
 
   try {
     const media = await InstagramService.getInstagramMedia();
@@ -194,6 +194,20 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type");
   if (!platform || !FETCHERS[platform]) {
     return NextResponse.json({ error: "Invalid platform" }, { status: 400 });
+  }
+
+  if (platform === "facebook" || platform === "instagram") {
+    const { FeatureFlagService } = await import("@/src/services/feature-flag.service");
+    const platformEnabled = await FeatureFlagService.isPlatformEnabled(platform);
+    if (!platformEnabled) {
+      return NextResponse.json(
+        {
+          error: `${platform === "facebook" ? "Facebook" : "Instagram"} is currently disabled — enable it in Settings to browse posts.`,
+          code: "FEATURE_DISABLED",
+        },
+        { status: 403 },
+      );
+    }
   }
 
   try {

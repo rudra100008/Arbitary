@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { UserService } from "@/src/services/user.service";
+import { FeatureFlagService } from "@/src/services/feature-flag.service";
 import { z } from "zod";
 
 const profileUpdateSchema = z.object({
@@ -38,6 +39,16 @@ export async function PATCH(req: NextRequest) {
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
     );
+  }
+
+  if (parsed.data.instagramUsername !== undefined) {
+    const instagramEnabled = await FeatureFlagService.isPlatformEnabled("instagram");
+    if (!instagramEnabled) {
+      return NextResponse.json(
+        { error: "Instagram linking is temporarily unavailable.", code: "FEATURE_DISABLED" },
+        { status: 403 },
+      );
+    }
   }
 
   const result = await UserService.updateProfile(auth.data.id, parsed.data);

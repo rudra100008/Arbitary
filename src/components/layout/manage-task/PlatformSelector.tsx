@@ -1,4 +1,5 @@
 import { PLATFORMS, TaskSource } from "@/src/lib/manage-task/types";
+import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
 
 const FacebookIcon = ({ selected }: { selected: boolean }) => (
   <svg
@@ -107,11 +108,17 @@ type Props = {
 };
 
 export function PlatformSelector({ value, onChange }: Props) {
+  const { flags } = usePlatformFlags();
+
   const allSources: { value: TaskSource; label: string; color: string }[] = [
     { value: "manual", label: "Screenshot", color: "#18181b" },
     { value: "share", label: "Share", color: "#3b82f6" },
     ...PLATFORMS,
   ];
+
+  const isDisabled = (source: TaskSource) =>
+    (source === "facebook" && !flags.facebook) ||
+    (source === "instagram" && !flags.instagram);
 
   return (
     <div>
@@ -121,6 +128,7 @@ export function PlatformSelector({ value, onChange }: Props) {
       <div className="grid grid-cols-5 gap-2">
         {allSources.map((p) => {
           const isSelected = value === p.value;
+          const disabled = isDisabled(p.value);
 
           const Icon =
             p.value === "facebook"
@@ -137,14 +145,22 @@ export function PlatformSelector({ value, onChange }: Props) {
             <button
               key={p.value}
               type="button"
-              onClick={() => onChange(p.value)}
+              onClick={() => !disabled && onChange(p.value)}
+              disabled={disabled}
+              title={
+                disabled
+                  ? `${p.label} is currently disabled in Settings`
+                  : undefined
+              }
               className={`flex flex-col items-center gap-2 py-3.5 px-2 rounded-2xl border-2 text-xs font-bold tracking-wide transition-all duration-200 ${
-                isSelected
-                  ? "shadow-md scale-[1.03] text-white"
-                  : "border-black/5 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white hover:scale-[1.01]"
+                disabled
+                  ? "border-black/5 bg-zinc-50 text-zinc-300 opacity-50 cursor-not-allowed"
+                  : isSelected
+                    ? "shadow-md scale-[1.03] text-white"
+                    : "border-black/5 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white hover:scale-[1.01]"
               }`}
               style={
-                isSelected
+                isSelected && !disabled
                   ? p.value === "instagram"
                     ? {
                         background:
@@ -155,8 +171,13 @@ export function PlatformSelector({ value, onChange }: Props) {
                   : {}
               }
             >
-              <Icon selected={isSelected} />
+              <Icon selected={isSelected && !disabled} />
               <span>{p.label}</span>
+              {disabled && (
+                <span className="text-[8px] font-black uppercase tracking-wider text-zinc-400">
+                  Disabled
+                </span>
+              )}
             </button>
           );
         })}

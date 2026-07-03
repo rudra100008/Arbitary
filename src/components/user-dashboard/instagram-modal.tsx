@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
 import { UserTaskItem } from "@/src/services/task.service";
 import { Check, Copy, ExternalLink, Loader2, X } from "lucide-react";
+import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
 
 type InstagramModalProps = {
   task: UserTaskItem;
@@ -34,6 +35,8 @@ export function InstagramModal({
   const [isUploading, setIsUploading] = useState(false);
 
   const instagramUsername = session?.user?.instagramUsername;
+  const { flags } = usePlatformFlags();
+  const isPlatformDisabled = !flags.instagram;
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +50,7 @@ export function InstagramModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && task.id) {
+    if (isOpen && task.id && !isPlatformDisabled) {
       setCodeLoading(true);
       setError("");
       setNeedsScreenshot(false);
@@ -77,7 +80,7 @@ export function InstagramModal({
           setCodeLoading(false);
         });
     }
-  }, [isOpen, task.id]);
+  }, [isOpen, task.id, isPlatformDisabled]);
 
   if (!isOpen) return null;
 
@@ -94,6 +97,7 @@ export function InstagramModal({
   };
 
   const handleVerify = async () => {
+    if (isPlatformDisabled) return;
     setVerifying(true);
     setError("");
     try {
@@ -221,6 +225,13 @@ export function InstagramModal({
 
         {/* Body */}
         <div className="p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4">
+          {/* Platform disabled banner (defense-in-depth for a stale cached task) */}
+          {isPlatformDisabled && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-amber-700 text-xs sm:text-sm">
+              Instagram tasks are currently disabled. Please check back later.
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-red-600 text-xs sm:text-sm">
@@ -374,7 +385,7 @@ export function InstagramModal({
               {/* Verify button */}
               <button
                 onClick={handleVerify}
-                disabled={verifying || codeLoading}
+                disabled={verifying || codeLoading || isPlatformDisabled}
                 className="w-full py-3 sm:py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 transition-colors"
               >
                 {verifying ? (

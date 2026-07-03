@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import SectionHeader from "./section-header";
-
+import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
 
 interface SettingsTabProps {
   userEmail?: string | null;
@@ -37,7 +37,10 @@ export default function SettingsTab({
   const [passwordError, setPasswordError] = useState("");
   const [igUsername, setIgUsername] = useState(instagramUsername || "");
   const [isSavingIg, setIsSavingIg] = useState(false);
-  const [switchingAvatar, setSwitchingAvatar] = useState<"google" | "facebook" | null>(null);
+  const [switchingAvatar, setSwitchingAvatar] = useState<
+    "google" | "facebook" | null
+  >(null);
+  const { flags } = usePlatformFlags();
 
   const handleSwitchAvatar = async (source: "google" | "facebook") => {
     setSwitchingAvatar(source);
@@ -107,9 +110,8 @@ export default function SettingsTab({
         <SectionHeader label="Account" title="Settings" />
 
         <div className="px-6 pb-6">
-
           {/* ── Avatar Switcher ────────────────────────────────────────────── */}
-          {(googleImage || facebookImage) && (googleImage !== facebookImage) && (
+          {(googleImage || facebookImage) && googleImage !== facebookImage && (
             <div className="mb-5">
               <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 mb-3">
                 Profile Picture
@@ -124,14 +126,20 @@ export default function SettingsTab({
                                  ${image === googleImage ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200 hover:border-emerald-400"}`}
                       title="Use Google profile photo"
                     >
-                      <img src={googleImage} alt="Google avatar" className="w-full h-full object-cover" />
+                      <img
+                        src={googleImage}
+                        alt="Google avatar"
+                        className="w-full h-full object-cover"
+                      />
                       {switchingAvatar === "google" && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         </div>
                       )}
                     </button>
-                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide">Google</span>
+                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide">
+                      Google
+                    </span>
                   </div>
                 )}
                 {facebookImage && (
@@ -143,18 +151,26 @@ export default function SettingsTab({
                                  ${image === facebookImage ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200 hover:border-[#1877F2]"}`}
                       title="Use Facebook profile photo"
                     >
-                      <img src={facebookImage} alt="Facebook avatar" className="w-full h-full object-cover" />
+                      <img
+                        src={facebookImage}
+                        alt="Facebook avatar"
+                        className="w-full h-full object-cover"
+                      />
                       {switchingAvatar === "facebook" && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         </div>
                       )}
                     </button>
-                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide">Facebook</span>
+                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide">
+                      Facebook
+                    </span>
                   </div>
                 )}
               </div>
-              <p className="text-[10px] text-gray-400 mt-2">Click a photo to set it as your active profile picture.</p>
+              <p className="text-[10px] text-gray-400 mt-2">
+                Click a photo to set it as your active profile picture.
+              </p>
             </div>
           )}
 
@@ -193,13 +209,9 @@ export default function SettingsTab({
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Google
-                  </p>
+                  <p className="text-sm font-semibold text-gray-900">Google</p>
                   <p className="text-xs text-gray-400">
-                    {googleId
-                      ? userEmail
-                      : "Not connected"}
+                    {googleId ? userEmail : "Not connected"}
                   </p>
                 </div>
               </div>
@@ -212,7 +224,9 @@ export default function SettingsTab({
                     Connected
                   </span>
                   <button
-                    onClick={() => signIn("google", { callbackUrl: window.location.href })}
+                    onClick={() =>
+                      signIn("google", { callbackUrl: window.location.href })
+                    }
                     className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
                                bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200
                                transition-all duration-200 hover:scale-105 active:scale-95"
@@ -222,7 +236,9 @@ export default function SettingsTab({
                 </div>
               ) : (
                 <button
-                  onClick={() => signIn("google", { callbackUrl: window.location.href })}
+                  onClick={() =>
+                    signIn("google", { callbackUrl: window.location.href })
+                  }
                   className="text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider
                              bg-blue-600 text-white hover:bg-blue-700
                              transition-all duration-200 hover:scale-105 active:scale-95"
@@ -255,29 +271,42 @@ export default function SettingsTab({
                   <p className="text-xs text-gray-400">
                     {facebookId
                       ? "Connected"
-                      : "Not connected"}
+                      : flags.facebook
+                        ? "Not connected"
+                        : "Temporarily unavailable"}
                   </p>
                 </div>
               </div>
- <div className="flex items-center gap-2">
-                  {facebookId ? (
-                    <span
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+              <div className="flex items-center gap-2">
+                {facebookId ? (
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
                           bg-emerald-50 text-emerald-600 border border-emerald-100`}
-                    >
-                      Connected
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => signIn("facebook", { callbackUrl: window.location.href })}
-                      className="text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider
+                  >
+                    Connected
+                  </span>
+                ) : flags.facebook ? (
+                  <button
+                    onClick={() =>
+                      signIn("facebook", { callbackUrl: window.location.href })
+                    }
+                    className="text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider
                                  bg-[#1877F2] text-white hover:bg-blue-700
                                  transition-all duration-200 hover:scale-105 active:scale-95"
-                    >
-                      Link
-                    </button>
-                  )}
-                </div>            </div>
+                  >
+                    Link
+                  </button>
+                ) : (
+                  <span
+                    title="Facebook linking is temporarily unavailable"
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                                 bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                  >
+                    Unavailable
+                  </span>
+                )}
+              </div>{" "}
+            </div>
 
             {/* Instagram */}
             <div
@@ -287,60 +316,88 @@ export default function SettingsTab({
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 via-purple-500 to-orange-400 flex items-center justify-center shadow-sm">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                  <svg
+                    className="w-4 h-4 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-900">Instagram Username</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Instagram Username
+                  </p>
                   {instagramUsername ? (
-                    <p className="text-xs text-emerald-600 font-medium">@{instagramUsername}</p>
-                  ) : (
+                    <p className="text-xs text-emerald-600 font-medium">
+                      @{instagramUsername}
+                    </p>
+                  ) : flags.instagram ? (
                     <p className="text-xs text-gray-400">Not linked</p>
+                  ) : (
+                    <p className="text-xs text-gray-400">
+                      Temporarily unavailable
+                    </p>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={igUsername}
-                  onChange={(e) => setIgUsername(e.target.value.replace(/^@/, '').trim())}
-                  placeholder="your_username"
-                  className="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 bg-white
-                             focus:outline-none focus:border-pink-400 focus:ring-1 focus:ring-pink-400/30
-                             text-gray-900 placeholder:text-gray-400 transition-all"
-                />
-                <button
-                  onClick={async () => {
-                    if (!igUsername) return;
-                    setIsSavingIg(true);
-                    try {
-                      const res = await fetch("/api/user/profile", {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ instagramUsername: igUsername }),
-                      });
-                      if (!res.ok) {
-                        const d = await res.json();
-                        throw new Error(d.error || "Failed to save");
-                      }
-                      toast.success("Instagram username saved!");
-                      onUpdateSession?.();
-                    } catch (err: any) {
-                      toast.error(err.message || "Failed to save");
-                    } finally {
-                      setIsSavingIg(false);
+              {flags.instagram || instagramUsername ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={igUsername}
+                    onChange={(e) =>
+                      setIgUsername(e.target.value.replace(/^@/, "").trim())
                     }
-                  }}
-                  disabled={isSavingIg || !igUsername}
-                  className="text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wider
+                    placeholder="your_username"
+                    disabled={!flags.instagram}
+                    className="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 bg-white
+                             focus:outline-none focus:border-pink-400 focus:ring-1 focus:ring-pink-400/30
+                             text-gray-900 placeholder:text-gray-400 transition-all
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!igUsername || !flags.instagram) return;
+                      setIsSavingIg(true);
+                      try {
+                        const res = await fetch("/api/user/profile", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            instagramUsername: igUsername,
+                          }),
+                        });
+                        if (!res.ok) {
+                          const d = await res.json();
+                          throw new Error(d.error || "Failed to save");
+                        }
+                        toast.success("Instagram username saved!");
+                        onUpdateSession?.();
+                      } catch (err: any) {
+                        toast.error(err.message || "Failed to save");
+                      } finally {
+                        setIsSavingIg(false);
+                      }
+                    }}
+                    disabled={isSavingIg || !igUsername || !flags.instagram}
+                    className="text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wider
                              bg-gradient-to-r from-pink-500 to-purple-600 text-white
                              hover:scale-105 active:scale-95 transition-all duration-200
                              disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  >
+                    {isSavingIg ? "..." : "Save"}
+                  </button>
+                </div>
+              ) : (
+                <span
+                  title="Instagram linking is temporarily unavailable"
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                             bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
                 >
-                  {isSavingIg ? "..." : "Save"}
-                </button>
-              </div>
+                  Unavailable
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -382,7 +439,10 @@ export default function SettingsTab({
                       type="password"
                       placeholder="Current password"
                       value={currentPassword}
-                      onChange={(e) => { setCurrentPassword(e.target.value); setPasswordError(""); }}
+                      onChange={(e) => {
+                        setCurrentPassword(e.target.value);
+                        setPasswordError("");
+                      }}
                       className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm
                                    focus:outline-none focus:border-slate-900 bg-white"
                     />
@@ -392,7 +452,10 @@ export default function SettingsTab({
                       type="password"
                       placeholder="New password (min 8 characters)"
                       value={newPassword}
-                      onChange={(e) => { setNewPassword(e.target.value); setPasswordError(""); }}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setPasswordError("");
+                      }}
                       className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm
                                    focus:outline-none focus:border-slate-900 bg-white"
                     />
@@ -402,14 +465,19 @@ export default function SettingsTab({
                       type="password"
                       placeholder="Confirm new password"
                       value={confirmPassword}
-                      onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setPasswordError("");
+                      }}
                       className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm
                                    focus:outline-none focus:border-slate-900 bg-white"
                     />
                   </div>
 
                   {passwordError && (
-                    <p className="text-xs text-red-500 font-medium">{passwordError}</p>
+                    <p className="text-xs text-red-500 font-medium">
+                      {passwordError}
+                    </p>
                   )}
 
                   <button
@@ -419,7 +487,9 @@ export default function SettingsTab({
                                  hover:bg-slate-800 transition-all duration-200
                                  disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {changePasswordMutation.isPending ? "Saving..." : "Save Password"}
+                    {changePasswordMutation.isPending
+                      ? "Saving..."
+                      : "Save Password"}
                   </button>
                 </div>
               )}
@@ -427,9 +497,7 @@ export default function SettingsTab({
           )}
           {/* Space for more settings */}
           <div className="flex items-center gap-3 px-4 py-3 border border-dashed border-gray-200 rounded-xl text-gray-400">
-            <p className="text-xs font-medium">
-              More settings coming soon
-            </p>
+            <p className="text-xs font-medium">More settings coming soon</p>
           </div>
         </div>
       </div>

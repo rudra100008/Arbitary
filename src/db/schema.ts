@@ -422,6 +422,20 @@ export const aboutContentTable = pgTable("about_content", {
     updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// --- Feature Flags ---
+// Generic on/off switches, read on every relevant request (no caching layer,
+// mirrors aboutContentTable's "single row, instant effect" pattern). Currently
+// used to let admins disable the Facebook / Instagram integrations at runtime
+// without a redeploy — see FeatureFlagService.
+export const featureFlagsTable = pgTable("feature_flags", {
+    id: serial("id").primaryKey(),
+    /** e.g. "facebook", "instagram" */
+    key: varchar("key", { length: 50 }).notNull().unique(),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at").defaultNow(),
+    updatedByAdminId: integer("updated_by_admin_id").references(() => usersTable.id),
+});
+
 // --- Live Watch Sessions ---
 export const liveWatchSessionsTable = pgTable("live_watch_sessions", {
     id: serial("id").primaryKey(),
@@ -675,10 +689,3 @@ export const notificationsRelations = relations(notificationsTable, ({ one }) =>
         references: [usersTable.id],
     }),
 }));
-
-export const featureFlagsTable = pgTable("feature_flags", {
-    id: serial("id").primaryKey(),
-    key: text("key").notNull().unique(),
-    enabled: boolean("enabled").notNull().default(true),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});

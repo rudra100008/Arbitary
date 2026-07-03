@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { TaskService } from "@/src/services/task.service";
 import { rateLimit } from "@/src/lib/rate-limit";
+import { FeatureFlagService } from "@/src/services/feature-flag.service";
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const facebookEnabled = await FeatureFlagService.isPlatformEnabled("facebook");
+  if (!facebookEnabled) {
+    return NextResponse.json(
+      { error: "Facebook tasks are temporarily unavailable.", code: "FEATURE_DISABLED" },
+      { status: 403 },
+    );
   }
 
   const rl = await rateLimit(`facebook-complete:${auth.data.id}`, 5, 60_000);
@@ -63,6 +72,14 @@ export async function GET(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const facebookEnabled = await FeatureFlagService.isPlatformEnabled("facebook");
+  if (!facebookEnabled) {
+    return NextResponse.json(
+      { error: "Facebook tasks are temporarily unavailable.", code: "FEATURE_DISABLED" },
+      { status: 403 },
+    );
   }
 
   const { searchParams } = new URL(req.url);

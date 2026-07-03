@@ -3,11 +3,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { TaskService } from "@/src/services/task.service";
 import { rateLimit } from "@/src/lib/rate-limit";
+import { FeatureFlagService } from "@/src/services/feature-flag.service";
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const instagramEnabled = await FeatureFlagService.isPlatformEnabled("instagram");
+  if (!instagramEnabled) {
+    return NextResponse.json(
+      { error: "Instagram tasks are temporarily unavailable.", code: "FEATURE_DISABLED" },
+      { status: 403 },
+    );
   }
 
   const rl = await rateLimit(`instagram-complete:${auth.data.id}`, 5, 60_000);
@@ -37,6 +46,14 @@ export async function GET(req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const instagramEnabled = await FeatureFlagService.isPlatformEnabled("instagram");
+  if (!instagramEnabled) {
+    return NextResponse.json(
+      { error: "Instagram tasks are temporarily unavailable.", code: "FEATURE_DISABLED" },
+      { status: 403 },
+    );
   }
 
   const { searchParams } = new URL(req.url);
