@@ -133,14 +133,14 @@ function RegisterBtn({ className = "" }: { className?: string }) {
 
       {showConfirm && (
         <ModalShell
-          title="Ready to enter?"
+          title="Are you 21 or older?"
           subtitle="TiltYourMusic × Arbitrary"
           onClose={() => setShowConfirm(false)}
         >
           <div className="flex flex-col gap-5 p-6">
             <p className="text-sm text-black/60 leading-relaxed">
-              You&apos;ll be taken to the participants page to submit your song
-              or dance entry. Continue?
+              You must be 21 years of age or older to enter. Please confirm your
+              age to continue to the participants page.
             </p>
             <div className="flex items-center justify-end gap-3">
               <button
