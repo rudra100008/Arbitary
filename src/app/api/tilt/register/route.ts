@@ -131,6 +131,17 @@ export async function POST(req: NextRequest) {
       return jsonError(400, "Address is required", "INVALID_ADDRESS");
     }
 
+    const ageConfirmed = body.age_confirmed === true;
+    const dataConsent = body.data_consent === true;
+
+    if (!ageConfirmed) {
+      return jsonError(403, "You must confirm you are 21 or older", "UNDERAGE");
+    }
+
+    if (!dataConsent) {
+      return jsonError(403, "You must agree to data processing", "CONSENT_REQUIRED");
+    }
+
     const [existingEmailEntry] = await tiltDb
       .select({ id: lotteryEntriesTable.id })
       .from(lotteryEntriesTable)
@@ -183,6 +194,8 @@ export async function POST(req: NextRequest) {
           address,
           flagged: false,
           flagReason: null,
+          ageConfirmed,
+          dataConsent,
         })
         .returning({ id: lotteryEntriesTable.id });
 

@@ -109,6 +109,8 @@ export default function TiltPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [phoneValue, setPhoneValue] = useState("");
   const [emailValue, setEmailValue] = useState("");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [dataConsent, setDataConsent] = useState(false);
 
   const validatePhone = useCallback((value: string): string | null => {
     const normalised = normalisePhone(value, "977");
@@ -274,6 +276,18 @@ export default function TiltPage() {
       return;
     }
 
+    if (!ageConfirmed) {
+      setError("You must confirm you are 21 or older to enter.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!dataConsent) {
+      setError("You must agree to the collection and processing of your personal data.");
+      setIsLoading(false);
+      return;
+    }
+
     const fd = new FormData(e.currentTarget);
     const data = {
       full_name: fd.get("full_name") as string,
@@ -281,6 +295,8 @@ export default function TiltPage() {
       phone: phoneValue,
       address: fd.get("address") as string,
       sid: sidFallback,
+      age_confirmed: ageConfirmed,
+      data_consent: dataConsent,
     };
 
     try {
@@ -312,6 +328,8 @@ export default function TiltPage() {
             "This email has already been entered for this campaign.",
           PHONE_ALREADY_ENTERED:
             "This phone number has already been entered for this campaign.",
+          UNDERAGE: "You must be 21 or older to enter.",
+          CONSENT_REQUIRED: "You must agree to data processing.",
           INTERNAL_ERROR: "Something went wrong. Please try again.",
         };
 
@@ -758,6 +776,65 @@ export default function TiltPage() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.39, duration: 0.4, ease: EASE }}
+              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.7)",
+                  lineHeight: 1.4,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={ageConfirmed}
+                  onChange={(e) => setAgeConfirmed(e.target.checked)}
+                  style={{
+                    marginTop: "2px",
+                    accentColor: "#c8e63c",
+                    width: "16px",
+                    height: "16px",
+                    flexShrink: 0,
+                  }}
+                />
+                I confirm I am 21 or older
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.7)",
+                  lineHeight: 1.4,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={dataConsent}
+                  onChange={(e) => setDataConsent(e.target.checked)}
+                  style={{
+                    marginTop: "2px",
+                    accentColor: "#c8e63c",
+                    width: "16px",
+                    height: "16px",
+                    flexShrink: 0,
+                  }}
+                />
+                I agree to the collection and processing of my personal data for
+                the purpose of this lottery campaign
+              </label>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45, duration: 0.4, ease: EASE }}
             >
               <button type="submit" disabled={isLoading} className="tilt-btn">
                 {isLoading ? "Applying…" : "Apply"}

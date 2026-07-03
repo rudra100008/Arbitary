@@ -116,6 +116,8 @@ export const lotteryEntriesTable = pgTable(
     address: text("address").notNull(),
     flagged: boolean("flagged").default(false).notNull(),
     flagReason: text("flag_reason"),
+    ageConfirmed: boolean("age_confirmed").notNull().default(false),
+    dataConsent: boolean("data_consent").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
