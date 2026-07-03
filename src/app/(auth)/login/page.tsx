@@ -381,7 +381,7 @@ const UserLoginPage = () => {
             </div>
 
             {/* Google — matches the ghost button style from dashboard */}
-            <button
+            {/* <button
               type="button"
               onClick={handleGoogleLogin}
               disabled={isLoading}
@@ -411,7 +411,7 @@ const UserLoginPage = () => {
                 />
               </svg>
               {isLoading ? "Signing in…" : "Continue with Google"}
-            </button>
+            </button> */}
             {/* Facebook login */}
             {flags.facebook && (
               <button
