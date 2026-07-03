@@ -670,3 +670,10 @@ export const notificationsRelations = relations(notificationsTable, ({ one }) =>
         references: [usersTable.id],
     }),
 }));
+
+export const featureFlagsTable = pgTable("feature_flags", {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

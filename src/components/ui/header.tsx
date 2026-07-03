@@ -31,22 +31,36 @@ const Header = () => {
     staleTime: 30_000,
   });
 
+  const { data: featureFlags } = useQuery({
+    queryKey: ["feature-flags"],
+    queryFn: async () => {
+      const res = await fetch("/api/feature-flags");
+      const data = await res.json() as { flags: Record<string, boolean> };
+      return data.flags;
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
   const navItems = useMemo(() => {
     const items = [
       "Home",
       "Work",
       "Events",
       "Records",
-      "Leaderboard",
-      "Dashboard",
-      "About",
-      "Contact",
     ];
+    if (featureFlags?.leaderboard !== false) {
+      items.push("Leaderboard");
+    }
+    if (featureFlags?.dashboard !== false) {
+      items.push("Dashboard");
+    }
+    items.push("About", "Contact");
     if (liveStatus?.live) {
       items.splice(4, 0, "Live");
     }
     return items;
-  }, [liveStatus]);
+  }, [featureFlags, liveStatus]);
 
   useEffect(() => {
     const handleScroll = () => {

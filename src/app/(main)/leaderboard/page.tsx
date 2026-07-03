@@ -1,9 +1,16 @@
+import { redirect } from "next/navigation";
 import LeaderboardList from "@/src/components/leaderboard/leaderboard-list";
 import { getTopUsers, getUserRankInfo } from "@/src/db/user-queries";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/src/auth";
+import { FeatureFlagsService } from "@/src/services/feature-flags.service";
 
 export default async function LeaderboardPage() {
+  const enabled = await FeatureFlagsService.isEnabled("leaderboard");
+  if (!enabled) {
+    redirect("/");
+  }
+
   const session = await getServerSession(authOptions);
   const currentUserId = session?.user?.id as number | undefined;
   const isAdmin =

@@ -299,7 +299,7 @@ const sidebarGroups = [
       },
       {
         label: "Settings",
-        href: null,
+        href: "/admin/dashboard/settings",
 
         icon: (
           <svg

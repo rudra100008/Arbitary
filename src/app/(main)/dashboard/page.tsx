@@ -1,6 +1,7 @@
 "use client";
 import { type ImageAnalysis } from "@/src/hooks/useScreenshotUpload";
 import { useEffect, useState, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   useQuery,
   useMutation,
@@ -43,11 +44,28 @@ export default function DashboardPage() {
 }
 
 function DashboardInner() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("all");
   const [allTaskTypes, setAllTaskTypes] = useState<string[]>([]);
   const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>(
     {},
   );
+
+  const { data: featureFlags } = useQuery({
+    queryKey: ["feature-flags"],
+    queryFn: async () => {
+      const res = await fetch("/api/feature-flags");
+      const data = await res.json() as { flags: Record<string, boolean> };
+      return data.flags;
+    },
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (featureFlags && featureFlags.dashboard === false) {
+      router.push("/");
+    }
+  }, [featureFlags, router]);
   const [justClaimedTaskId, setJustClaimedTaskId] = useState<number | null>(null);
   const [slideDirection, setSlideDirection] = useState<"left" | "right">(
     "right",
