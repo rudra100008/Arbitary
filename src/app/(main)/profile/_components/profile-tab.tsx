@@ -3,6 +3,27 @@
 import SectionHeader from "./section-header";
 import InfoField from "./info-field";
 
+/**
+ * Formats a "YYYY-MM-DD" date-of-birth string for display.
+ *
+ * Deliberately avoids `new Date(dateOfBirth)` — for a date-only string,
+ * that parses as UTC midnight, which can display as the previous day for
+ * users in negative UTC-offset timezones. Parsing the parts directly and
+ * building a local Date sidesteps that.
+ */
+function formatDateOfBirth(dateOfBirth: string | null | undefined): string {
+  if (!dateOfBirth) return "—";
+  const [year, month, day] = dateOfBirth.split("-").map(Number);
+  if (!year || !month || !day) return "—";
+  const local = new Date(year, month - 1, day);
+  if (Number.isNaN(local.getTime())) return "—";
+  return local.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 interface ProfileFormState {
   name: string;
   phone: string;
@@ -21,6 +42,7 @@ interface ProfileTabProps {
         bio?: string;
         location?: string;
         phoneNumber?: string;
+        dateOfBirth?: string | null;
       }
     | undefined;
   isSaving: boolean;
@@ -144,6 +166,14 @@ export default function ProfileTab({
             onChange={(v) => onFormChange((f) => ({ ...f, location: v }))}
             placeholder="City, Country"
           />
+          {/* Date of birth — always read-only, even while editing. Set once
+              via the birthday backfill flow / signup and never user-editable
+              here to keep the age-eligibility check trustworthy. */}
+          <InfoField
+            label="Date of Birth"
+            value={formatDateOfBirth(user?.dateOfBirth)}
+            editing={false}
+          />
           {/* Member since */}
           <InfoField
             label="Member Since"
@@ -207,8 +237,18 @@ export default function ProfileTab({
       {/* Inline error */}
       {saveError && (
         <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
-          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-4 h-4 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           {saveError}
         </div>

@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/db";
 import { participantSubmissionsTable } from "@/src/db/schema";
 import { eq, desc, and, like } from "drizzle-orm";
-import { requireAdmin, requireUser } from "@/src/services/auth.service";
+import { requireAdmin, requireEligibleParticipant } from "@/src/services/auth.service";
 import { NotificationService } from "@/src/services/notification.service";
 import { participantSubmissionSchema } from "@/src/lib/validations/participant";
 import { parseSocialUrl } from "@/src/lib/social-url";
 
 // POST /api/participants  { category, name, email, phone?, mediaUrl }
 // mediaUrl must be a public YouTube, Instagram, or Facebook link.
+// Restricted to participants 21+ (see requireEligibleParticipant).
 export async function POST(req: NextRequest) {
-    const auth = await requireUser();
+    const auth = await requireEligibleParticipant();
     if (!auth.success) {
-        return NextResponse.json({ error: auth.error }, { status: 401 });
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     let json: unknown;

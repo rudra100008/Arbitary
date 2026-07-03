@@ -3,10 +3,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, useAnimationFrame } from "framer-motion";
 import { toast } from "sonner";
 import { parseSocialUrl } from "@/src/lib/social-url";
 import { PlatformBadge } from "@/src/components/layout/manage-task/PlatformBadge";
+import { ModalShell } from "@/src/components/layout/manage-task/ModalShell";
+import { isEligibleAge } from "@/src/lib/age";
 
 type Section = "song" | "dance";
 
@@ -1235,8 +1238,21 @@ function DanceIdlePanel({
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function ParticipantPage() {
   const [active, setActive] = useState<Section | null>(null);
-  const { status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
+  const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Eligibility guard: this page is also reachable directly (not just via
+  // the promo banner's confirmation modal), so re-check server-derived
+  // session data here too. Missing/invalid dateOfBirth is always treated
+  // as ineligible.
+  const [showIneligibleModal, setShowIneligibleModal] = useState(false);
+  useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+    if (!isEligibleAge(session?.user?.dateOfBirth)) {
+      setShowIneligibleModal(true);
+    }
+  }, [sessionStatus, session]);
 
   // Use React Query so the SSE hook can invalidate ["participant-status"]
   // and trigger an automatic re-fetch when an admin approves/rejects —
@@ -1258,6 +1274,34 @@ export default function ParticipantPage() {
   const fetchStatus = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["participant-status"] });
   }, [queryClient]);
+
+  // Blocking modal for ineligible authenticated users — placed after all
+  // hook calls above so hook order stays consistent across renders.
+  if (showIneligibleModal) {
+    return (
+      <ModalShell
+        title="This promotion is 21+"
+        subtitle="Age restricted"
+        onClose={() => router.push("/")}
+      >
+        <div className="flex flex-col gap-5 p-6">
+          <p className="text-sm text-black/60 leading-relaxed">
+            Participation is only open to entrants 21 years of age or older.
+            You&apos;re unable to register for this promotion.
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-full bg-[#FACC15] text-black hover:bg-[#eab308] transition-colors"
+            >
+              Return home
+            </button>
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <main className="min-h-[calc(100vh-5rem)] w-full flex flex-col">

@@ -71,6 +71,21 @@ export const UserService = {
     return ok({ success: true });
   },
 
+  /** Used by the /complete-birthday backfill flow for existing users who
+   *  signed up before the age-verification requirement was introduced. */
+  async setDateOfBirth(userId: number, dateOfBirth: string): Promise<ServiceResult<{ success: true }>> {
+    const [existing] = await db
+      .select({ dateOfBirth: usersTable.dateOfBirth })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+
+    if (!existing) return fail("User not found", 404);
+    if (existing.dateOfBirth) return fail("Birthday has already been set", 400);
+
+    await db.update(usersTable).set({ dateOfBirth: new Date(dateOfBirth) }).where(eq(usersTable.id, userId));
+    return ok({ success: true });
+  },
+
   async getProfile(userId: number): Promise<ServiceResult<UserProfile>> {
     const referrerAlias = aliasedTable(usersTable, "referrer");
     const [user] = await db
@@ -108,6 +123,7 @@ export const UserService = {
     lastName: string;
     email: string;
     password: string;
+    dateOfBirth: string;
     referralCode?: string;
     fingerprint?: string;
   }, verification?: {
@@ -126,6 +142,7 @@ export const UserService = {
       name: `${data.firstName} ${data.lastName}`,
       password: hashPassword,
       provider: "credentials",
+      dateOfBirth: new Date(data.dateOfBirth),
       verificationToken: verification?.verificationToken,
       verificationTokenExpiresAt: verification?.verificationTokenExpiresAt,
       signupFingerprint: data.fingerprint,

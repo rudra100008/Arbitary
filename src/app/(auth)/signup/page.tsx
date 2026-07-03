@@ -118,6 +118,12 @@ const UserSignupPage = () => {
       return;
     }
 
+    const dateOfBirth = formData.get("dateOfBirth") as string;
+    if (!dateOfBirth) {
+      setError("Date of birth is required.");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
@@ -127,6 +133,7 @@ const UserSignupPage = () => {
         lastName: formData.get("lastName"),
         email: formData.get("email"),
         password,
+        dateOfBirth,
       };
       if (refCode) body.referralCode = refCode;
 
@@ -348,6 +355,33 @@ const UserSignupPage = () => {
                 </svg>
               }
             />
+
+            <FormInput
+              type="date"
+              id="dateOfBirth"
+              name="dateOfBirth"
+              label="Date of birth"
+              placeholder="YYYY-MM-DD"
+              required
+              icon={
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <path d="M16 2v4M8 2v4M3 10h18" />
+                </svg>
+              }
+            />
+            <p className="text-[10px] text-gray-400 -mt-2">
+              You must be 21 or older to participate in Arbitrary promotions.
+            </p>
 
             <FormInput
               type={showPassword ? "text" : "password"}

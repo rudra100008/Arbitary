@@ -76,6 +76,11 @@ export const usersTable = pgTable("users", {
     bio: text("bio"),
     location: text("Location"),
     instagramUsername: varchar("instagram_username", { length: 255 }),
+    /** Required going forward at the application layer (see age.ts /
+     *  requireEligibleParticipant). Nullable at the DB level since existing
+     *  users predate this field — null values trigger the mandatory
+     *  /complete-birthday backfill redirect. */
+    dateOfBirth: timestamp("date_of_birth"),
     provider: text("provider").notNull().default("credentials"),
     googleId: varchar("google_id", { length: 255 }).unique(),
     googleRefreshToken: text("google_refresh_token"),

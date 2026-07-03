@@ -47,16 +47,38 @@ export function useDailyLogin({ userId }: UseDailyLoginOptions) {
         });
 
         if (res.status === 429) {
-          // Already claimed server-side today — just update local storage
-          try {
-            localStorage.setItem(storageKey, today);
-          } catch { }
+          const body = await res.json().catch(() => null);
+
+          if (body?.code === "ALREADY_CLAIMED") {
+            // Already claimed server-side today — persist locally so we
+            // don't bother re-checking on subsequent page loads today.
+            try {
+              localStorage.setItem(storageKey, today);
+            } catch { }
+            return;
+          }
+
+          // Rate-limited (e.g. rapid reloads) or an older/unrecognized
+          // response shape — this is NOT a real claim. Don't mark it as
+          // claimed in localStorage, or the reward would be silently
+          // skipped for the rest of the day. Reset the flag so the next
+          // mount/navigation can retry.
+          console.error(
+            "Daily login claim was rate-limited or returned an unexpected 429; will retry.",
+            body,
+          );
+          firedRef.current = false;
           return;
         }
 
         if (!res.ok) {
           // Non-429 error: reset flag so it can retry next navigation
           firedRef.current = false;
+          console.error(
+            "Daily login claim failed:",
+            res.status,
+            await res.text().catch(() => ""),
+          );
           return;
         }
 
@@ -92,8 +114,9 @@ export function useDailyLogin({ userId }: UseDailyLoginOptions) {
             600,
           );
         }
-      } catch {
+      } catch (err) {
         // Network error — silently reset so it can retry
+        console.error("Daily login claim network error:", err);
         firedRef.current = false;
       }
     })();

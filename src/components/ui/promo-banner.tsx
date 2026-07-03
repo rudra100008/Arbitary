@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { ModalShell } from "@/src/components/layout/manage-task/ModalShell";
+import { isEligibleAge } from "@/src/lib/age";
 
 const BANNER_CONFIG = {
   eventDate: "2026-08-15T20:00:00",
@@ -100,13 +103,68 @@ function CloseBtn({
 }
 
 function RegisterBtn({ className = "" }: { className?: string }) {
+  const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const eligible = isEligibleAge(session?.user?.dateOfBirth);
+
+  const handleClick = () => {
+    if (sessionStatus !== "authenticated") {
+      router.push("/login");
+      return;
+    }
+    if (eligible) {
+      setShowConfirm(true);
+    }
+    // Ineligible authenticated users never see this button — the whole
+    // banner is hidden for them — but guard anyway just in case.
+  };
+
   return (
-    <Link
-      href={BANNER_CONFIG.registerHref}
-      className={`flex-shrink-0 bg-[#001f6c] text-white font-black uppercase tracking-widest rounded-md hover:bg-[#002a8a] transition-colors duration-150 ${className}`}
-    >
-      PARTICIPATE
-    </Link>
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        className={`flex-shrink-0 bg-[#001f6c] text-white font-black uppercase tracking-widest rounded-md hover:bg-[#002a8a] transition-colors duration-150 ${className}`}
+      >
+        PARTICIPATE
+      </button>
+
+      {showConfirm && (
+        <ModalShell
+          title="Ready to enter?"
+          subtitle="TiltYourMusic × Arbitrary"
+          onClose={() => setShowConfirm(false)}
+        >
+          <div className="flex flex-col gap-5 p-6">
+            <p className="text-sm text-black/60 leading-relaxed">
+              You&apos;ll be taken to the participants page to submit your song
+              or dance entry. Continue?
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirm(false)}
+                className="text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-full border border-black/15 text-black/60 hover:bg-black/5 transition-colors"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirm(false);
+                  router.push(BANNER_CONFIG.registerHref);
+                }}
+                className="text-xs font-black uppercase tracking-widest px-5 py-2.5 rounded-full bg-[#FACC15] text-black hover:bg-[#eab308] transition-colors"
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </ModalShell>
+      )}
+    </>
   );
 }
 
@@ -207,22 +265,46 @@ export default function PromoBanner() {
   );
   const bannerRef = useRef<HTMLDivElement>(null);
 
+  const { data: session, status: sessionStatus } = useSession();
+  const isIneligible =
+    sessionStatus === "authenticated" &&
+    !isEligibleAge(session?.user?.dateOfBirth);
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!mounted || dismissed) return;
-    const id = requestAnimationFrame(() =>
-      updateBannerHeight(bannerRef.current),
-    );
-    const onResize = () => updateBannerHeight(bannerRef.current);
-    window.addEventListener("resize", onResize);
+    if (!mounted || dismissed || isIneligible) {
+      // Banner isn't rendered (or was dismissed) — nothing to reserve
+      // space for. This also covers the eligibility transition: right
+      // after completing the birthday backfill, isIneligible flips from
+      // true to false on a client-side navigation (no remount), so this
+      // effect needs to be watching it directly rather than relying on
+      // `mounted`/`dismissed` alone, or --banner-h would stay stuck at
+      // whatever it was set to while the banner was hidden.
+      document.documentElement.style.setProperty("--banner-h", "0px");
+      return;
+    }
+
+    const el = bannerRef.current;
+    if (!el) return;
+
+    const rafId = requestAnimationFrame(() => updateBannerHeight(el));
+
+    // Track the banner's real rendered height continuously (window
+    // resize, responsive breakpoint changes, content reflow) instead of
+    // only measuring once. This also means no future condition that
+    // toggles whether the banner renders needs to be remembered here —
+    // the observer just reflects whatever is actually on screen.
+    const observer = new ResizeObserver(() => updateBannerHeight(el));
+    observer.observe(el);
+
     return () => {
-      cancelAnimationFrame(id);
-      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
     };
-  }, [mounted, dismissed]);
+  }, [mounted, dismissed, isIneligible]);
 
   useEffect(() => {
     if (dismissed) return;
@@ -239,7 +321,7 @@ export default function PromoBanner() {
     toast.info("Reload the page to see the banner again.", { duration: 4000 });
   };
 
-  if (!mounted || dismissed) return null;
+  if (!mounted || dismissed || isIneligible) return null;
 
   const PARTICLES = [
     { t: 3, l: 1, sz: 8, dr: 8.0, dy: 0.0 },

@@ -269,6 +269,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                     token.location = dbUser.location;
                     token.phoneNumber = dbUser.phoneNumber;
                     token.googleId = dbUser.googleId ?? undefined;
+                    token.dateOfBirth = dbUser.dateOfBirth ? dbUser.dateOfBirth.toISOString() : null;
                     if (dbUser.googleRefreshToken && !token.googleRefreshToken) {
                         const decrypted = decryptToken(dbUser.googleRefreshToken);
                         if (decrypted) {
@@ -307,6 +308,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                 session.user.facebookAccessToken = token.facebookAccessToken as string | undefined;
                 session.user.googleImage = token.googleImage as string | undefined;
                 session.user.facebookImage = token.facebookImage as string | undefined;
+                session.user.dateOfBirth = (token.dateOfBirth as string | null | undefined) ?? null;
             }
             return session;
         },
