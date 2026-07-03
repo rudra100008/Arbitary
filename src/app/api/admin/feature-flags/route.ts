@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  await FeatureFlagsService.setEnabled(key, enabled);
+  await FeatureFlagsService.setEnabled(key, enabled, session.user.id as number);
   const flags = await FeatureFlagsService.getAll();
 
   return NextResponse.json({ flags });

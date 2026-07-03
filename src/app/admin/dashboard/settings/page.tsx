@@ -4,8 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const FEATURES = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "leaderboard", label: "Leaderboard" },
+  { key: "dashboard", label: "Dashboard", description: "Hide the user dashboard and redirect to homepage" },
+  { key: "leaderboard", label: "Leaderboard", description: "Hide the leaderboard and redirect to homepage" },
+  { key: "facebook", label: "Facebook Tasks", description: "Disable Facebook-based task verification" },
+  { key: "instagram", label: "Instagram Tasks", description: "Disable Instagram-based task verification" },
 ];
 
 export default function SettingsPage() {
@@ -52,7 +54,8 @@ export default function SettingsPage() {
           </h2>
           <p className="text-xs text-zinc-400 mt-1">
             Enable or disable features across the site. Disabled features are
-            hidden from the nav bar and redirect users to the homepage.
+            hidden from the nav bar and redirect users to the homepage, or
+            block the relevant integrations.
           </p>
         </div>
 
@@ -77,6 +80,11 @@ export default function SettingsPage() {
                   >
                     {enabled ? "On" : "Off"}
                   </span>
+                  {feature.description && (
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      {feature.description}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() =>
