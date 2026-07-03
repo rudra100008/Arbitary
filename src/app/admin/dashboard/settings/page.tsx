@@ -4,10 +4,26 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const FEATURES = [
-  { key: "dashboard", label: "Dashboard", description: "Hide the user dashboard and redirect to homepage" },
-  { key: "leaderboard", label: "Leaderboard", description: "Hide the leaderboard and redirect to homepage" },
-  { key: "facebook", label: "Facebook Tasks", description: "Disable Facebook-based task verification" },
-  { key: "instagram", label: "Instagram Tasks", description: "Disable Instagram-based task verification" },
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    description: "Hide the user dashboard and redirect to homepage",
+  },
+  {
+    key: "leaderboard",
+    label: "Leaderboard",
+    description: "Hide the leaderboard and redirect to homepage",
+  },
+  {
+    key: "facebook",
+    label: "Facebook Tasks",
+    description: "Disable Facebook-based task verification",
+  },
+  {
+    key: "instagram",
+    label: "Instagram Tasks",
+    description: "Disable Instagram-based task verification",
+  },
 ];
 
 export default function SettingsPage() {
@@ -17,7 +33,7 @@ export default function SettingsPage() {
     queryKey: ["feature-flags"],
     queryFn: async () => {
       const res = await fetch("/api/feature-flags");
-      const data = await res.json() as { flags: Record<string, boolean> };
+      const data = (await res.json()) as { flags: Record<string, boolean> };
       return data.flags;
     },
   });
@@ -43,10 +59,6 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-black uppercase tracking-tight mb-8">
-        Settings
-      </h1>
-
       <div className="max-w-lg bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-black/5">
           <h2 className="text-sm font-black uppercase tracking-wider text-zinc-600">
@@ -54,8 +66,8 @@ export default function SettingsPage() {
           </h2>
           <p className="text-xs text-zinc-400 mt-1">
             Enable or disable features across the site. Disabled features are
-            hidden from the nav bar and redirect users to the homepage, or
-            block the relevant integrations.
+            hidden from the nav bar and redirect users to the homepage, or block
+            the relevant integrations.
           </p>
         </div>
 
@@ -88,7 +100,10 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={() =>
-                    toggleMutation.mutate({ key: feature.key, enabled: !enabled })
+                    toggleMutation.mutate({
+                      key: feature.key,
+                      enabled: !enabled,
+                    })
                   }
                   disabled={toggleMutation.isPending}
                   className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${

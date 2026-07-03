@@ -300,7 +300,7 @@ const sidebarGroups = [
       {
         label: "Settings",
 
-        href: "/admin/settings",
+        href: "/admin/dashboard/settings",
 
         icon: (
           <svg

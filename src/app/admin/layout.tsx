@@ -6,5 +6,5 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardShell>{children}</DashboardShell>;
+  return <>{children}</>;
 }
