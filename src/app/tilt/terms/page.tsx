@@ -15,7 +15,7 @@ export default function TiltTermsPage() {
             marginBottom: "24px",
           }}
         >
-          Terms of participation
+          Terms of Participation
         </h1>
 
         <div style={{ fontSize: "14px", lineHeight: 1.7, display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -34,21 +34,21 @@ export default function TiltTermsPage() {
           </p>
 
           <h2 style={{ color: "#c8e63c", fontSize: "13px", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>
-            Data Use
+            Data Privacy & Utilization
           </h2>
           <p>
-            Your email and phone number are used solely to manage your entry,
-            prevent duplicate accounts, and contact you if you win. Your data
-            will not be shared with third parties or used for marketing without
-            your explicit consent.
+            Your contact information is strictly utilized to authenticate your entry, mitigate duplicate submissions, and facilitate communication exclusively in the event of a win. Under no circumstances will your personal data be distributed, sold, or shared with any third-party entities, regardless of consent status.
+          </p>
+          <p>
+            Aggregated, non-personally identifiable analytics—such as registration volume and geographical outlet distribution—are retained solely for internal performance review and customer relationship management (CRM) enhancements.
           </p>
 
-          {/* Adjusted to general "Rewards & Experiences" and simplified winner text */}
+          {/* Adjusted to general "Perks & Experiences" and professional but clear text */}
           <h2 style={{ color: "#c8e63c", fontSize: "13px", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>
-            Rewards & Experiences
+            Incentives & Experiences
           </h2>
           <p>
-            Instant rewards are valid only at the outlet where the entry was submitted, are subject to availability, and are non-transferable. Selection of the winners for the main experience is conducted at the sole discretion of Tilt Your Music, and the rewards cannot be exchanged for cash or material alternatives.
+            Any instant incentives are valid exclusively at the participating outlet where the entry was submitted. Redemption of these incentives is subject to the venue's current stock availability and cannot be transferred to another person. Tilt Your Music reserves the right to determine the final selection for the primary campaign experiences. These perks hold no cash value and may not be exchanged for alternative compensation.
           </p>
 
           <h2 style={{ color: "#c8e63c", fontSize: "13px", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>

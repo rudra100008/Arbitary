@@ -1,4 +1,4 @@
-/** How many rewards to aim for per outlet, per active window. */
+/** Maximum rewards allowed per outlet, per active window. */
 export const DAILY_REWARD_TARGET = 10;
 
 /** Probability never goes below/above these, so outcomes stay random even at extremes. */
@@ -8,21 +8,32 @@ export const MAX_WIN_PROBABILITY = 0.95;
 /** How aggressively probability reacts to being ahead/behind pace. 1.0 = default sensitivity. */
 export const PACE_SENSITIVITY = 1.0;
 
-/** Each extra winner past target multiplies the probability by this. */
-export const SOFT_CAP_DECAY = 0.7;
-
 /**
- * The hard cap on winners grows with total scans today for this outlet:
- *   absoluteMax = max(ABSOLUTE_MAX_REWARDS_FLOOR, scansToday * ABSOLUTE_MAX_RATE)
+ * `DAILY_REWARD_TARGET` is also a strict hard cap.
+ * Once winners reach this value, no more rewards are granted for that outlet/day.
  */
-export const ABSOLUTE_MAX_RATE = 0.20;
-export const ABSOLUTE_MAX_REWARDS_FLOOR = 15;
 
 /**
- * No rewards are given until at least this many people have submitted today.
- * Prevents testers / first few real users from winning every time.
+ * Early-win ramp reaches full strength at this many scans.
+ * Before this point, rewards are possible but probability is scaled down.
  */
 export const MIN_SCANS_BEFORE_REWARDS = 20;
+
+/**
+ * Shapes early-scan ramp: higher values keep first few scans less likely,
+ * while still preserving a non-zero chance for everyone.
+ */
+export const EARLY_WIN_RAMP_EXPONENT = 1.5;
+
+/**
+ * Safety floor so early users always have a non-zero chance.
+ */
+export const EARLY_WIN_MIN_PROBABILITY = 0.01;
+
+/**
+ * Optional guardrail: while still in ramp phase, allow at most this many wins.
+ */
+export const EARLY_WIN_CAP_BEFORE_RAMP = 2;
 
 /**
  * After this hour (NST, 24h), if winners < DAILY_REWARD_TARGET,
@@ -33,10 +44,21 @@ export const MIN_SCANS_BEFORE_REWARDS = 20;
 export const BOOST_AFTER_HOUR = 19;
 
 /**
- * Win probability used during the boost phase (after 7PM, under target).
- * High enough to reliably fill remaining slots within the remaining hours.
+ * Bounds for adaptive boost probability (after 7PM, under target).
  */
-export const BOOST_WIN_PROBABILITY = 0.80;
+export const BOOST_MIN_WIN_PROBABILITY = 0.15;
+export const BOOST_MAX_WIN_PROBABILITY = 0.75;
+
+/**
+ * Blend from base probability toward needed rate as night progresses.
+ */
+export const BOOST_BLEND_START = 0.35;
+export const BOOST_BLEND_END = 0.85;
+
+/**
+ * Extra late-day pressure based on deficit ratio.
+ */
+export const BOOST_URGENCY_FACTOR = 0.30;
 
 /**
  * The reward window, in 24h local Nepal-time hours/minutes.

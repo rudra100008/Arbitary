@@ -3,32 +3,56 @@ import {
   MIN_WIN_PROBABILITY,
   MAX_WIN_PROBABILITY,
   PACE_SENSITIVITY,
-  SOFT_CAP_DECAY,
-  ABSOLUTE_MAX_RATE,
-  ABSOLUTE_MAX_REWARDS_FLOOR,
   MIN_SCANS_BEFORE_REWARDS,
-  BOOST_AFTER_HOUR,
-  BOOST_WIN_PROBABILITY,
-  NST_OFFSET_MS,
+  EARLY_WIN_RAMP_EXPONENT,
+  EARLY_WIN_MIN_PROBABILITY,
+  EARLY_WIN_CAP_BEFORE_RAMP,
 } from "./reward-config";
 
 export function computeAbsoluteMax(scansToday: number): number {
-  return Math.max(ABSOLUTE_MAX_REWARDS_FLOOR, Math.floor(scansToday * ABSOLUTE_MAX_RATE));
+  void scansToday;
+  return DAILY_REWARD_TARGET;
 }
 
-/** Returns the current hour in NST (0–23). */
-function nstHour(now: Date): number {
-  return new Date(now.getTime() + NST_OFFSET_MS).getUTCHours();
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function elapsedFraction(now: Date, windowStart: Date, windowEnd: Date): number {
+  const totalMs = windowEnd.getTime() - windowStart.getTime();
+  const elapsedMs = now.getTime() - windowStart.getTime();
+  return totalMs > 0 ? clamp(elapsedMs / totalMs, 0, 1) : 1;
+}
+
+function basePacedProbability(
+  winnersInWindow: number,
+  scansToday: number,
+  now: Date,
+  windowStart: Date,
+  windowEnd: Date,
+): number {
+  const fraction = elapsedFraction(now, windowStart, windowEnd);
+  const winRate = DAILY_REWARD_TARGET / scansToday;
+  const pacedTarget = Math.min(
+    DAILY_REWARD_TARGET * fraction,
+    scansToday * fraction * winRate,
+  );
+  const deficit = pacedTarget - winnersInWindow;
+  const rawProbability = winRate + (deficit / DAILY_REWARD_TARGET) * PACE_SENSITIVITY * winRate;
+  return clamp(rawProbability, MIN_WIN_PROBABILITY, MAX_WIN_PROBABILITY);
+}
+
+function applyEarlyRamp(probability: number, scansToday: number): number {
+  const threshold = Math.max(1, MIN_SCANS_BEFORE_REWARDS);
+  const ramp = Math.pow(clamp(scansToday / threshold, 0, 1), EARLY_WIN_RAMP_EXPONENT);
+  return Math.max(EARLY_WIN_MIN_PROBABILITY, probability * ramp);
 }
 
 /**
  * Decides whether this submission wins a reward.
  *
- * Before 7PM  → normal time-based pacing.
- * After 7PM, winners < DAILY_REWARD_TARGET → boost probability to fill
- *   remaining slots before midnight.
- * After 7PM, winners >= DAILY_REWARD_TARGET → no boost, continue normally
- *   (soft-cap decay kicks in past target).
+ * Uses normal time-based pacing with early fairness ramp.
+ * After winners reaches DAILY_REWARD_TARGET, no further rewards are granted.
  */
 export function shouldGrantReward(
   winnersInWindow: number,
@@ -37,37 +61,21 @@ export function shouldGrantReward(
   windowStart: Date,
   windowEnd: Date,
 ): boolean {
-  if (scansToday < MIN_SCANS_BEFORE_REWARDS) return false;
-
   const absoluteMax = computeAbsoluteMax(scansToday);
   if (winnersInWindow >= absoluteMax) return false;
 
-  const hour = nstHour(now);
-  const isPastBoostTime = hour >= BOOST_AFTER_HOUR;
-
-  // After 7PM and still under target → boost
-  if (isPastBoostTime && winnersInWindow < DAILY_REWARD_TARGET) {
-    return Math.random() < BOOST_WIN_PROBABILITY;
-  }
-
-  // Normal pacing (before 7PM, or already at/past target)
+  // Normal pacing
   if (winnersInWindow < DAILY_REWARD_TARGET) {
-    const totalMs = windowEnd.getTime() - windowStart.getTime();
-    const elapsedMs = now.getTime() - windowStart.getTime();
-    const elapsedFraction = totalMs > 0 ? Math.min(1, Math.max(0, elapsedMs / totalMs)) : 1;
-    const winRate = DAILY_REWARD_TARGET / scansToday;
-    const pacedTarget = Math.min(
-      DAILY_REWARD_TARGET * elapsedFraction,
-      scansToday * elapsedFraction * winRate,
-    );
-    const deficit = pacedTarget - winnersInWindow;
-    const rawProbability = winRate + (deficit / DAILY_REWARD_TARGET) * PACE_SENSITIVITY * winRate;
-    const probability = Math.min(MAX_WIN_PROBABILITY, Math.max(MIN_WIN_PROBABILITY, rawProbability));
+    const baseProbability = basePacedProbability(winnersInWindow, scansToday, now, windowStart, windowEnd);
+    const rampedProbability = applyEarlyRamp(baseProbability, scansToday);
+
+    if (scansToday < MIN_SCANS_BEFORE_REWARDS && winnersInWindow >= EARLY_WIN_CAP_BEFORE_RAMP) {
+      return false;
+    }
+
+    const probability = clamp(rampedProbability, MIN_WIN_PROBABILITY, MAX_WIN_PROBABILITY);
     return Math.random() < probability;
   }
 
-  // Past target: soft decay
-  const overflow = winnersInWindow - DAILY_REWARD_TARGET + 1;
-  const probability = MIN_WIN_PROBABILITY * Math.pow(SOFT_CAP_DECAY, overflow);
-  return Math.random() < probability;
+  return false;
 }

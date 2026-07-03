@@ -802,7 +802,7 @@ export default function TiltPage() {
                   lineHeight: 1.5,
                 }}
               >
-                By clicking "Register", you agree to our{" "}
+                By clicking "Apply", you agree to our{" "}
                 <a
                   href="/tilt/terms"
                   target="_blank"
