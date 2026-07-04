@@ -9,6 +9,8 @@ import {
 } from '@/src/db/tilt-schema';
 import { eq, count, isNotNull } from 'drizzle-orm';
 import { jwtVerify } from 'jose';
+import { sendEmail } from '@/src/lib/email';
+import { outletInviteHtml } from '@/src/lib/emails/outlet-invite';
 
 const TILT_JWT_SECRET = new TextEncoder().encode(
     process.env.TILT_JWT_SECRET ?? 'tilt-fallback-secret-change-in-production'
@@ -171,7 +173,20 @@ export async function POST(req: NextRequest) {
 
         await tiltDb.insert(invitedOutletsTable).values({ email: normalizedEmail });
 
-        return NextResponse.json({ ok: true }, { status: 201 });
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const signupLink = `${baseUrl}/tilt/signup`;
+
+        const emailSent = await sendEmail({
+            to: normalizedEmail,
+            subject: "You've been invited to Arbitrary",
+            html: outletInviteHtml(signupLink),
+        });
+
+        if (!emailSent) {
+            console.error(`[tilt/admin/users] Invite saved but email failed to send to ${normalizedEmail}`);
+        }
+
+        return NextResponse.json({ ok: true, emailSent }, { status: 201 });
     } catch (err) {
         console.error('[tilt/admin/users] POST', err);
         return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
