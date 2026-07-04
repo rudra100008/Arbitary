@@ -523,7 +523,7 @@ const UserSignupPage = () => {
             </div>
 
             {/* Google */}
-            <button
+            {/* <button
               type="button"
               onClick={handleGoogleSignup}
               disabled={isLoading}
@@ -553,7 +553,7 @@ const UserSignupPage = () => {
                 />
               </svg>
               {isLoading ? "Signing up…" : "Continue with Google"}
-            </button>
+            </button> */}
             {flags.facebook && (
               <button
                 type="button"
