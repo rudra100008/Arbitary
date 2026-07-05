@@ -9,7 +9,7 @@ if (!connectionString) {
 
 const pool = new Pool({
     connectionString,
-    ssl: true,
+    ssl: { rejectUnauthorized: false },
     max: 20,
     idleTimeoutMillis: 30000,
 });
