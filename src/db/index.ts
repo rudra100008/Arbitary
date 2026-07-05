@@ -9,7 +9,7 @@ if (!connectionString) {
 
 const pool = new Pool({
     connectionString,
-    ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
+    ssl: true,
     max: 20,
     idleTimeoutMillis: 30000,
 });
