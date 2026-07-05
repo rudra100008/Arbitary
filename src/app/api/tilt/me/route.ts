@@ -46,6 +46,10 @@ export async function GET(req: NextRequest) {
             .from(tiltUsersTable)
             .where(eq(tiltUsersTable.id, payload.id));
 
+        if (!dbUser) {
+            return NextResponse.json({ error: 'Session no longer valid. Please log in again.' }, { status: 401 });
+        }
+
         // Fetch existing registration if any
         const [registration] = await tiltDb
             .select()
@@ -53,7 +57,7 @@ export async function GET(req: NextRequest) {
             .where(eq(tiltRegistrationsTable.userId, payload.id));
 
         return NextResponse.json({
-            user: dbUser ?? { id: payload.id, name: payload.name, email: payload.email, role: payload.role, address: null },
+            user: dbUser,
             registration: registration
                 ? {
                     name: registration.name,

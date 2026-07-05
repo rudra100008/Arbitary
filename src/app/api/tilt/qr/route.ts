@@ -1,8 +1,8 @@
 import { and, desc, gte, lte } from "drizzle-orm";
-import { jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
 import { lotteryCampaignsTable } from "@/src/db/tilt-schema";
+import { requireTiltOutlet } from "@/src/lib/tilt/require-outlet";
 import {
   GenerateQrTokenError,
   generateQrToken,
@@ -12,10 +12,6 @@ type ErrorResponse = {
   error: string;
   code: string;
 };
-
-const TILT_JWT_SECRET = new TextEncoder().encode(
-  process.env.TILT_JWT_SECRET ?? "tilt-fallback-secret-change-in-production",
-);
 
 function resolveAppBaseUrl(req: NextRequest) {
   const configuredUrl = process.env.NEXTAUTH_URL?.trim();
@@ -29,44 +25,16 @@ function resolveAppBaseUrl(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get("tilt_token")?.value;
-    if (!token) {
+    const auth = await requireTiltOutlet(req);
+    if (!auth.ok) {
       const response: ErrorResponse = {
         error: "Outlet session is required",
         code: "UNAUTHORIZED",
       };
-      return NextResponse.json(response, { status: 401 });
+      return NextResponse.json(response, { status: auth.response.status });
     }
 
-    let payload: { id: number; email: string; name: string; role: string };
-
-    try {
-      const { payload: decoded } = await jwtVerify(token, TILT_JWT_SECRET);
-      payload = decoded as typeof payload;
-    } catch {
-      const response: ErrorResponse = {
-        error: "Session expired. Please log in again.",
-        code: "UNAUTHORIZED",
-      };
-      return NextResponse.json(response, { status: 401 });
-    }
-
-    if (payload.role !== "outlet") {
-      const response: ErrorResponse = {
-        error: "Outlet session is required",
-        code: "UNAUTHORIZED",
-      };
-      return NextResponse.json(response, { status: 403 });
-    }
-
-    const outletId = String(payload.id ?? "").trim();
-    if (!outletId) {
-      const response: ErrorResponse = {
-        error: "Invalid outlet identity in session",
-        code: "OUTLET_NOT_FOUND",
-      };
-      return NextResponse.json(response, { status: 400 });
-    }
+    const { outletId } = auth;
 
     const now = new Date();
     const [activeCampaign] = await tiltDb

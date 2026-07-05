@@ -204,6 +204,13 @@ export async function POST(req: NextRequest) {
 
         if (!emailSent) {
             console.error(`[tilt/admin/users] Invite saved but email failed to send to ${normalizedEmail}`);
+            await tiltDb
+                .delete(invitedOutletsTable)
+                .where(eq(invitedOutletsTable.email, normalizedEmail));
+            return NextResponse.json(
+                { error: 'Failed to send invite email. Please check email config and try again.' },
+                { status: 502 },
+            );
         }
 
         return NextResponse.json({ ok: true, emailSent }, { status: 201 });

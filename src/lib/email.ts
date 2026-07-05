@@ -1,8 +1,8 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || "smtp.gmail.com",
-  port: Number(process.env.EMAIL_PORT || 587),
+  host:  "smtp.gmail.com",
+  port:  587,
   secure: process.env.EMAIL_SECURE === "true",
   auth: {
     user: process.env.EMAIL_USER,
@@ -37,6 +37,11 @@ export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
   const fromName = process.env.EMAIL_FROM_NAME || "Arbitrary";
   const replyToAddress = process.env.EMAIL_REPLY_TO || fromAddress;
 
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || !fromAddress) {
+    console.error("Email sending failed: missing EMAIL_USER/EMAIL_PASS/EMAIL_FROM config");
+    return false;
+  }
+
   const listUnsubscribeUrl = process.env.EMAIL_LIST_UNSUBSCRIBE_URL;
   const listUnsubscribeMailto = process.env.EMAIL_LIST_UNSUBSCRIBE_MAILTO;
   const listUnsubscribe = [
@@ -58,7 +63,9 @@ export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
         ...(listUnsubscribe
           ? {
               "List-Unsubscribe": listUnsubscribe,
-              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              ...(listUnsubscribeUrl
+                ? { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+                : {}),
             }
           : {}),
       },
