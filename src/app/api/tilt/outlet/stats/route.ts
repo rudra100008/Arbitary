@@ -3,7 +3,7 @@ import { jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
 import { qrTokensTable, lotterySessionsTable, instantRewardsTable } from "@/src/db/tilt-schema";
-import { getDailyRewardTarget } from "@/src/lib/tilt/reward-target";
+import { getOutletDailyRewardTarget } from "@/src/lib/tilt/reward-target";
 import { getRewardWindow } from "@/src/lib/tilt/reward-window";
 
 export const revalidate = 60;
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
         ),
       );
 
-    const rewardTarget = await getDailyRewardTarget();
+    const rewardTarget = await getOutletDailyRewardTarget(outletId);
 
     return NextResponse.json(
       {

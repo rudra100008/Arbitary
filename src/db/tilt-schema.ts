@@ -55,6 +55,13 @@ export const tiltSettingsTable = pgTable("tilt_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const tiltOutletRewardTargetsTable = pgTable("tilt_outlet_reward_targets", {
+  outletId: text("outlet_id").primaryKey(),
+  dailyRewardTarget: integer("daily_reward_target").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedBy: integer("updated_by"),
+});
+
 export const lotteryCampaignsTable = pgTable("lottery_campaigns", {
   id: uuid("id").defaultRandom().primaryKey(),
   outletId: text("outlet_id").notNull(), // TODO: FK to outlets

@@ -3,6 +3,7 @@ import { tiltDb } from '@/src/db/tilt-db';
 import {
     tiltUsersTable,
     invitedOutletsTable,
+    tiltOutletRewardTargetsTable,
     qrTokensTable,
     lotterySessionsTable,
     lotteryEntriesTable,
@@ -11,6 +12,12 @@ import { eq, count, isNotNull } from 'drizzle-orm';
 import { jwtVerify } from 'jose';
 import { sendEmail } from '@/src/lib/email';
 import { outletInviteHtml } from '@/src/lib/emails/outlet-invite';
+import {
+    getDailyRewardTarget,
+    setOutletDailyRewardTarget,
+    MIN_DAILY_REWARD_TARGET,
+    MAX_DAILY_REWARD_TARGET,
+} from '@/src/lib/tilt/reward-target';
 
 const TILT_JWT_SECRET = new TextEncoder().encode(
     process.env.TILT_JWT_SECRET ?? 'tilt-fallback-secret-change-in-production'
@@ -79,10 +86,19 @@ export async function GET(req: NextRequest) {
             .orderBy(invitedOutletsTable.createdAt)
             .limit(100);
 
+        const outletTargets = await tiltDb
+            .select({
+                outletId: tiltOutletRewardTargetsTable.outletId,
+                dailyRewardTarget: tiltOutletRewardTargetsTable.dailyRewardTarget,
+            })
+            .from(tiltOutletRewardTargetsTable);
+
         // ── Merge ──────────────────────────────────────────────────────────
         const scanMap = new Map(scanCounts.map((r) => [r.outletId, r.count]));
         const submissionMap = new Map(submissionCounts.map((r) => [r.outletId, r.count]));
+        const outletTargetMap = new Map(outletTargets.map((r) => [r.outletId, r.dailyRewardTarget]));
         const signedUpEmails = new Set(outlets.map((u) => u.email));
+        const globalDailyRewardTarget = await getDailyRewardTarget();
 
         const result: {
             id: number | null;
@@ -92,6 +108,7 @@ export async function GET(req: NextRequest) {
             address: string | null;
             scanCount: number;
             submissionCount: number;
+            dailyRewardTarget: number | null;
             createdAt: Date | null;
             status: 'active' | 'invited';
         }[] = outlets.map((u) => ({
@@ -102,6 +119,7 @@ export async function GET(req: NextRequest) {
             address: u.address,
             scanCount: scanMap.get(String(u.id)) ?? 0,
             submissionCount: submissionMap.get(String(u.id)) ?? 0,
+            dailyRewardTarget: outletTargetMap.get(String(u.id)) ?? globalDailyRewardTarget,
             createdAt: u.createdAt,
             status: 'active' as const,
         }));
@@ -116,6 +134,7 @@ export async function GET(req: NextRequest) {
                     address: null,
                     scanCount: 0,
                     submissionCount: 0,
+                    dailyRewardTarget: null,
                     createdAt: inv.createdAt,
                     status: 'invited',
                 });
@@ -129,6 +148,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             users: result,
             totalSubmissions: totalSubmissionsRow?.count ?? 0,
+            globalDailyRewardTarget,
         });
     } catch (err) {
         console.error('[tilt/admin/users]', err);
@@ -217,6 +237,52 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ ok: true });
     } catch (err) {
         console.error('[tilt/admin/users] DELETE', err);
+        return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const payload = await requireSuperadmin(req);
+        if (!payload) {
+            return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+        }
+
+        const body = (await req.json().catch(() => ({}))) as {
+            outletId?: string;
+            target?: number;
+        };
+
+        const outletId = typeof body.outletId === 'string' ? body.outletId.trim() : '';
+        const target = Number(body.target);
+
+        if (!outletId) {
+            return NextResponse.json({ error: 'Outlet is required.' }, { status: 400 });
+        }
+        if (!Number.isInteger(target)) {
+            return NextResponse.json({ error: 'Target must be an integer.' }, { status: 400 });
+        }
+        if (target < MIN_DAILY_REWARD_TARGET || target > MAX_DAILY_REWARD_TARGET) {
+            return NextResponse.json(
+                { error: `Target must be between ${MIN_DAILY_REWARD_TARGET} and ${MAX_DAILY_REWARD_TARGET}.` },
+                { status: 400 },
+            );
+        }
+
+        const [outlet] = await tiltDb
+            .select({ id: tiltUsersTable.id })
+            .from(tiltUsersTable)
+            .where(eq(tiltUsersTable.id, Number(outletId)));
+
+        if (!outlet) {
+            return NextResponse.json({ error: 'Outlet not found.' }, { status: 404 });
+        }
+
+        const dailyRewardTarget = await setOutletDailyRewardTarget(outletId, target, Number(payload.id));
+
+        return NextResponse.json({ outletId, dailyRewardTarget }, { status: 200 });
+    } catch (err) {
+        console.error('[tilt/admin/users] PATCH', err);
         return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
     }
 }

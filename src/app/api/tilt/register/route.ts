@@ -9,7 +9,7 @@ import {
 } from "@/src/db/tilt-schema";
 import { getRewardWindow, isWithinRewardWindow } from "@/src/lib/tilt/reward-window";
 import { shouldGrantReward } from "@/src/lib/tilt/reward-roll";
-import { getDailyRewardTarget } from "@/src/lib/tilt/reward-target";
+import { getOutletDailyRewardTarget } from "@/src/lib/tilt/reward-target";
 import {
   EMAIL_FORMAT_REGEX,
   isDisposableEmail,
@@ -182,8 +182,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const dailyRewardTarget = await getDailyRewardTarget();
-
     const { insertedEntry, wonReward } = await tiltDb.transaction(async (tx) => {
       const [entry] = await tx
         .insert(lotteryEntriesTable)
@@ -218,6 +216,7 @@ export async function POST(req: NextRequest) {
 
         if (token?.outletId) {
           const outletId = token.outletId;
+          const dailyRewardTarget = await getOutletDailyRewardTarget(outletId);
           const { start, end } = getRewardWindow();
 
           // Winners today, this outlet only

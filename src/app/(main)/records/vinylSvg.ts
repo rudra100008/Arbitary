@@ -43,6 +43,12 @@ export function extractYtId(url: string | null | undefined): string {
   return s;
 }
 
+/** Build a YouTube thumbnail URL for a valid 11-char video id. */
+function getYouTubeThumbnailUrl(ytId: string): string | null {
+  if (!/^[A-Za-z0-9_-]{11}$/.test(ytId)) return null;
+  return `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`;
+}
+
 /** Lighten a hex color toward white by `amt` (0..1) for a soft accent. */
 function lighten(hex: string, amt: number): string {
   const h = hex.replace("#", "");
@@ -70,7 +76,9 @@ export function mapRecordToSong(rec: {
   const labelColor = rec.labelColor || "#c0392b";
   const accentColor = lighten(labelColor, 0.45);
   const tilt = ((rec.id * 37) % 9) - 4; // deterministic -4..4 lean
-  const hasCover = !!rec.coverImageUrl;
+  const ytId = extractYtId(rec.youtubeUrl);
+  const resolvedCoverImageUrl = rec.coverImageUrl || getYouTubeThumbnailUrl(ytId);
+  const hasCover = !!resolvedCoverImageUrl;
   const tags = [
     rec.genre || "Single",
     rec.releaseYear ? String(rec.releaseYear) : null,
@@ -81,7 +89,7 @@ export function mapRecordToSong(rec: {
     artist: rec.artist,
     releaseMonth: rec.releaseMonth,
     releaseYear: rec.releaseYear,
-    ytId: extractYtId(rec.youtubeUrl),
+    ytId,
     labelColor,
     accentColor,
     coverColor: lighten(labelColor, 0.7),
@@ -93,7 +101,7 @@ export function mapRecordToSong(rec: {
       (rec.genre ? ` — a ${rec.genre.toLowerCase()} release` : "") +
       (rec.releaseYear ? ` from ${rec.releaseYear}.` : "."),
     tags,
-    coverImageUrl: rec.coverImageUrl,
+    coverImageUrl: resolvedCoverImageUrl,
   };
 }
 
