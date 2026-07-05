@@ -168,6 +168,46 @@ function RegisterBtn({ className = "" }: { className?: string }) {
   );
 }
 
+function OutletAccessBtn({ className = "" }: { className?: string }) {
+  const router = useRouter();
+  const [isRouting, setIsRouting] = useState(false);
+
+  const resolveOutletHref = async () => {
+    try {
+      const res = await fetch("/api/tilt/me", { cache: "no-store" });
+      if (!res.ok) return "/tilt/login";
+
+      const data = (await res.json()) as {
+        user?: { role?: string } | null;
+      };
+
+      if (!data.user) return "/tilt/login";
+      return data.user.role === "SUPERADMIN" ? "/tilt/admin" : "/tilt/outlet";
+    } catch {
+      return "/tilt/login";
+    }
+  };
+
+  const handleClick = async () => {
+    if (isRouting) return;
+    setIsRouting(true);
+    const href = await resolveOutletHref();
+    router.push(href);
+    setIsRouting(false);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={isRouting}
+      className={`shrink-0 text-white/95 font-bold uppercase tracking-wider rounded-md border border-white/75 bg-white/10 hover:bg-white/18 hover:border-white px-3 py-1.5 transition-colors duration-150 disabled:opacity-70 ${className}`}
+    >
+      {isRouting ? "OPENING..." : "PARTNER OUTLET"}
+    </button>
+  );
+}
+
 function Countdown({
   timeLeft,
   className = "",
@@ -409,6 +449,10 @@ export default function PromoBanner() {
           <Countdown timeLeft={timeLeft} className="text-[8px] px-2 py-0.5" />
           <RegisterBtn className="text-[8px] px-2.5 py-1 tracking-widest" />
         </div>
+
+        <div className="mt-1.5 flex justify-end">
+          <OutletAccessBtn className="text-[8px] px-2.5 py-1" />
+        </div>
       </div>
 
       {/* ── Tablet (640px–1023px): badge | ticker | countdown + CTA + close ── */}
@@ -424,6 +468,7 @@ export default function PromoBanner() {
         <div className="flex-shrink-0 flex items-center gap-2">
           <Countdown timeLeft={timeLeft} className="text-[10px] px-2.5 py-1" />
           <RegisterBtn className="text-[10px] px-3 py-1.5" />
+          <OutletAccessBtn className="text-[10px] px-3 py-1.5" />
           <CloseBtn size={14} onDismiss={handleDismiss} />
         </div>
       </div>
@@ -447,6 +492,7 @@ export default function PromoBanner() {
         <div className="flex-shrink-0 flex items-center gap-2">
           <Countdown timeLeft={timeLeft} className="text-[10px] px-3 py-1" />
           <RegisterBtn className="text-xs px-4 py-1.5" />
+          <OutletAccessBtn className="text-[10px] px-3.5 py-1.5" />
           <CloseBtn size={16} onDismiss={handleDismiss} />
         </div>
       </div>

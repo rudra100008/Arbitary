@@ -88,8 +88,8 @@ const ProfileDropdown = ({ redirectUrl }: { redirectUrl: string }) => {
         <Link
           href="/login"
           className="px-2.5 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-semibold text-gray-700 hover:text-gray-900
-                   border border-gray-200 hover:border-gray-300 rounded-xl
-                   transition-all duration-200 hover:bg-gray-50 whitespace-nowrap"
+                   bg-white border border-white/90 hover:border-gray-300 rounded-xl shadow-sm hover:shadow-md
+                   transition-all duration-200 hover:bg-gray-100 hover:-translate-y-px whitespace-nowrap"
         >
           Sign in
         </Link>

@@ -1,5 +1,5 @@
 import {
-  DAILY_REWARD_TARGET,
+  DEFAULT_DAILY_REWARD_TARGET,
   EARLY_WIN_CAP_BEFORE_RAMP,
   EARLY_WIN_MIN_PROBABILITY,
   EARLY_WIN_RAMP_EXPONENT,
@@ -9,6 +9,8 @@ import {
   PACE_SENSITIVITY,
 } from "../src/lib/tilt/reward-config";
 import { computeAbsoluteMax } from "../src/lib/tilt/reward-roll";
+
+const DAILY_REWARD_TARGET = DEFAULT_DAILY_REWARD_TARGET;
 
 type DayResult = {
   winners: number;
@@ -170,7 +172,9 @@ function formatPercent(value: number): string {
 
 function run(): void {
   console.log(`Extended reward simulation - no boost (${TRIALS} trials per bucket)`);
-  console.log("submissions | avg/min/p50/p90/max | >=10 | >10 | avg pre-7PM / post-7PM");
+  console.log(
+    `submissions | avg/min/p50/p90/max | >=${DAILY_REWARD_TARGET} | >${DAILY_REWARD_TARGET} | avg pre-7PM / post-7PM`,
+  );
 
   for (const submissions of SUBMISSION_BUCKETS) {
     const s = summarize(submissions, TRIALS);
