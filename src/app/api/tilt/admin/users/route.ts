@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
 
         const emailSent = await sendEmail({
             to: normalizedEmail,
-            subject: "You've been invited to Arbitrary",
+            subject: "You're invited to Tilt Your Music",
             html: outletInviteHtml(signupLink),
         });
 
