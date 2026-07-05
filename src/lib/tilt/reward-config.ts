@@ -1,5 +1,7 @@
 /** Maximum rewards allowed per outlet, per active window. */
-export const DAILY_REWARD_TARGET = 10;
+export const DEFAULT_DAILY_REWARD_TARGET = 10;
+export const MIN_DAILY_REWARD_TARGET = 1;
+export const MAX_DAILY_REWARD_TARGET = 500;
 
 /** Probability never goes below/above these, so outcomes stay random even at extremes. */
 export const MIN_WIN_PROBABILITY = 0.05;
@@ -9,10 +11,10 @@ export const MAX_WIN_PROBABILITY = 0.95;
 export const PACE_SENSITIVITY = 1.0;
 
 /**
- * `DAILY_REWARD_TARGET` is also a strict hard cap.
+ * The runtime daily target is also a strict hard cap.
  * Once winners reach this value, no more rewards are granted for that outlet/day.
  */
-
+ 
 /**
  * Early-win ramp reaches full strength at this many scans.
  * Before this point, rewards are possible but probability is scaled down.
@@ -36,7 +38,7 @@ export const EARLY_WIN_MIN_PROBABILITY = 0.01;
 export const EARLY_WIN_CAP_BEFORE_RAMP = 2;
 
 /**
- * After this hour (NST, 24h), if winners < DAILY_REWARD_TARGET,
+ * After this hour (NST, 24h), if winners < runtime daily reward target,
  * probability is boosted aggressively to ensure the target is met
  * before the window closes at midnight.
  * 19 = 7:00 PM NST

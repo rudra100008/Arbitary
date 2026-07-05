@@ -1,5 +1,5 @@
 import {
-  DAILY_REWARD_TARGET,
+  DEFAULT_DAILY_REWARD_TARGET,
   MIN_WIN_PROBABILITY,
   MAX_WIN_PROBABILITY,
   PACE_SENSITIVITY,
@@ -9,9 +9,9 @@ import {
   EARLY_WIN_CAP_BEFORE_RAMP,
 } from "./reward-config";
 
-export function computeAbsoluteMax(scansToday: number): number {
+export function computeAbsoluteMax(scansToday: number, dailyRewardTarget: number = DEFAULT_DAILY_REWARD_TARGET): number {
   void scansToday;
-  return DAILY_REWARD_TARGET;
+  return dailyRewardTarget;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -27,18 +27,19 @@ function elapsedFraction(now: Date, windowStart: Date, windowEnd: Date): number 
 function basePacedProbability(
   winnersInWindow: number,
   scansToday: number,
+  dailyRewardTarget: number,
   now: Date,
   windowStart: Date,
   windowEnd: Date,
 ): number {
   const fraction = elapsedFraction(now, windowStart, windowEnd);
-  const winRate = DAILY_REWARD_TARGET / scansToday;
+  const winRate = dailyRewardTarget / scansToday;
   const pacedTarget = Math.min(
-    DAILY_REWARD_TARGET * fraction,
+    dailyRewardTarget * fraction,
     scansToday * fraction * winRate,
   );
   const deficit = pacedTarget - winnersInWindow;
-  const rawProbability = winRate + (deficit / DAILY_REWARD_TARGET) * PACE_SENSITIVITY * winRate;
+  const rawProbability = winRate + (deficit / dailyRewardTarget) * PACE_SENSITIVITY * winRate;
   return clamp(rawProbability, MIN_WIN_PROBABILITY, MAX_WIN_PROBABILITY);
 }
 
@@ -60,13 +61,14 @@ export function shouldGrantReward(
   now: Date,
   windowStart: Date,
   windowEnd: Date,
+  dailyRewardTarget: number = DEFAULT_DAILY_REWARD_TARGET,
 ): boolean {
-  const absoluteMax = computeAbsoluteMax(scansToday);
+  const absoluteMax = computeAbsoluteMax(scansToday, dailyRewardTarget);
   if (winnersInWindow >= absoluteMax) return false;
 
   // Normal pacing
-  if (winnersInWindow < DAILY_REWARD_TARGET) {
-    const baseProbability = basePacedProbability(winnersInWindow, scansToday, now, windowStart, windowEnd);
+  if (winnersInWindow < dailyRewardTarget) {
+    const baseProbability = basePacedProbability(winnersInWindow, scansToday, dailyRewardTarget, now, windowStart, windowEnd);
     const rampedProbability = applyEarlyRamp(baseProbability, scansToday);
 
     if (scansToday < MIN_SCANS_BEFORE_REWARDS && winnersInWindow >= EARLY_WIN_CAP_BEFORE_RAMP) {

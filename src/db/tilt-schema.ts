@@ -49,6 +49,12 @@ export const invitedOutletsTable = pgTable("invited_outlets", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tiltSettingsTable = pgTable("tilt_settings", {
+  key: varchar("key", { length: 100 }).primaryKey(),
+  value: integer("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const lotteryCampaignsTable = pgTable("lottery_campaigns", {
   id: uuid("id").defaultRandom().primaryKey(),
   outletId: text("outlet_id").notNull(), // TODO: FK to outlets

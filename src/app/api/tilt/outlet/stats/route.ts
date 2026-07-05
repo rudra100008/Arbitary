@@ -3,7 +3,7 @@ import { jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
 import { qrTokensTable, lotterySessionsTable, instantRewardsTable } from "@/src/db/tilt-schema";
-import { DAILY_REWARD_TARGET } from "@/src/lib/tilt/reward-config";
+import { getDailyRewardTarget } from "@/src/lib/tilt/reward-target";
 import { getRewardWindow } from "@/src/lib/tilt/reward-window";
 
 export const revalidate = 60;
@@ -69,12 +69,14 @@ export async function GET(req: NextRequest) {
         ),
       );
 
+    const rewardTarget = await getDailyRewardTarget();
+
     return NextResponse.json(
       {
         scans: Number(scanResult?.count ?? 0),
         submissions: Number(submissionResult?.count ?? 0),
         rewardsToday: Number(rewardResult?.total ?? 0),
-        rewardTarget: DAILY_REWARD_TARGET,
+        rewardTarget,
       },
       { status: 200 },
     );
