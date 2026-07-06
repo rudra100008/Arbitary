@@ -1,7 +1,20 @@
 /** Maximum rewards allowed per outlet, per active window. */
 export const DEFAULT_DAILY_REWARD_TARGET = 10;
-export const MIN_DAILY_REWARD_TARGET = 1;
+export const MIN_DAILY_REWARD_TARGET = 0;
 export const MAX_DAILY_REWARD_TARGET = 500;
+
+/** Days of history used to compute average daily entries per outlet. */
+export const AVG_DAILY_ENTRIES_LOOKBACK_DAYS = 14;
+
+/** Require at least this many active days before trusting historical averages. */
+export const MIN_HISTORY_DAYS_FOR_AVG = 14;
+
+/** Used when an outlet has no trusted history yet. */
+export const FALLBACK_ENTRIES_PER_BUCKET = 12;
+
+/** Early-bucket probability nudge. */
+export const EARLY_NUDGE_MULTIPLIER = 1.2;
+export const EARLY_NUDGE_WINDOW_FRACTION = 0.25;
 
 /** Probability never goes below/above these, so outcomes stay random even at extremes. */
 export const MIN_WIN_PROBABILITY = 0.05;

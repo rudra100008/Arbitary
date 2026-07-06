@@ -1,10 +1,14 @@
 import {
   boolean,
+  date,
   index,
   integer,
+  numeric,
   pgTable,
+  primaryKey,
   serial,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -21,6 +25,9 @@ export const tiltUsersTable = pgTable("tilt_users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   role: varchar("role", { length: 50 }).notNull().default("outlet"),
   address: text("address"),
+  operatingHoursStart: time("operating_hours_start").notNull().default("10:00:00"),
+  operatingHoursEnd: time("operating_hours_end").notNull().default("22:00:00"),
+  avgDailyEntries: numeric("avg_daily_entries", { precision: 10, scale: 2 }),
 });
 
 // ── Table for Tilt registrations ────────────────────────────────────────────
@@ -166,5 +173,57 @@ export const instantRewardsTable = pgTable(
   (table) => [
     index("instant_rewards_claimed_at_idx").on(table.claimedAt),
     index("instant_rewards_outlet_idx").on(table.outletId, table.claimedAt),
+  ],
+);
+
+export const dailyRewardBucketsTable = pgTable(
+  "daily_reward_buckets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    outletId: text("outlet_id").notNull(),
+    rewardDate: date("reward_date", { mode: "string" }).notNull(),
+    bucketIndex: integer("bucket_index").notNull(),
+    bucketStart: timestamp("bucket_start").notNull(),
+    bucketEnd: timestamp("bucket_end").notNull(),
+    targetWinners: integer("target_winners").notNull().default(1),
+    winnersGivenInBucket: integer("winners_given_in_bucket").notNull().default(0),
+    estimatedEntries: numeric("estimated_entries", { precision: 10, scale: 2 }).notNull(),
+    rolloverApplied: boolean("rollover_applied").notNull().default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("daily_reward_buckets_outlet_date_bucket_idx").on(
+      table.outletId,
+      table.rewardDate,
+      table.bucketIndex,
+    ),
+    index("daily_reward_buckets_lookup_idx").on(
+      table.outletId,
+      table.rewardDate,
+      table.bucketStart,
+      table.bucketEnd,
+    ),
+    index("daily_reward_buckets_rollover_idx").on(
+      table.outletId,
+      table.rewardDate,
+      table.rolloverApplied,
+      table.bucketEnd,
+    ),
+  ],
+);
+
+export const dailyRewardCountersTable = pgTable(
+  "daily_reward_counters",
+  {
+    outletId: text("outlet_id").notNull(),
+    rewardDate: date("reward_date", { mode: "string" }).notNull(),
+    winnersGivenToday: integer("winners_given_today").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "daily_reward_counters_outlet_date_pk",
+      columns: [table.outletId, table.rewardDate],
+    }),
   ],
 );

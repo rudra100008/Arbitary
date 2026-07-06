@@ -1,14 +1,20 @@
-import { and, count, eq, gte, lt } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
 import {
+  dailyRewardBucketsTable,
+  dailyRewardCountersTable,
   lotteryEntriesTable,
   lotterySessionsTable,
   instantRewardsTable,
   qrTokensTable,
 } from "@/src/db/tilt-schema";
-import { getRewardWindow, isWithinRewardWindow } from "@/src/lib/tilt/reward-window";
-import { shouldGrantReward } from "@/src/lib/tilt/reward-roll";
+import {
+  applyBucketRollover,
+  generateDailyBuckets,
+  getNstDateKey,
+} from "@/src/lib/tilt/reward-buckets";
+import { getWinProbability } from "@/src/lib/tilt/reward-probability";
 import { getOutletDailyRewardTarget } from "@/src/lib/tilt/reward-target";
 import {
   EMAIL_FORMAT_REGEX,
@@ -207,60 +213,129 @@ export async function POST(req: NextRequest) {
 
       let wonReward = false;
 
-      if (isWithinRewardWindow()) {
-        // Resolve which outlet this session's QR token belongs to
-        const [token] = await tx
-          .select({ outletId: qrTokensTable.outletId })
-          .from(qrTokensTable)
-          .where(eq(qrTokensTable.id, session.token_id));
+      // Resolve which outlet this session's QR token belongs to.
+      const [token] = await tx
+        .select({ outletId: qrTokensTable.outletId })
+        .from(qrTokensTable)
+        .where(eq(qrTokensTable.id, session.token_id));
 
-        if (token?.outletId) {
-          const outletId = token.outletId;
-          const dailyRewardTarget = await getOutletDailyRewardTarget(outletId);
-          const { start, end } = getRewardWindow();
+      if (token?.outletId) {
+        const outletId = token.outletId;
+        const now = new Date();
+        const rewardDate = getNstDateKey(now);
+        const dailyRewardTarget = await getOutletDailyRewardTarget(outletId);
 
-          // Winners today, this outlet only
-          const [{ winnersInWindow }] = await tx
-            .select({ winnersInWindow: count() })
-            .from(instantRewardsTable)
-            .where(
-              and(
-                eq(instantRewardsTable.outletId, outletId),
-                gte(instantRewardsTable.claimedAt, start),
-                lt(instantRewardsTable.claimedAt, end),
-              ),
-            );
+        if (dailyRewardTarget > 0) {
+          await generateDailyBuckets(outletId, rewardDate, {
+            dbClient: tx,
+            maxWinnersPerDay: dailyRewardTarget,
+          });
 
-          const w = Number(winnersInWindow ?? 0);
+          await applyBucketRollover(outletId, rewardDate, now, tx);
 
-          // Count total entries submitted today for this outlet (drives threshold + dynamic cap)
-          const [{ scansToday }] = await tx
-            .select({ scansToday: count() })
-            .from(lotteryEntriesTable)
-            .innerJoin(lotterySessionsTable, eq(lotteryEntriesTable.sessionId, lotterySessionsTable.id))
-            .innerJoin(qrTokensTable, eq(lotterySessionsTable.tokenId, qrTokensTable.id))
-            .where(
-              and(
-                eq(qrTokensTable.outletId, outletId),
-                gte(lotteryEntriesTable.createdAt, start),
-                lt(lotteryEntriesTable.createdAt, end),
-              ),
-            );
+          const activeBucketResult = await tx.execute(sql`
+            SELECT
+              id,
+              target_winners,
+              winners_given_in_bucket,
+              estimated_entries,
+              bucket_start,
+              bucket_end
+            FROM daily_reward_buckets
+            WHERE outlet_id = ${outletId}
+              AND reward_date = ${rewardDate}
+              AND bucket_start <= ${now}
+              AND bucket_end > ${now}
+            ORDER BY bucket_index
+            LIMIT 1
+            FOR UPDATE
+          `);
 
-          const s = Number(scansToday ?? 1);
+          const activeBucket = activeBucketResult.rows[0] as
+            | {
+                id: string;
+                target_winners: number | string;
+                winners_given_in_bucket: number | string;
+                estimated_entries: number | string;
+                bucket_start: Date;
+                bucket_end: Date;
+              }
+            | undefined;
 
-          if (shouldGrantReward(w, s, new Date(), start, end, dailyRewardTarget)) {
-            try {
-              await tx.insert(instantRewardsTable).values({
-                entryId: entry.id,
-                sessionId: session.id,
-                campaignId: session.campaign_id,
+          if (activeBucket) {
+            await tx
+              .insert(dailyRewardCountersTable)
+              .values({
                 outletId,
-              });
-              wonReward = true;
-            } catch {
-              // Race: another request claimed the last slot between our count and insert.
-              wonReward = false;
+                rewardDate,
+                winnersGivenToday: 0,
+                updatedAt: now,
+              })
+              .onConflictDoNothing();
+
+            const counterResult = await tx.execute(sql`
+              SELECT winners_given_today
+              FROM daily_reward_counters
+              WHERE outlet_id = ${outletId}
+                AND reward_date = ${rewardDate}
+              FOR UPDATE
+            `);
+
+            const counterRow = counterResult.rows[0] as
+              | { winners_given_today: number | string }
+              | undefined;
+
+            const winnersGivenToday = Number(counterRow?.winners_given_today ?? 0);
+
+            let probability = 0;
+            if (winnersGivenToday < dailyRewardTarget) {
+              probability = getWinProbability(
+                {
+                  bucketStart: new Date(activeBucket.bucket_start),
+                  bucketEnd: new Date(activeBucket.bucket_end),
+                  targetWinners: Number(activeBucket.target_winners),
+                  winnersGivenInBucket: Number(activeBucket.winners_given_in_bucket),
+                  estimatedEntries: Number(activeBucket.estimated_entries),
+                },
+                now,
+              );
+            }
+
+            const isWinner = Math.random() < probability;
+
+            if (isWinner) {
+              try {
+                await tx
+                  .update(dailyRewardBucketsTable)
+                  .set({
+                    winnersGivenInBucket: sql`${dailyRewardBucketsTable.winnersGivenInBucket} + 1`,
+                  })
+                  .where(eq(dailyRewardBucketsTable.id, activeBucket.id));
+
+                await tx
+                  .update(dailyRewardCountersTable)
+                  .set({
+                    winnersGivenToday: sql`${dailyRewardCountersTable.winnersGivenToday} + 1`,
+                    updatedAt: now,
+                  })
+                  .where(
+                    and(
+                      eq(dailyRewardCountersTable.outletId, outletId),
+                      eq(dailyRewardCountersTable.rewardDate, rewardDate),
+                    ),
+                  );
+
+                await tx.insert(instantRewardsTable).values({
+                  entryId: entry.id,
+                  sessionId: session.id,
+                  campaignId: session.campaign_id,
+                  outletId,
+                });
+
+                wonReward = true;
+              } catch {
+                wonReward = false;
+              }
             }
           }
         }
