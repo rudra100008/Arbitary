@@ -474,7 +474,7 @@ export default function TiltAdminPage() {
                 <Th>Address</Th>
                 <Th>Scans</Th>
                 <Th>Submissions</Th>
-                <Th>Daily Target</Th>
+                <Th className="min-w-42.5">Daily Target</Th>
                 <Th>Hours</Th>
                 <Th>Status</Th>
                 <Th>Joined</Th>
@@ -518,7 +518,7 @@ export default function TiltAdminPage() {
                   </Td>
                   <Td>
                     {u.status === "active" && u.id ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 min-w-40">
                         <input
                           type="number"
                           min={MIN_DAILY_REWARD_TARGET}
@@ -531,7 +531,7 @@ export default function TiltAdminPage() {
                               [u.id!]: e.target.value,
                             }))
                           }
-                          className="tilt-input w-20 px-2 py-1 text-xs"
+                          className="tilt-input w-24 px-2 py-1 text-xs"
                           disabled={savingOutletId === u.id}
                         />
                         <button

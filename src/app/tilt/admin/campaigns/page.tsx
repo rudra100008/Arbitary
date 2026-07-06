@@ -342,6 +342,46 @@ export default function TiltAdminCampaignsPage() {
     }
   };
 
+  const handleDeleteCampaign = async (campaign: Campaign) => {
+    setRowError("");
+
+    const confirmed = window.confirm(
+      `Delete campaign "${campaign.name}"? This will permanently remove the campaign and its related entries, sessions, tokens, and rewards.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setPendingId(campaign.id);
+
+    try {
+      const res = await fetch(`/api/tilt/admin/campaigns/${campaign.id}`, {
+        method: "DELETE",
+      });
+
+      const json = (await res.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+
+      if (!res.ok) {
+        setRowError(
+          typeof json.error === "string"
+            ? json.error
+            : "Failed to delete campaign.",
+        );
+        return;
+      }
+
+      await loadCampaigns();
+    } catch {
+      setRowError("Network error while deleting campaign.");
+    } finally {
+      setPendingId(null);
+    }
+  };
+
   return (
     <div>
       <div className="mb-8">
@@ -594,6 +634,19 @@ export default function TiltAdminCampaignsPage() {
                         }}
                       >
                         End now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteCampaign(campaign)}
+                        disabled={isBusy}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider disabled:opacity-50"
+                        style={{
+                          background: "rgba(239,68,68,0.18)",
+                          border: "1px solid rgba(239,68,68,0.45)",
+                          color: "#fecaca",
+                        }}
+                      >
+                        Delete
                       </button>
                     </div>
                   </Td>

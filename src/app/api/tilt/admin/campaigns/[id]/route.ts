@@ -1,7 +1,13 @@
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
-import { lotteryCampaignsTable } from "@/src/db/tilt-schema";
+import {
+  instantRewardsTable,
+  lotteryCampaignsTable,
+  lotteryEntriesTable,
+  lotterySessionsTable,
+  qrTokensTable,
+} from "@/src/db/tilt-schema";
 import { requireTiltSuperadmin } from "@/src/lib/tilt/require-superadmin";
 
 function parseDate(value: unknown): Date | null {
@@ -118,6 +124,69 @@ export async function PATCH(
     return NextResponse.json({ campaign }, { status: 200 });
   } catch (error) {
     console.error("[tilt/admin/campaigns:update]", error);
+    return NextResponse.json(
+      { error: "Something went wrong." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const auth = await requireTiltSuperadmin(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const { id } = await params;
+    if (!id?.trim()) {
+      return NextResponse.json(
+        { error: "Invalid campaign id.", code: "BAD_REQUEST" },
+        { status: 400 },
+      );
+    }
+
+    const [existingCampaign] = await tiltDb
+      .select({ id: lotteryCampaignsTable.id })
+      .from(lotteryCampaignsTable)
+      .where(eq(lotteryCampaignsTable.id, id));
+
+    if (!existingCampaign) {
+      return NextResponse.json(
+        { error: "Campaign not found.", code: "NOT_FOUND" },
+        { status: 404 },
+      );
+    }
+
+    await tiltDb.transaction(async (tx) => {
+      // Remove dependent rows explicitly to satisfy FK chains.
+      await tx
+        .delete(instantRewardsTable)
+        .where(eq(instantRewardsTable.campaignId, id));
+
+      await tx
+        .delete(lotteryEntriesTable)
+        .where(eq(lotteryEntriesTable.campaignId, id));
+
+      await tx
+        .delete(lotterySessionsTable)
+        .where(eq(lotterySessionsTable.campaignId, id));
+
+      await tx
+        .delete(qrTokensTable)
+        .where(eq(qrTokensTable.campaignId, id));
+
+      await tx
+        .delete(lotteryCampaignsTable)
+        .where(eq(lotteryCampaignsTable.id, id));
+    });
+
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (error) {
+    console.error("[tilt/admin/campaigns:delete]", error);
     return NextResponse.json(
       { error: "Something went wrong." },
       { status: 500 },
