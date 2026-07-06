@@ -19,6 +19,22 @@ import {
     MAX_DAILY_REWARD_TARGET,
 } from '@/src/lib/tilt/reward-target';
 
+function normalizeTimeInput(value: string): string | null {
+    const trimmed = value.trim();
+    const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed);
+    if (!match) return null;
+
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    const second = match[3] ? Number(match[3]) : 0;
+
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+    if (!Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+    if (!Number.isInteger(second) || second < 0 || second > 59) return null;
+
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+}
+
 const TILT_JWT_SECRET = new TextEncoder().encode(
     process.env.TILT_JWT_SECRET ?? 'tilt-fallback-secret-change-in-production'
 );
@@ -51,6 +67,8 @@ export async function GET(req: NextRequest) {
                 email: tiltUsersTable.email,
                 role: tiltUsersTable.role,
                 address: tiltUsersTable.address,
+                operatingHoursStart: tiltUsersTable.operatingHoursStart,
+                operatingHoursEnd: tiltUsersTable.operatingHoursEnd,
                 createdAt: tiltUsersTable.createdAt,
             })
             .from(tiltUsersTable)
@@ -109,6 +127,8 @@ export async function GET(req: NextRequest) {
             scanCount: number;
             submissionCount: number;
             dailyRewardTarget: number | null;
+            operatingHoursStart: string | null;
+            operatingHoursEnd: string | null;
             createdAt: Date | null;
             status: 'active' | 'invited';
         }[] = outlets.map((u) => ({
@@ -120,6 +140,8 @@ export async function GET(req: NextRequest) {
             scanCount: scanMap.get(String(u.id)) ?? 0,
             submissionCount: submissionMap.get(String(u.id)) ?? 0,
             dailyRewardTarget: outletTargetMap.get(String(u.id)) ?? globalDailyRewardTarget,
+            operatingHoursStart: u.operatingHoursStart,
+            operatingHoursEnd: u.operatingHoursEnd,
             createdAt: u.createdAt,
             status: 'active' as const,
         }));
@@ -135,6 +157,8 @@ export async function GET(req: NextRequest) {
                     scanCount: 0,
                     submissionCount: 0,
                     dailyRewardTarget: null,
+                    operatingHoursStart: null,
+                    operatingHoursEnd: null,
                     createdAt: inv.createdAt,
                     status: 'invited',
                 });
@@ -258,20 +282,54 @@ export async function PATCH(req: NextRequest) {
         const body = (await req.json().catch(() => ({}))) as {
             outletId?: string;
             target?: number;
+            operatingHoursStart?: string;
+            operatingHoursEnd?: string;
         };
 
         const outletId = typeof body.outletId === 'string' ? body.outletId.trim() : '';
+        const hasTarget = typeof body.target !== 'undefined';
         const target = Number(body.target);
+        const hasHours =
+            typeof body.operatingHoursStart === 'string' &&
+            typeof body.operatingHoursEnd === 'string';
 
         if (!outletId) {
             return NextResponse.json({ error: 'Outlet is required.' }, { status: 400 });
         }
-        if (!Number.isInteger(target)) {
+
+        if (!hasTarget && !hasHours) {
+            return NextResponse.json(
+                { error: 'Provide a reward target and/or operating hours.' },
+                { status: 400 },
+            );
+        }
+
+        if (hasTarget && !Number.isInteger(target)) {
             return NextResponse.json({ error: 'Target must be an integer.' }, { status: 400 });
         }
-        if (target < MIN_DAILY_REWARD_TARGET || target > MAX_DAILY_REWARD_TARGET) {
+        if (
+            hasTarget &&
+            (target < MIN_DAILY_REWARD_TARGET || target > MAX_DAILY_REWARD_TARGET)
+        ) {
             return NextResponse.json(
                 { error: `Target must be between ${MIN_DAILY_REWARD_TARGET} and ${MAX_DAILY_REWARD_TARGET}.` },
+                { status: 400 },
+            );
+        }
+
+        const normalizedStart = hasHours ? normalizeTimeInput(body.operatingHoursStart!) : null;
+        const normalizedEnd = hasHours ? normalizeTimeInput(body.operatingHoursEnd!) : null;
+
+        if (hasHours && (!normalizedStart || !normalizedEnd)) {
+            return NextResponse.json(
+                { error: 'Operating hours must use HH:MM format.' },
+                { status: 400 },
+            );
+        }
+
+        if (normalizedStart && normalizedEnd && normalizedEnd <= normalizedStart) {
+            return NextResponse.json(
+                { error: 'Operating end time must be after start time.' },
                 { status: 400 },
             );
         }
@@ -285,9 +343,39 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: 'Outlet not found.' }, { status: 404 });
         }
 
-        const dailyRewardTarget = await setOutletDailyRewardTarget(outletId, target, Number(payload.id));
+        let dailyRewardTarget: number | null = null;
+        if (hasTarget) {
+            dailyRewardTarget = await setOutletDailyRewardTarget(outletId, target, Number(payload.id));
+        }
 
-        return NextResponse.json({ outletId, dailyRewardTarget }, { status: 200 });
+        if (normalizedStart && normalizedEnd) {
+            await tiltDb
+                .update(tiltUsersTable)
+                .set({
+                    operatingHoursStart: normalizedStart,
+                    operatingHoursEnd: normalizedEnd,
+                })
+                .where(eq(tiltUsersTable.id, Number(outletId)));
+        }
+
+        const [updatedOutlet] = await tiltDb
+            .select({
+                operatingHoursStart: tiltUsersTable.operatingHoursStart,
+                operatingHoursEnd: tiltUsersTable.operatingHoursEnd,
+            })
+            .from(tiltUsersTable)
+            .where(eq(tiltUsersTable.id, Number(outletId)))
+            .limit(1);
+
+        return NextResponse.json(
+            {
+                outletId,
+                dailyRewardTarget,
+                operatingHoursStart: updatedOutlet?.operatingHoursStart ?? null,
+                operatingHoursEnd: updatedOutlet?.operatingHoursEnd ?? null,
+            },
+            { status: 200 },
+        );
     } catch (err) {
         console.error('[tilt/admin/users] PATCH', err);
         return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });

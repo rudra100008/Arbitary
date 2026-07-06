@@ -25,8 +25,8 @@ export const tiltUsersTable = pgTable("tilt_users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   role: varchar("role", { length: 50 }).notNull().default("outlet"),
   address: text("address"),
-  operatingHoursStart: time("operating_hours_start").notNull().default("10:00:00"),
-  operatingHoursEnd: time("operating_hours_end").notNull().default("22:00:00"),
+  operatingHoursStart: time("operating_hours_start").default("10:00:00"),
+  operatingHoursEnd: time("operating_hours_end").default("22:00:00"),
   avgDailyEntries: numeric("avg_daily_entries", { precision: 10, scale: 2 }),
 });
 

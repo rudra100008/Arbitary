@@ -925,8 +925,15 @@ export default function RecordsCatalog({ songs }: { songs: Song[] }) {
                   <div className="rc-card-body">
                     <div className="rc-card-top ">
                       <div className="rc-card-meta">
-                        <h3>{song.title}</h3>
-                        <p>
+                        <h3 title={song.title}>{song.title}</h3>
+                        <p
+                          title={[
+                            song.artist,
+                            monthYearLabel(song.releaseMonth, song.releaseYear),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
                           {[
                             song.artist,
                             monthYearLabel(song.releaseMonth, song.releaseYear),

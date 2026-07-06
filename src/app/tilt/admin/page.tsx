@@ -15,8 +15,15 @@ interface OutletRow {
   scanCount: number;
   submissionCount: number;
   dailyRewardTarget: number | null;
+  operatingHoursStart: string | null;
+  operatingHoursEnd: string | null;
   createdAt: Date | null;
   status: "active" | "invited";
+}
+
+function toTimeInput(value: string | null): string {
+  if (!value) return "";
+  return value.slice(0, 5);
 }
 
 export default function TiltAdminPage() {
@@ -34,6 +41,8 @@ export default function TiltAdminPage() {
   const [inviteError, setInviteError] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [outletTargetInputs, setOutletTargetInputs] = useState<Record<number, string>>({});
+  const [outletStartInputs, setOutletStartInputs] = useState<Record<number, string>>({});
+  const [outletEndInputs, setOutletEndInputs] = useState<Record<number, string>>({});
   const [savingOutletId, setSavingOutletId] = useState<number | null>(null);
   const [outletTargetError, setOutletTargetError] = useState<string | null>(null);
   const [outletTargetMessage, setOutletTargetMessage] = useState<string | null>(null);
@@ -46,12 +55,20 @@ export default function TiltAdminPage() {
       const data = await res.json();
       setUsers(data.users ?? []);
       const nextInputs: Record<number, string> = {};
+      const nextStartInputs: Record<number, string> = {};
+      const nextEndInputs: Record<number, string> = {};
       for (const user of (data.users ?? []) as OutletRow[]) {
-        if (user.status === "active" && user.id && typeof user.dailyRewardTarget === "number") {
-          nextInputs[user.id] = String(user.dailyRewardTarget);
+        if (user.status === "active" && user.id) {
+          if (typeof user.dailyRewardTarget === "number") {
+            nextInputs[user.id] = String(user.dailyRewardTarget);
+          }
+          nextStartInputs[user.id] = toTimeInput(user.operatingHoursStart);
+          nextEndInputs[user.id] = toTimeInput(user.operatingHoursEnd);
         }
       }
       setOutletTargetInputs(nextInputs);
+      setOutletStartInputs(nextStartInputs);
+      setOutletEndInputs(nextEndInputs);
       if (typeof data.totalSubmissions === "number") {
         setTotalSubmissions(data.totalSubmissions);
       }
@@ -88,11 +105,18 @@ export default function TiltAdminPage() {
       const res = await fetch("/api/tilt/admin/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outletId: String(outletId), target: parsedTarget }),
+        body: JSON.stringify({
+          outletId: String(outletId),
+          target: parsedTarget,
+          operatingHoursStart: outletStartInputs[outletId],
+          operatingHoursEnd: outletEndInputs[outletId],
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         dailyRewardTarget?: number;
+        operatingHoursStart?: string | null;
+        operatingHoursEnd?: string | null;
       };
 
       if (!res.ok) {
@@ -103,11 +127,34 @@ export default function TiltAdminPage() {
       setUsers((prev) =>
         prev.map((u) =>
           u.id === outletId
-            ? { ...u, dailyRewardTarget: nextTarget }
+            ? {
+                ...u,
+                dailyRewardTarget: nextTarget,
+                operatingHoursStart:
+                  typeof data.operatingHoursStart === "string"
+                    ? data.operatingHoursStart
+                    : u.operatingHoursStart,
+                operatingHoursEnd:
+                  typeof data.operatingHoursEnd === "string"
+                    ? data.operatingHoursEnd
+                    : u.operatingHoursEnd,
+              }
             : u,
         ),
       );
       setOutletTargetInputs((prev) => ({ ...prev, [outletId]: String(nextTarget) }));
+      if (typeof data.operatingHoursStart === "string") {
+        setOutletStartInputs((prev) => ({
+          ...prev,
+          [outletId]: toTimeInput(data.operatingHoursStart ?? null),
+        }));
+      }
+      if (typeof data.operatingHoursEnd === "string") {
+        setOutletEndInputs((prev) => ({
+          ...prev,
+          [outletId]: toTimeInput(data.operatingHoursEnd ?? null),
+        }));
+      }
       setOutletTargetMessage("Outlet reward target updated.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update outlet target";
@@ -428,6 +475,7 @@ export default function TiltAdminPage() {
                 <Th>Scans</Th>
                 <Th>Submissions</Th>
                 <Th>Daily Target</Th>
+                <Th>Hours</Th>
                 <Th>Status</Th>
                 <Th>Joined</Th>
                 <Th>Actions</Th>
@@ -498,6 +546,39 @@ export default function TiltAdminPage() {
                         >
                           {savingOutletId === u.id ? "Saving" : "Save"}
                         </button>
+                      </div>
+                    ) : (
+                      "—"
+                    )}
+                  </Td>
+                  <Td>
+                    {u.status === "active" && u.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={outletStartInputs[u.id] ?? toTimeInput(u.operatingHoursStart)}
+                          onChange={(e) =>
+                            setOutletStartInputs((prev) => ({
+                              ...prev,
+                              [u.id!]: e.target.value,
+                            }))
+                          }
+                          className="tilt-input w-28 px-2 py-1 text-xs"
+                          disabled={savingOutletId === u.id}
+                        />
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}>to</span>
+                        <input
+                          type="time"
+                          value={outletEndInputs[u.id] ?? toTimeInput(u.operatingHoursEnd)}
+                          onChange={(e) =>
+                            setOutletEndInputs((prev) => ({
+                              ...prev,
+                              [u.id!]: e.target.value,
+                            }))
+                          }
+                          className="tilt-input w-28 px-2 py-1 text-xs"
+                          disabled={savingOutletId === u.id}
+                        />
                       </div>
                     ) : (
                       "—"
