@@ -40,12 +40,22 @@ export default function TiltAdminPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [isInviting, setIsInviting] = useState(false);
-  const [outletTargetInputs, setOutletTargetInputs] = useState<Record<number, string>>({});
-  const [outletStartInputs, setOutletStartInputs] = useState<Record<number, string>>({});
-  const [outletEndInputs, setOutletEndInputs] = useState<Record<number, string>>({});
+  const [outletTargetInputs, setOutletTargetInputs] = useState<
+    Record<number, string>
+  >({});
+  const [outletStartInputs, setOutletStartInputs] = useState<
+    Record<number, string>
+  >({});
+  const [outletEndInputs, setOutletEndInputs] = useState<
+    Record<number, string>
+  >({});
   const [savingOutletId, setSavingOutletId] = useState<number | null>(null);
-  const [outletTargetError, setOutletTargetError] = useState<string | null>(null);
-  const [outletTargetMessage, setOutletTargetMessage] = useState<string | null>(null);
+  const [outletTargetError, setOutletTargetError] = useState<string | null>(
+    null,
+  );
+  const [outletTargetMessage, setOutletTargetMessage] = useState<string | null>(
+    null,
+  );
 
   const loadUsers = async () => {
     setIsLoading(true);
@@ -88,7 +98,10 @@ export default function TiltAdminPage() {
     setOutletTargetError(null);
     setOutletTargetMessage(null);
 
-    const parsedTarget = Number.parseInt(outletTargetInputs[outletId] ?? "", 10);
+    const parsedTarget = Number.parseInt(
+      outletTargetInputs[outletId] ?? "",
+      10,
+    );
     if (
       Number.isNaN(parsedTarget) ||
       parsedTarget < MIN_DAILY_REWARD_TARGET ||
@@ -123,7 +136,10 @@ export default function TiltAdminPage() {
         throw new Error(data.error || "Failed to update outlet target");
       }
 
-      const nextTarget = typeof data.dailyRewardTarget === "number" ? data.dailyRewardTarget : parsedTarget;
+      const nextTarget =
+        typeof data.dailyRewardTarget === "number"
+          ? data.dailyRewardTarget
+          : parsedTarget;
       setUsers((prev) =>
         prev.map((u) =>
           u.id === outletId
@@ -142,7 +158,10 @@ export default function TiltAdminPage() {
             : u,
         ),
       );
-      setOutletTargetInputs((prev) => ({ ...prev, [outletId]: String(nextTarget) }));
+      setOutletTargetInputs((prev) => ({
+        ...prev,
+        [outletId]: String(nextTarget),
+      }));
       if (typeof data.operatingHoursStart === "string") {
         setOutletStartInputs((prev) => ({
           ...prev,
@@ -157,7 +176,10 @@ export default function TiltAdminPage() {
       }
       setOutletTargetMessage("Outlet reward target updated.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to update outlet target";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update outlet target";
       setOutletTargetError(message);
     } finally {
       setSavingOutletId(null);
@@ -198,7 +220,10 @@ export default function TiltAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: inviteEmail }),
       });
-      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const json = (await res.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
       if (!res.ok) {
         setInviteError(
           typeof json.error === "string" ? json.error : "Failed to invite.",
@@ -247,9 +272,7 @@ export default function TiltAdminPage() {
           className="text-sm font-medium mt-1"
           style={{ color: "rgba(255,255,255,0.35)" }}
         >
-          {isLoading
-            ? "Loading…"
-            : `${users.length} total`}
+          {isLoading ? "Loading…" : `${users.length} total`}
         </p>
       </div>
 
@@ -315,9 +338,7 @@ export default function TiltAdminPage() {
           >
             Total
           </p>
-          <p className="text-2xl font-black text-white mt-1">
-            {users.length}
-          </p>
+          <p className="text-2xl font-black text-white mt-1">{users.length}</p>
         </div>
         <div
           className="rounded-xl border px-5 py-4"
@@ -332,9 +353,7 @@ export default function TiltAdminPage() {
           >
             Active
           </p>
-          <p className="text-2xl font-black text-white mt-1">
-            {activeCount}
-          </p>
+          <p className="text-2xl font-black text-white mt-1">{activeCount}</p>
         </div>
         <div
           className="rounded-xl border px-5 py-4"
@@ -349,9 +368,7 @@ export default function TiltAdminPage() {
           >
             Invited
           </p>
-          <p className="text-2xl font-black text-white mt-1">
-            {invitedCount}
-          </p>
+          <p className="text-2xl font-black text-white mt-1">{invitedCount}</p>
         </div>
         <div
           className="rounded-xl border px-5 py-4"
@@ -488,8 +505,7 @@ export default function TiltAdminPage() {
                   className="transition-all duration-150"
                   style={{ borderTop: "1px solid rgba(200,230,60,0.05)" }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background =
-                      "rgba(200,230,60,0.03)";
+                    e.currentTarget.style.background = "rgba(200,230,60,0.03)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = "transparent";
@@ -524,7 +540,10 @@ export default function TiltAdminPage() {
                           min={MIN_DAILY_REWARD_TARGET}
                           max={MAX_DAILY_REWARD_TARGET}
                           step={1}
-                          value={outletTargetInputs[u.id] ?? String(u.dailyRewardTarget ?? "")}
+                          value={
+                            outletTargetInputs[u.id] ??
+                            String(u.dailyRewardTarget ?? "")
+                          }
                           onChange={(e) =>
                             setOutletTargetInputs((prev) => ({
                               ...prev,
@@ -556,7 +575,10 @@ export default function TiltAdminPage() {
                       <div className="flex items-center gap-2">
                         <input
                           type="time"
-                          value={outletStartInputs[u.id] ?? toTimeInput(u.operatingHoursStart)}
+                          value={
+                            outletStartInputs[u.id] ??
+                            toTimeInput(u.operatingHoursStart)
+                          }
                           onChange={(e) =>
                             setOutletStartInputs((prev) => ({
                               ...prev,
@@ -566,10 +588,15 @@ export default function TiltAdminPage() {
                           className="tilt-input w-28 px-2 py-1 text-xs"
                           disabled={savingOutletId === u.id}
                         />
-                        <span style={{ color: "rgba(255,255,255,0.4)" }}>to</span>
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                          to
+                        </span>
                         <input
                           type="time"
-                          value={outletEndInputs[u.id] ?? toTimeInput(u.operatingHoursEnd)}
+                          value={
+                            outletEndInputs[u.id] ??
+                            toTimeInput(u.operatingHoursEnd)
+                          }
                           onChange={(e) =>
                             setOutletEndInputs((prev) => ({
                               ...prev,
@@ -754,10 +781,16 @@ export default function TiltAdminPage() {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <th
-      className="px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.2em]"
+      className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.2em] ${className || ""}`}
       style={{ color: "rgba(200,230,60,0.4)" }}
     >
       {children}
