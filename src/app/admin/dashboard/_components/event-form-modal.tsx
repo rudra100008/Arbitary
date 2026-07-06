@@ -246,7 +246,13 @@ const EventFormModal = ({
                   <SelectField
                     label="Event Type"
                     value={eventType}
-                    options={["Tour", "Concert", "Exhibition"]}
+                    options={[
+                      "Tour",
+                      "Concert",
+                      "Exhibition",
+                      "Street Festival",
+                      "Convention",
+                    ]}
                     hasError={!!fieldErrors.eventType}
                     onChange={(v) => {
                       setEventType(v);

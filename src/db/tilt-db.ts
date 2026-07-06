@@ -16,6 +16,7 @@ if (!connectionString) {
     const tiltPool = new Pool({
         connectionString,
         ssl: { rejectUnauthorized: false },
+        //ssl: false,
         max: 50,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,

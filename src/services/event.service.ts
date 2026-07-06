@@ -70,7 +70,6 @@ async function syncMediaItems(tx: any, sectionId: number, mediaItems: { id?: num
 export const EventService = {
   async getEvents(): Promise<ServiceResult<EventListItem[]>> {
     try {
-      const now = new Date();
       const events = await db
         .select({
           id: eventsTable.id,
@@ -89,7 +88,6 @@ export const EventService = {
           createdAt: eventsTable.createdAt,
         })
         .from(eventsTable)
-        .where(gte(eventsTable.eventDate, now))
         .orderBy(desc(eventsTable.eventDate))
         .limit(100);
 
