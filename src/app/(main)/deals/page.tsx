@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+// TODO: Deals feature is temporarily disabled. The data-fetching/mutation
+// layer below is kept for when the feature is re-enabled. Remove the
+// eslint-disable comments if/when the real UI is restored.
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import Footer from "@/src/components/ui/footer";
 import Header from "@/src/components/ui/header";
 

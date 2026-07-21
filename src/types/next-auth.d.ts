@@ -17,6 +17,7 @@ declare module "next-auth" {
             location?: string | null;
             instagramUsername?: string | null;
             googleId?: string | null;
+            googleNeedsReconnect?: boolean;
             facebookId?: string;
             facebookAccessToken?: string;
             googleImage?: string | null;
@@ -36,6 +37,7 @@ declare module "next-auth/jwt" {
         facebookAccessToken?: string;
         facebookId?: string;
         googleId?: string;
+        googleNeedsReconnect?: boolean;
         googleAccessToken?: string;
         googleRefreshToken?: string;
         googleTokenExpiry?: number;

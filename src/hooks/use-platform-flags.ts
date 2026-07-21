@@ -5,11 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 export type PlatformFlags = {
     facebook: boolean;
     instagram: boolean;
+    facebookConnected: boolean;
 };
 
 export const PLATFORM_FLAGS_QUERY_KEY = ["platform-flags"] as const;
 
-const DEFAULT_FLAGS: PlatformFlags = { facebook: true, instagram: true };
+const DEFAULT_FLAGS: PlatformFlags = { facebook: true, instagram: true, facebookConnected: false };
 
 /**
  * Reads the current Facebook / Instagram enabled state from

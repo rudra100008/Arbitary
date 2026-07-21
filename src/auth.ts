@@ -109,7 +109,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
     },
 
     callbacks: {
-        async signIn({ user, account, profile, email, credentials }) {
+        async signIn({ user, account, profile: _profile, email: _email, credentials: _credentials }) {
             if (account?.provider === "facebook") {
                 const facebookEnabled = await FeatureFlagService.isPlatformEnabled("facebook");
                 if (!facebookEnabled) {
@@ -213,7 +213,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
         },
 
         // JWT Callback
-        async jwt({ token, trigger, account, session: updateSession }) {
+        async jwt({ token, trigger, account, session: _updateSession }) {
             if (account?.provider === "facebook") {
                 token.facebookAccessToken = account.access_token;
                 token.facebookId = account.providerAccountId;
@@ -225,6 +225,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                     token.googleRefreshToken = account.refresh_token;
                 }
                 token.googleTokenExpiry = account.expires_at;
+                token.googleNeedsReconnect = false;
             }
 
             // Auto-refresh Google access token if expired
@@ -254,6 +255,17 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                                 .where(eq(usersTable.id, token.userId as number))
                                 .catch(err => console.error('Failed to persist rotated Google refresh token:', err));
                         }
+                    } else if (refreshed.error) {
+                        // Self-healing: if the refresh token is rejected (e.g. "invalid_grant"),
+                        // mark the session as needing a reconnect and clear the dead token from the DB.
+                        token.googleNeedsReconnect = true;
+                        token.googleRefreshToken = undefined;
+                        if (token.userId) {
+                            await db.update(usersTable)
+                                .set({ googleRefreshToken: null })
+                                .where(eq(usersTable.id, token.userId as number))
+                                .catch(err => console.error('Failed to clear dead Google refresh token:', err));
+                        }
                     }
                 } catch (err) {
                     console.error('Google token refresh failed:', err);
@@ -279,10 +291,23 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                     token.googleId = dbUser.googleId ?? undefined;
                     token.dateOfBirth = dbUser.dateOfBirth ? dbUser.dateOfBirth.toISOString() : null;
                     if (dbUser.googleRefreshToken && !token.googleRefreshToken) {
-                        const decrypted = decryptToken(dbUser.googleRefreshToken);
-                        if (decrypted) {
-                            token.googleRefreshToken = decrypted;
-                            token.googleTokenExpiry = 0;
+                        try {
+                            const decrypted = decryptToken(dbUser.googleRefreshToken);
+                            if (decrypted) {
+                                token.googleRefreshToken = decrypted;
+                                token.googleTokenExpiry = 0;
+                            }
+                        } catch (err) {
+                            console.error(
+                                `Failed to decrypt googleRefreshToken for user ${dbUser.id} — ` +
+                                `key mismatch (likely FACEBOOK_TOKEN_ENCRYPTION_KEY precedence change). ` +
+                                `Clearing it so login isn't blocked; user must re-link Google.`,
+                                err,
+                            );
+                            await db.update(usersTable)
+                                .set({ googleRefreshToken: null })
+                                .where(eq(usersTable.id, dbUser.id))
+                                .catch((e) => console.error("Failed to clear corrupted googleRefreshToken:", e));
                         }
                     }
                     if (dbUser.facebookId) token.facebookId = dbUser.facebookId;
@@ -311,6 +336,7 @@ export const authOptions: import("next-auth").NextAuthOptions = {
                 session.user.location = token.location as string;
                 session.user.phoneNumber = token.phoneNumber as string;
                 session.user.googleId = token.googleId as string;
+                session.user.googleNeedsReconnect = token.googleNeedsReconnect as boolean;
                 session.user.instagramUsername = token.instagramUsername as string | undefined;
                 session.user.facebookId = token.facebookId as string;
                 session.user.facebookAccessToken = token.facebookAccessToken as string | undefined;

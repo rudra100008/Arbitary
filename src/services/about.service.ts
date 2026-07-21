@@ -1,7 +1,7 @@
 import { db } from "@/src/db";
 import { aboutContentTable } from "@/src/db/schema";
 import { eq } from "drizzle-orm";
-import { ServiceResult, ok, fail } from "./result";
+import { ServiceResult, ok } from "./result";
 
 export type AboutContent = {
   id: number;

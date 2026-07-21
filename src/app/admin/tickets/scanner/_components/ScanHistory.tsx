@@ -38,11 +38,13 @@ export default function ScanHistory({ eventId, newEntry }: Props) {
   const [filter, setFilter] = useState<"all" | "success" | "rejected">("all");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setEntries(loadHistory(eventId));
   }, [eventId]);
 
   useEffect(() => {
     if (!newEntry) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset UI state on entry change
     setEntries((prev) => {
       const next = [newEntry, ...prev].slice(0, MAX_ENTRIES);
       saveHistory(eventId, next);

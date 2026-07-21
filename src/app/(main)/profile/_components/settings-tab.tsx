@@ -6,11 +6,13 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import SectionHeader from "./section-header";
 import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
+import Image from "next/image";
 
 interface SettingsTabProps {
   userEmail?: string | null;
   provider?: string | null;
   googleId?: string | null;
+  googleNeedsReconnect?: boolean;
   facebookId?: string;
   instagramUsername?: string | null;
   googleImage?: string | null;
@@ -23,6 +25,7 @@ export default function SettingsTab({
   userEmail,
   provider,
   googleId,
+  googleNeedsReconnect,
   facebookId,
   instagramUsername,
   googleImage,
@@ -56,8 +59,11 @@ export default function SettingsTab({
       }
       toast.success("Profile picture updated!");
       onUpdateSession?.();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to switch avatar");
+    } catch (err: unknown) {
+      toast.error(
+        (err instanceof Error ? err.message : null) ||
+          "Failed to switch avatar",
+      );
     } finally {
       setSwitchingAvatar(null);
     }
@@ -126,10 +132,11 @@ export default function SettingsTab({
                                  ${image === googleImage ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200 hover:border-emerald-400"}`}
                       title="Use Google profile photo"
                     >
-                      <img
+                      <Image
                         src={googleImage}
                         alt="Google avatar"
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
                       />
                       {switchingAvatar === "google" && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -151,10 +158,11 @@ export default function SettingsTab({
                                  ${image === facebookImage ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200 hover:border-[#1877F2]"}`}
                       title="Use Facebook profile photo"
                     >
-                      <img
+                      <Image
                         src={facebookImage}
                         alt="Facebook avatar"
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
                       />
                       {switchingAvatar === "facebook" && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -211,18 +219,27 @@ export default function SettingsTab({
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Google</p>
                   <p className="text-xs text-gray-400">
-                    {googleId ? userEmail : "Not connected"}
+                    {googleId ? (googleNeedsReconnect ? "Reconnect required" : userEmail) : "Not connected"}
                   </p>
                 </div>
               </div>
               {googleId ? (
                 <div className="flex items-center gap-2">
-                  <span
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
-                               bg-emerald-50 text-emerald-600 border border-emerald-100"
-                  >
-                    Connected
-                  </span>
+                  {googleNeedsReconnect ? (
+                    <span
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                                 bg-amber-50 text-amber-600 border border-amber-100"
+                    >
+                      Action Needed
+                    </span>
+                  ) : (
+                    <span
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider
+                                 bg-emerald-50 text-emerald-600 border border-emerald-100"
+                    >
+                      Connected
+                    </span>
+                  )}
                   <button
                     onClick={() =>
                       signIn("google", { callbackUrl: window.location.href })
@@ -374,8 +391,11 @@ export default function SettingsTab({
                         }
                         toast.success("Instagram username saved!");
                         onUpdateSession?.();
-                      } catch (err: any) {
-                        toast.error(err.message || "Failed to save");
+                      } catch (err: unknown) {
+                        toast.error(
+                          (err instanceof Error ? err.message : null) ||
+                            "Failed to save",
+                        );
                       } finally {
                         setIsSavingIg(false);
                       }

@@ -59,9 +59,8 @@ export default function ManageTasks() {
   // ── Tab animation ──────────────────────────────────────────────────────────
   const handleTabChange = (tab: string) => {
     if (tab === activeTab || isAnimating) return;
-    const tabs = getTabs();
-    const tabOrder = tabs.indexOf(tab);
-    const currentOrder = tabs.indexOf(activeTab);
+    const tabOrder = TASK_TABS.findIndex((t) => t.value === tab);
+    const currentOrder = TASK_TABS.findIndex((t) => t.value === activeTab);
     setSlideDirection(tabOrder > currentOrder ? "left" : "right");
     setIsAnimating(true);
     setTimeout(() => {
@@ -70,6 +69,23 @@ export default function ManageTasks() {
     }, 200);
   };
 
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  // Fixed, known set of platform tabs  independent of what happens to be on
+  // the current page, so tabs never appear/disappear while paginating, and
+  // Facebook/Instagram/YouTube are always distinguishable (they used to
+  // collapse into one "social" tab).
+  const TASK_TABS: { value: string; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "facebook", label: "Facebook" },
+    { value: "instagram", label: "Instagram" },
+    { value: "youtube", label: "YouTube" },
+    { value: "share", label: "Share" },
+    { value: "screenshot", label: "Screenshot" },
+  ];
+  const TAB_LABELS: Record<string, string> = Object.fromEntries(
+    TASK_TABS.map((t) => [t.value, t.label]),
+  );
+
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data, isLoading: isFetching } = useQuery<{
     tasks: Task[];
@@ -77,7 +93,7 @@ export default function ManageTasks() {
     totalPages: number;
     currentPage: number;
   }>({
-    queryKey: ["tasks", currentPage, searchQuery],
+    queryKey: ["tasks", currentPage, searchQuery, activeTab],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(currentPage),
@@ -86,6 +102,9 @@ export default function ManageTasks() {
       if (searchQuery.trim()) {
         params.set("search", searchQuery.trim());
       }
+      if (activeTab !== "all") {
+        params.set("platform", activeTab);
+      }
       const res = await fetch(`/api/admin/tasks?${params}`);
       if (!res.ok) throw new Error("Failed to load tasks from server.");
       return res.json();
@@ -93,22 +112,18 @@ export default function ManageTasks() {
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, activeTab]);
 
   const tasks = data?.tasks ?? [];
   const totalPages = data?.totalPages ?? 1;
 
-  const getTabs = () => {
-    const taskTypes = [
-      ...new Set(tasks.map((t) => t.taskType).filter(Boolean)),
-    ] as string[];
-    return ["all", ...taskTypes];
-  };
-
-  const tabs = getTabs();
-  const currentTasks =
-    activeTab === "all" ? tasks : tasks.filter((t) => t.taskType === activeTab);
+  const tabs = TASK_TABS.map((t) => t.value);
+  // The server already filters by platform when activeTab !== "all", so no
+  // client-side filtering is needed (or correct, since `tasks` is only the
+  // current page).
+  const currentTasks = tasks;
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -228,6 +243,8 @@ export default function ManageTasks() {
   };
 
   // Measure real tab positions for the sliding pill
+  
+
   useEffect(() => {
     const activeEl = tabRefs.current[activeTab];
     if (activeEl) {
@@ -265,7 +282,7 @@ export default function ManageTasks() {
                 className={`relative z-10 px-5 py-2 text-sm font-bold rounded-lg transition-colors duration-200 capitalize whitespace-nowrap
         ${activeTab === tab ? "text-black" : "text-zinc-400 hover:text-zinc-600"}`}
               >
-                {tab === "all" ? "All" : tab}
+                {TAB_LABELS[tab] ?? tab}
               </button>
             ))}
           </div>

@@ -1,6 +1,5 @@
 "use client";
 
-import SectionHeader from "./section-header";
 import {
   PlatformIcon,
   difficultyAccent,

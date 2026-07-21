@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useReducer } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
 import { UserTaskItem } from "@/src/services/task.service";
@@ -24,13 +24,27 @@ export function FacebookModal({
   const { data: session } = useSession();
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [error, setError] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [codeLoading, setCodeLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+
+  type CodeState = { codeLoading: boolean; verificationCode: string; error: string };
+  type CodeAction =
+    | { type: "FETCH_START" }
+    | { type: "FETCH_SUCCESS"; code: string }
+    | { type: "FETCH_ERROR"; error: string }
+    | { type: "CLEAR_ERROR" };
+  const codeReducer = (_: CodeState, action: CodeAction): CodeState => {
+    switch (action.type) {
+      case "FETCH_START": return { codeLoading: true, verificationCode: "", error: "" };
+      case "FETCH_SUCCESS": return { codeLoading: false, verificationCode: action.code, error: "" };
+      case "FETCH_ERROR": return { codeLoading: false, verificationCode: "", error: action.error };
+      case "CLEAR_ERROR": return { ..._, error: "" };
+    }
+  };
+  const [codeState, codeDispatch] = useReducer(codeReducer, { codeLoading: false, verificationCode: "", error: "" });
 
   const isConnected = !!session?.user?.facebookId;
   const { flags } = usePlatformFlags();
-  const isPlatformDisabled = !flags.facebook;
+  const isPlatformDisabled = !flags.facebook || !flags.facebookConnected;
 
   useEffect(() => {
     if (isOpen) {
@@ -45,7 +59,7 @@ export function FacebookModal({
 
   useEffect(() => {
     if (isOpen && isConnected && task.id && !isPlatformDisabled) {
-      setCodeLoading(true);
+      codeDispatch({ type: "FETCH_START" });
       fetch(`/api/user/tasks/facebook-complete?taskId=${task.id}`)
         .then(async (res) => {
           if (!res.ok) {
@@ -58,17 +72,14 @@ export function FacebookModal({
         })
         .then((data) => {
           if (data.verificationCode) {
-            setVerificationCode(data.verificationCode);
+            codeDispatch({ type: "FETCH_SUCCESS", code: data.verificationCode });
           } else {
             throw new Error("No verification code received from server");
           }
         })
         .catch((err) => {
           console.error("[FacebookModal] Code fetch error:", err);
-          setError(err.message);
-        })
-        .finally(() => {
-          setCodeLoading(false);
+          codeDispatch({ type: "FETCH_ERROR", error: err.message });
         });
     }
   }, [isOpen, isConnected, task.id, isPlatformDisabled]);
@@ -90,15 +101,15 @@ export function FacebookModal({
   };
 
   const copyCode = () => {
-    if (verificationCode) {
-      navigator.clipboard.writeText(verificationCode);
+    if (codeState.verificationCode) {
+      navigator.clipboard.writeText(codeState.verificationCode);
     }
   };
 
   const handleVerify = async () => {
     if (isPlatformDisabled) return;
     setVerifying(true);
-    setError("");
+    setVerifyError("");
     try {
       const res = await fetch("/api/user/tasks/facebook-complete", {
         method: "POST",
@@ -116,31 +127,31 @@ export function FacebookModal({
       }, 1500);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      setError(error.message);
+      setVerifyError(error.message);
     } finally {
       setVerifying(false);
     }
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-start md:items-center justify-center pt-[60px] md:pt-0">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[52px] sm:pt-[56px] md:pt-[68px]">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 max-h-[calc(100vh-80px)] md:max-h-none overflow-y-auto md:overflow-visible modal-in">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-3 sm:mx-4 mt-2 md:mt-4 max-h-[calc(100vh-64px)] sm:max-h-[calc(100vh-72px)] md:max-h-[calc(100vh-80px)] overflow-y-auto scrollbar-hide modal-in">
         {/* Header */}
-        <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 px-6 pt-6 pb-8">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-blue-200">
+        <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 px-4 pt-3 pb-5 sm:px-5 sm:pt-4 sm:pb-6 md:px-6 md:pt-5 md:pb-7 rounded-t-3xl">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200">
               Facebook Task
             </span>
             <button
               onClick={onClose}
-              className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
             >
               <svg
-                className="w-4 h-4"
+                className="w-3 h-3 sm:w-3.5 sm:h-3.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -154,14 +165,14 @@ export function FacebookModal({
               </svg>
             </button>
           </div>
-          <h2 className="text-xl font-black text-white">{task?.title || ""}</h2>
-          <p className="text-sm text-blue-200 mt-1 line-clamp-2">
+          <h2 className="text-base sm:text-lg md:text-xl font-black text-white">{task?.title || ""}</h2>
+          <p className="text-blue-200 text-[11px] sm:text-xs md:text-sm mt-0.5 line-clamp-2">
             {task?.description || ""}
           </p>
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-3 sm:p-4 md:p-5">
           {isPlatformDisabled ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
@@ -181,7 +192,9 @@ export function FacebookModal({
               </div>
               <p className="font-bold text-gray-800">Temporarily unavailable</p>
               <p className="text-sm text-gray-500">
-                Facebook tasks are currently disabled. Please check back later.
+                {!flags.facebook
+                  ? "Facebook tasks are currently disabled. Please check back later."
+                  : "Facebook tasks are currently unavailable. Please check back later."}
               </p>
             </div>
           ) : verified ? (
@@ -226,14 +239,14 @@ export function FacebookModal({
             <div className="flex flex-col gap-4">
               {/* Step 1: Open Post */}
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-black flex items-center justify-center shrink-0 mt-0.5">
                   1
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800 text-sm">
+                  <p className="font-bold text-gray-800 text-xs sm:text-sm md:text-base">
                     Open the Facebook post
                   </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-gray-500 text-[11px] sm:text-xs mt-0.5">
                     Click the button below to open the post in a new tab.
                   </p>
                 </div>
@@ -263,11 +276,11 @@ export function FacebookModal({
 
               {/* Step 2: Comment with Code */}
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-black flex items-center justify-center shrink-0 mt-0.5">
                   2
                 </div>
                 <div className="flex-1">
-                  <p className="font-bold text-gray-800 text-sm">
+                  <p className="font-bold text-gray-800 text-xs sm:text-sm md:text-base">
                     Leave a real comment with your unique code
                   </p>
                   {task.commentInstruction ? (
@@ -296,11 +309,11 @@ export function FacebookModal({
                 </div>
               </div>
 
-              {verificationCode ? (
+              {codeState.verificationCode ? (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 font-mono font-bold text-sm text-blue-700 tracking-wide select-all">
-                    {typeof verificationCode === "string"
-                      ? verificationCode
+                    {typeof codeState.verificationCode === "string"
+                      ? codeState.verificationCode
                       : ""}
                   </div>
                   <button
@@ -323,7 +336,7 @@ export function FacebookModal({
                     </svg>
                   </button>
                 </div>
-              ) : codeLoading ? (
+              ) : codeState.codeLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 font-mono text-sm text-gray-400 italic animate-pulse">
                     Generating your unique code...
@@ -338,21 +351,21 @@ export function FacebookModal({
 
               {/* Step 3: Verify */}
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-600 text-white text-xs sm:text-sm font-black flex items-center justify-center shrink-0 mt-0.5">
                   3
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800 text-sm">Verify</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="font-bold text-gray-800 text-xs sm:text-sm md:text-base">Verify</p>
+                  <p className="text-gray-500 text-[11px] sm:text-xs mt-0.5">
                     Click verify after you&apos;ve posted your comment with the
                     code.
                   </p>
                 </div>
               </div>
 
-              {error && (
+              {verifyError && (
                 <div className="p-3 bg-red-50 rounded-2xl border border-red-200">
-                  <p className="text-xs font-medium text-red-600">{error}</p>
+                  <p className="text-xs font-medium text-red-600">{verifyError}</p>
                 </div>
               )}
 

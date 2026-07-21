@@ -2,6 +2,7 @@
 
 import { ChevronDown } from "lucide-react";
 import type { ContentSection } from "./types";
+import Image from "next/image";
 
 interface ContentSectionEditorProps {
   sections: ContentSection[];
@@ -11,8 +12,16 @@ interface ContentSectionEditorProps {
   onUpdateType: (id: string | number, type: "content" | "media") => void;
   onAddMedia: (sectionId: string | number) => void;
   onRemoveMedia: (sectionId: string | number, itemId: string | number) => void;
-  onUpdateMediaFile: (sectionId: string | number, itemId: string | number, file: File) => void;
-  onUpdateMediaUrl: (sectionId: string | number, itemId: string | number, url: string) => void;
+  onUpdateMediaFile: (
+    sectionId: string | number,
+    itemId: string | number,
+    file: File,
+  ) => void;
+  onUpdateMediaUrl: (
+    sectionId: string | number,
+    itemId: string | number,
+    url: string,
+  ) => void;
   onUpdateContent: (id: string | number, content: string) => void;
   onClearError: (field: string) => void;
 }
@@ -95,9 +104,7 @@ const ContentSectionEditor = ({
                 </label>
                 <textarea
                   value={section.content || ""}
-                  onChange={(e) =>
-                    onUpdateContent(section.id, e.target.value)
-                  }
+                  onChange={(e) => onUpdateContent(section.id, e.target.value)}
                   placeholder="Write content details here..."
                   className="w-full px-8 py-6 bg-zinc-50 border border-black/5 rounded-[2rem] focus:outline-none focus:border-[#FACC15] font-medium text-sm min-h-[160px]"
                 />
@@ -111,9 +118,7 @@ const ContentSectionEditor = ({
                       className="relative bg-zinc-50 border border-black/5 rounded-[2rem] p-6 space-y-4 animate-fade-in group/media"
                     >
                       <button
-                        onClick={() =>
-                          onRemoveMedia(section.id, item.id)
-                        }
+                        onClick={() => onRemoveMedia(section.id, item.id)}
                         className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/90 backdrop-blur-md shadow-sm border border-black/5 text-zinc-400 hover:bg-red-500 hover:text-white hover:border-red-500 opacity-0 group-hover/media:opacity-100 transition-all duration-300 flex items-center justify-center z-20 font-black"
                         title="Delete Asset"
                       >
@@ -127,11 +132,7 @@ const ContentSectionEditor = ({
                           e.preventDefault();
                           const file = e.dataTransfer.files?.[0];
                           if (file)
-                            onUpdateMediaFile(
-                              section.id,
-                              item.id,
-                              file,
-                            );
+                            onUpdateMediaFile(section.id, item.id, file);
                         }}
                         onClick={() =>
                           document
@@ -140,9 +141,12 @@ const ContentSectionEditor = ({
                         }
                       >
                         {item.previewUrl || item.url ? (
-                          <img
+                          <Image
                             src={item.previewUrl || item.url}
                             alt="Preview"
+                            width={200}
+                            height={200}
+                            unoptimized
                             className="absolute inset-0 w-full h-full object-cover"
                           />
                         ) : (
@@ -163,11 +167,7 @@ const ContentSectionEditor = ({
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file)
-                              onUpdateMediaFile(
-                                section.id,
-                                item.id,
-                                file,
-                              );
+                              onUpdateMediaFile(section.id, item.id, file);
                           }}
                         />
                       </div>
@@ -189,7 +189,9 @@ const ContentSectionEditor = ({
                           }}
                           placeholder="https://..."
                           className={`w-full px-4 py-3 bg-white border rounded-xl focus:outline-none font-medium text-xs shadow-sm ${
-                            fieldErrors[`contentSections.${section.id}.mediaItems.${item.id}.url`]
+                            fieldErrors[
+                              `contentSections.${section.id}.mediaItems.${item.id}.url`
+                            ]
                               ? "border-red-500 focus:border-red-500"
                               : "border-black/5 focus:border-[#FACC15]"
                           }`}

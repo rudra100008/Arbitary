@@ -28,13 +28,22 @@ export async function POST(req: NextRequest) {
   }
 
   const { taskId, sessionId, fingerprint } = parsed.data;
-  const result = await TaskService.completeYoutubeTask(
-    auth.data.id,
-    Number(taskId),
-    sessionId ?? undefined,
-    fingerprint,
-  );
-  if (!result.success) return toNextResponse(result);
 
-  return NextResponse.json(result.data, { status: 200 });
+  try {
+    const result = await TaskService.completeYoutubeTask(
+      auth.data.id,
+      Number(taskId),
+      sessionId ?? undefined,
+      fingerprint,
+    );
+    if (!result.success) return toNextResponse(result);
+
+    return NextResponse.json(result.data, { status: 200 });
+  } catch (err) {
+    console.error("[youtube-complete] Unhandled error:", err);
+    return NextResponse.json(
+      { error: "Something went wrong while verifying your YouTube task. Please try again in a moment." },
+      { status: 503 },
+    );
+  }
 }

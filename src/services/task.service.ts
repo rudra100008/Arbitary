@@ -1156,9 +1156,23 @@ export const TaskService = {
     if (!postId) return fail("This task has no Facebook post linked", 400);
 
     const code = getVerificationCode(Number(userId), Number(taskId), '#fb');
-    const codeResult = await findCodeInComments(postId, code);
+    const codeResult = await findCodeInComments(postId, code, undefined, task.createdByAdminId ?? undefined);
 
     if (codeResult.error) {
+      if (codeResult.error === "FB_NOT_CONFIGURED") {
+        return fail(
+          "Facebook verification isn't set up for this event yet. Please contact an admin.",
+          503,
+        );
+      }
+
+      if (codeResult.error === "FB_TOKEN_EXPIRED") {
+        return fail(
+          "Facebook verification needs to be reconnected by an admin. Please try again later.",
+          503,
+        );
+      }
+
       // Facebook's v2.4+ Graph API no longer supports the singular-status
       // endpoint (#12 "statuses API is deprecated"). This is a configuration
       // issue on the server side — not something the user did wrong.
@@ -1205,7 +1219,7 @@ export const TaskService = {
     }
 
     if (facebookId) {
-      const asidResult = await checkUserCommentedOnPost(postId, "", facebookId, code);
+      const asidResult = await checkUserCommentedOnPost(postId, "", facebookId, code, undefined, task.createdByAdminId ?? undefined);
       if (asidResult.liked) {
         if (!asidResult.hasQualityComment) {
           return fail(buildLowQualityCommentMessage(code), 422);
@@ -1266,7 +1280,26 @@ export const TaskService = {
         return await awardInstagramPoints(userId, task, userTask, multiplier, fingerprint);
       }
     } catch (error: unknown) {
-      return fail(`Instagram API error: ${error instanceof Error ? error.message : error}`, 500);
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.includes("reconnected by an admin")) {
+        return fail(
+          "Instagram verification needs to be reconnected by an admin. Please try again later.",
+          503,
+        );
+      }
+      if (message.toLowerCase().includes("access token missing") || message.toLowerCase().includes("not configured")) {
+        return fail(
+          "Instagram verification isn't set up for this event yet. Please contact an admin.",
+          503,
+        );
+      }
+
+      console.error("[Instagram verification] API error:", message);
+      return fail(
+        "Could not reach Instagram to verify your comment. Please try again in a moment.",
+        503,
+      );
     }
 
     // Fallback: auto-verification failed — set to Pending Verification for admin review
@@ -1322,7 +1355,6 @@ export const TaskService = {
     }
 
     const taskType = task.taskType;
-    const pointsAwarded = task.points || 0;
 
     if (isYtSubscribe(task) || isYtLike(task) || isYtComment(task)) {
       const tokenResult = await YouTubeService.getAuthorizedClient(userId);
@@ -1376,6 +1408,22 @@ export const TaskService = {
 
     // Watch duration check: only VIDEO_WATCH tasks require a watch session
     const isVideoWatch = taskType?.toUpperCase() === "VIDEO_WATCH";
+
+    // Every YouTube task must resolve to exactly one recognized action
+    // (subscribe / like / comment / watch). If none of the checks above or
+    // below matched, this task is misconfigured  fail closed instead of
+    // falling through to the completion transaction with zero verification
+    // performed.
+    if (!isYtSubscribe(task) && !isYtLike(task) && !isYtComment(task) && !isVideoWatch) {
+      console.error(
+        `[youtube] completeYoutubeTask: taskId=${taskId} (platform="${task.platform}", taskType="${taskType}") ` +
+        `did not match any recognized YouTube action. Refusing to auto-complete without verification.`,
+      );
+      return fail(
+        "This task isn't configured correctly and can't be verified automatically. Please contact an admin.",
+        400,
+      );
+    }
 
     if (isVideoWatch) {
       if (!sessionId) {
@@ -1799,8 +1847,9 @@ export const TaskService = {
     limit: number;
     search?: string;
     taskType?: string | null;
+    platform?: string | null;
   }) {
-    const { page, limit, search, taskType } = params;
+    const { page, limit, search, taskType, platform } = params;
     const offset = (page - 1) * limit;
 
     const conditions = [];
@@ -1816,6 +1865,10 @@ export const TaskService = {
 
     if (taskType) {
       conditions.push(eq(tasksTable.taskType, taskType));
+    }
+
+    if (platform) {
+      conditions.push(eq(tasksTable.platform, platform));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -1915,17 +1968,12 @@ export const TaskService = {
       }
     }
 
-    const resolvedTaskType =
-      input.platform === "youtube" && input.watchDuration
-        ? "VIDEO_WATCH"
-        : input.taskType;
-
     const [newTask] = await db
       .insert(tasksTable)
       .values({
         title: input.title,
         description: input.description,
-        taskType: resolvedTaskType,
+        taskType: input.taskType,
         points: Number(input.rewardPoint),
         postUrl: input.socialPostUrl || input.videoUrl || null,
         platform: input.platform || null,
@@ -1980,17 +2028,12 @@ export const TaskService = {
       }
     }
 
-    const resolvedTaskType =
-      input.platform === "youtube" && input.watchDuration
-        ? "VIDEO_WATCH"
-        : input.taskType;
-
     const [updatedTask] = await db
       .update(tasksTable)
       .set({
         title: input.title,
         description: input.description,
-        taskType: resolvedTaskType,
+        taskType: input.taskType,
         points: Number(input.rewardPoint),
         postUrl: input.socialPostUrl || input.videoUrl || null,
         platform: input.platform || null,
@@ -2151,7 +2194,7 @@ export const TaskService = {
         .where(eq(usersTable.id, userTaskInfo.user.id))
         .for("update");
 
-      const setData: any = {
+      const setData: Partial<Record<string, unknown>> = {
         points: countChange > 0
           ? sql`${usersTable.points} + ${taskPoints}`
           : countChange < 0

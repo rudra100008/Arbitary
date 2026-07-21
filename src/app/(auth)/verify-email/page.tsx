@@ -97,7 +97,7 @@ const VerifyEmailPendingPage = () => {
             <p className="text-xs text-gray-400">Click the link in the email to activate your account. The link expires in 24 hours.</p>
 
             <div className="border-t border-gray-100 pt-4 mt-4">
-              <p className="text-xs text-gray-500 mb-2">Didn't receive the email?</p>
+              <p className="text-xs text-gray-500 mb-2">Didn&apos;t receive the email?</p>
               <button
                 onClick={handleResend}
                 disabled={isResending || resent}

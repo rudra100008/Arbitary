@@ -2,7 +2,7 @@
 import { type ImageAnalysis } from "@/src/hooks/useScreenshotUpload";
 // task-list.tsx
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { TaskCard } from "./task-card";
 import { UserTaskItem } from "@/src/services/task.service";

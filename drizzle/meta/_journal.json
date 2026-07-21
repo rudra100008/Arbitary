@@ -78,6 +78,20 @@
       "when": 1783069662077,
       "tag": "0016_brave_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784600000000,
+      "tag": "0018_add_fb_page_connection_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784611401208,
+      "tag": "0019_natural_namora",
+      "breakpoints": true
     }
   ]
 }

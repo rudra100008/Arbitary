@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, FormEvent } from "react";
+import type { YTPlayerInstance } from "@/src/types/youtube";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
@@ -8,7 +9,7 @@ export default function LivePage() {
   const { data: session } = useSession();
   const [youtubeId, setYoutubeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<YTPlayerInstance | null>(null);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState("");
@@ -22,7 +23,7 @@ export default function LivePage() {
   const hbStartedRef = useRef(false);
   const lastHeartbeatTimeRef = useRef<number | null>(null);
 
-  const hasGoogleLinked = !!(session as any)?.user?.googleId;
+  const hasGoogleLinked = !!session?.user?.googleId;
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -43,6 +44,7 @@ export default function LivePage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     fetchStatus();
     const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
@@ -51,11 +53,12 @@ export default function LivePage() {
   useEffect(() => {
     if (!youtubeId) return;
 
-    const w = window as any;
+    const w = window;
     let destroyed = false;
 
     const initPlayer = () => {
       if (destroyed || playerRef.current) return;
+      if (!w.YT?.Player) return;
       try {
         playerRef.current = new w.YT.Player("livePlayer", {
           width: "100%",
@@ -69,8 +72,8 @@ export default function LivePage() {
             playsinline: 1,
           },
           events: {
-            onStateChange: (e: any) => {
-              if (e.data === w.YT.PlayerState.ENDED) {
+            onStateChange: (e: { data: number }) => {
+              if (e.data === w.YT?.PlayerState?.ENDED) {
                 fetch("/api/admin/live", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -111,6 +114,7 @@ export default function LivePage() {
   // Watch timer
   useEffect(() => {
     if (!youtubeId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset watch state when video changes
       setWatchSeconds(0);
       setPointsEarned(0);
       watchStartRef.current = null;

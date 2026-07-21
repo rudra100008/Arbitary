@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useReducer } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -112,28 +112,39 @@ function SectionCard({
   );
 }
 
+type UserDetailState = { data: UserDetail | null; loading: boolean; error: string | null };
+type UserDetailAction =
+  | { type: "FETCH_START" }
+  | { type: "FETCH_SUCCESS"; data: UserDetail }
+  | { type: "FETCH_ERROR"; error: string };
+
+function userDetailReducer(state: UserDetailState, action: UserDetailAction): UserDetailState {
+  switch (action.type) {
+    case "FETCH_START":
+      return { data: null, loading: true, error: null };
+    case "FETCH_SUCCESS":
+      return { data: action.data, loading: false, error: null };
+    case "FETCH_ERROR":
+      return { data: null, loading: false, error: action.error };
+  }
+}
+
 export default function AdminUserDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [data, setData] = useState<UserDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(userDetailReducer, { data: null, loading: true, error: null });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    dispatch({ type: "FETCH_START" });
     fetch(`/api/admin/users/${params.id}`)
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || "Failed to load user");
-        if (!cancelled) setData(body);
+        if (!cancelled) dispatch({ type: "FETCH_SUCCESS", data: body });
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || "Failed to load user");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) dispatch({ type: "FETCH_ERROR", error: err.message || "Failed to load user" });
       });
     return () => {
       cancelled = true;
@@ -150,58 +161,58 @@ export default function AdminUserDetailPage() {
         Back to Users
       </button>
 
-      {loading ? (
+      {state.loading ? (
         <div className="bg-white rounded-[2rem] border border-black/5 shadow-sm p-10 text-center text-sm text-zinc-400">
           Loading user…
         </div>
-      ) : error ? (
+      ) : state.error ? (
         <div className="bg-white rounded-[2rem] border border-black/5 shadow-sm p-10 text-center text-sm text-red-500">
-          {error}
+          {state.error}
         </div>
-      ) : data ? (
+      ) : state.data ? (
         <>
           {/* Profile header */}
           <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-black/5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-6">
             <div className="w-16 h-16 rounded-full bg-[#FACC15] flex items-center justify-center shrink-0 text-2xl font-black text-black">
-              {(data.profile.name ?? data.profile.email)
+              {(state.data!.profile.name ?? state.data!.profile.email)
                 .substring(0, 2)
                 .toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-black uppercase tracking-tight">
-                {data.profile.name ?? (
+                {state.data!.profile.name ?? (
                   <span className="italic text-zinc-400">No name</span>
                 )}
               </h1>
               <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-zinc-500 font-medium">
                 <span className="inline-flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5" /> {data.profile.email}
+                  <Mail className="w-3.5 h-3.5" /> {state.data!.profile.email}
                 </span>
-                {data.profile.phoneNumber && (
+                {state.data!.profile.phoneNumber && (
                   <span className="inline-flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5" /> {data.profile.phoneNumber}
+                    <Phone className="w-3.5 h-3.5" /> {state.data!.profile.phoneNumber}
                   </span>
                 )}
-                {data.profile.location && (
+                {state.data!.profile.location && (
                   <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5" /> {data.profile.location}
+                    <MapPin className="w-3.5 h-3.5" /> {state.data!.profile.location}
                   </span>
                 )}
-                {data.profile.instagramUsername && (
+                {state.data!.profile.instagramUsername && (
                   <span className="inline-flex items-center gap-1.5">
                     <AtSign className="w-3.5 h-3.5" /> @
-                    {data.profile.instagramUsername}
+                    {state.data!.profile.instagramUsername}
                   </span>
                 )}
               </div>
-              {data.profile.bio && (
+              {state.data!.profile.bio && (
                 <p className="text-sm text-zinc-600 mt-3 max-w-2xl">
-                  {data.profile.bio}
+                  {state.data!.profile.bio}
                 </p>
               )}
-              {data.profile.referredByName && (
+              {state.data!.profile.referredByName && (
                 <p className="text-[11px] text-zinc-400 font-medium mt-2">
-                  Referred by {data.profile.referredByName}
+                  Referred by {state.data!.profile.referredByName}
                 </p>
               )}
             </div>
@@ -211,7 +222,7 @@ export default function AdminUserDetailPage() {
                   Points
                 </p>
                 <p className="text-2xl font-black">
-                  {data.profile.points.toLocaleString()}
+                  {state.data!.profile.points.toLocaleString()}
                 </p>
               </div>
               <div>
@@ -219,7 +230,7 @@ export default function AdminUserDetailPage() {
                   Referral Code
                 </p>
                 <p className="text-sm font-bold text-zinc-600">
-                  {data.profile.referralCode ?? "—"}
+                  {state.data!.profile.referralCode ?? "—"}
                 </p>
               </div>
             </div>
@@ -230,10 +241,10 @@ export default function AdminUserDetailPage() {
             <SectionCard
               icon={<ClipboardList className="w-4 h-4" />}
               title="Assigned Tasks"
-              isEmpty={data.assignedTasks.length === 0}
+              isEmpty={state.data!.assignedTasks.length === 0}
               emptyMessage="No tasks assigned yet."
             >
-              {data.assignedTasks.map((t) => (
+              {state.data!.assignedTasks.map((t) => (
                 <div
                   key={t.id}
                   className="px-6 py-4 flex items-center justify-between gap-4"
@@ -261,10 +272,10 @@ export default function AdminUserDetailPage() {
             <SectionCard
               icon={<Coins className="w-4 h-4" />}
               title="Points History"
-              isEmpty={data.pointsHistory.length === 0}
+              isEmpty={state.data!.pointsHistory.length === 0}
               emptyMessage="No points activity yet."
             >
-              {data.pointsHistory.map((p) => (
+              {state.data!.pointsHistory.map((p) => (
                 <div
                   key={p.id}
                   className="px-6 py-4 flex items-center justify-between gap-4"

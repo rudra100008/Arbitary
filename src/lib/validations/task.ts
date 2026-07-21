@@ -84,7 +84,7 @@ export const adminTaskSchema = z.object({
     title: z.string().min(1, "Title is required").max(255),
     description: z.string().min(1, "Description is required").max(5000),
     taskType: z.string().min(1, "Task type is required").max(50)
-        .refine((val) => ["social", "share", "special", "video_watch", "SCREENSHOT_UPLOAD"].includes(val), "Invalid task type"),
+        .refine((val) => ["social", "share", "special", "video_watch", "youtube_subscribe", "youtube_like", "youtube_comment", "SCREENSHOT_UPLOAD"].includes(val), "Invalid task type"),
     rewardPoint: z.number("rewardPoint must be a number").int().positive("rewardPoint must be positive"),
     socialPostUrl: z.string().url().max(2048).nullable().optional(),
     videoUrl: z.string().url().max(2048).nullable().optional(),

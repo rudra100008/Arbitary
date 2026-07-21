@@ -9,10 +9,14 @@ type AnimatedCounterProps = {
 };
 
 export function AnimatedCounter({ value, className = "" }: AnimatedCounterProps) {
+  const motionValue = useMotionValue(value);
   const prevRef = useRef(value);
-  const motionValue = useMotionValue(prevRef.current);
   const [displayValue, setDisplayValue] = useState(value.toLocaleString());
   const [animating, setAnimating] = useState(false);
+
+  useEffect(() => {
+    prevRef.current = value;
+  }, [value]);
 
   useMotionValueEvent(motionValue, "change", (latest) => {
     setDisplayValue(Math.round(latest).toLocaleString());

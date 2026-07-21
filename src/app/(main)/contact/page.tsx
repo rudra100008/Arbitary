@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Header from "@/src/components/ui/header";
-import Footer from "@/src/components/ui/footer";
 import { Mail, MapPin, Phone } from "lucide-react";
 
 export default function ContactPage() {
@@ -57,10 +55,7 @@ export default function ContactPage() {
               Contact Us
             </span>
             <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter uppercase leading-[0.85] mb-10">
-              GET IN{" "}
-              <span className="text-[#FACC15]">
-                TOUCH
-              </span>
+              GET IN <span className="text-[#FACC15]">TOUCH</span>
             </h1>
             <p className="text-xl md:text-2xl text-zinc-500 max-w-2xl leading-relaxed italic">
               &ldquo;Have a project, idea, or collaboration in mind? We&rsquo;d

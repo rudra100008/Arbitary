@@ -6,12 +6,14 @@ import {
   accessTypesTable,
   timelineItemsTable,
 } from "@/src/db/schema";
-import { eq, desc, inArray, lt, gte } from "drizzle-orm";
+import { eq, desc, inArray, lt } from "drizzle-orm";
 import { eventSchema } from "@/src/lib/validations/event";
 import { revalidatePath } from "next/cache";
 import { ServiceResult, ok, fail, failWithDetails } from "./result";
 import { deleteCloudinaryImage } from "@/src/lib/cloudinary";
 import type { Event, ContentSection, MediaItem, AccessType, TimelineItem } from "@/src/types/db";
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type EventWithRelations = Event & {
   accessTypes: AccessType[];
@@ -24,7 +26,7 @@ export type EventListItem = Pick<
   "id" | "title" | "eventType" | "status" | "priority" | "eventDate" | "venue" | "description" | "heroImageUrl" | "imageType" | "eventTime" | "accentColor" | "youtubeUrl" | "createdAt"
 >;
 
-async function syncMediaItems(tx: any, sectionId: number, mediaItems: { id?: number; url: string }[]) {
+async function syncMediaItems(tx: Tx, sectionId: number, mediaItems: { id?: number; url: string }[]) {
   const currentMedia: { id: number; url: string }[] = await tx
     .select({ id: mediaItemsTable.id, url: mediaItemsTable.url })
     .from(mediaItemsTable)

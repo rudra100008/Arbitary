@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RejectSubmissionModal } from "./reject-submission-modal";
+import Image from "next/image";
 
 interface ExifFlags {
   make: string | null;
@@ -145,11 +146,14 @@ function ProofDisplay({ sub }: { sub: Submission }) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2"
           >
-            <img
-              src={imageUrl}
-              alt="Proof screenshot"
-              className="w-24 h-16 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
-            />
+            <div className="relative w-24 h-16">
+              <Image
+                src={imageUrl}
+                alt="Proof screenshot"
+                fill
+                className="object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
+              />
+            </div>
             <span className="text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors">
               View Full Size
             </span>
@@ -260,7 +264,7 @@ export default function UserSubmissions() {
     onSuccess: () => {
       toast.success("Submission status updated!");
     },
-    onError: (err: any, _vars, context) => {
+    onError: (err: Error, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(["admin-submissions"], context.previous);
       }

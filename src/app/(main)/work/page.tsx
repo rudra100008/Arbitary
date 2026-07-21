@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 type Partner = {
@@ -96,8 +97,7 @@ export default function WorkPage() {
               Collaborations
             </span>
             <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter uppercase leading-[0.85] mb-8">
-              Our{" "}
-              <br />
+              Our <br />
               <span className="text-[#FACC15]">WORK</span>
             </h1>
             <p className="text-xl md:text-2xl text-zinc-500 max-w-2xl leading-relaxed italic">
@@ -152,11 +152,21 @@ export default function WorkPage() {
                     key={copyIdx}
                     className="flex shrink-0 items-center px-4"
                     style={{ gap: "24px" }}
-                    {...(copyIdx === 0 ? {} : { "aria-hidden": true } as React.HTMLAttributes<HTMLDivElement>)}
+                    {...(copyIdx === 0
+                      ? {}
+                      : ({
+                          "aria-hidden": true,
+                        } as React.HTMLAttributes<HTMLDivElement>))}
                   >
                     {allNames.map((name, i) => (
-                      <span key={i} className="flex items-center shrink-0" style={{ gap: "24px" }}>
-                        {i > 0 && <span className="text-[#FACC15]/40 shrink-0">✦</span>}
+                      <span
+                        key={i}
+                        className="flex items-center shrink-0"
+                        style={{ gap: "24px" }}
+                      >
+                        {i > 0 && (
+                          <span className="text-[#FACC15]/40 shrink-0">✦</span>
+                        )}
                         <span
                           className="text-[#FACC15] uppercase text-[11px] font-semibold shrink-0"
                           style={{ letterSpacing: "0.14em" }}
@@ -243,9 +253,10 @@ export default function WorkPage() {
                             {confidential ? (
                               <LockIcon />
                             ) : p.logoUrl ? (
-                              <img
+                              <Image
                                 src={p.logoUrl}
                                 alt={p.name}
+                                fill
                                 className="partner-logo-img"
                               />
                             ) : (
@@ -257,9 +268,7 @@ export default function WorkPage() {
                             <span
                               className={`partner-name ${confidential ? "partner-name-conf" : ""}`}
                             >
-                              {confidential
-                                ? "Confidential Partner"
-                                : p.name}
+                              {confidential ? "Confidential Partner" : p.name}
                             </span>
                             {!confidential && p.category && (
                               <span className="partner-type-badge">
@@ -268,7 +277,10 @@ export default function WorkPage() {
                             )}
                             <div className="partner-desc">
                               {confidential ? (
-                                <span className="flex items-center gap-2" style={{flexWrap: 'wrap'}}>
+                                <span
+                                  className="flex items-center gap-2"
+                                  style={{ flexWrap: "wrap" }}
+                                >
                                   <span className="partner-nda-text">
                                     Details available under NDA
                                   </span>
@@ -448,6 +460,5 @@ export default function WorkPage() {
 }
 `}</style>
     </div>
-
   );
 }

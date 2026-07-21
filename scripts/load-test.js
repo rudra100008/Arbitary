@@ -11,7 +11,7 @@ export const options = {
   ],
 };
 
-export default function () {
+export default function loadTest() {
   // Replace with your staging URL
   const res = http.get("https://arbitrary-nu.vercel.app/");
 

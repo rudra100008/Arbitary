@@ -15,7 +15,7 @@ import type {
 import { extractYouTubeId } from "@/src/lib/youtube-url";
 // Shared global typing for window.YT lives in src/types/youtube.d.ts
 // (it must only be declared once across the app).
-import type { YTNamespace, YTPlayerInstance } from "@/src/types/youtube";
+import type { YTPlayerInstance } from "@/src/types/youtube";
 import Image from "next/image";
 
 interface EventDetail extends Event {
@@ -88,6 +88,7 @@ const EventContentPage = () => {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset video state on video change
     setVideoFailed(false);
     setIsVideoPlaying(false);
   }, [youtubeVideoId]);

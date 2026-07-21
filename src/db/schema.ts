@@ -114,6 +114,17 @@ export const usersTable = pgTable("users", {
      *  clearFlags() to DISMISS_SUPPRESSION_DAYS from now; cleared (or simply expires)
      *  once the suppression window passes. */
     dismissedUntil: timestamp("dismissed_until"),
+
+    // --- Facebook / Instagram Page Connection (admin social-source) ---
+    fbUserAccessToken: text("fb_user_access_token"),
+    fbUserTokenExpiresAt: timestamp("fb_user_token_expires_at"),
+    fbPageId: varchar("fb_page_id", { length: 255 }),
+    fbPageName: varchar("fb_page_name", { length: 255 }),
+    fbPageAccessToken: text("fb_page_access_token"),
+    fbIgUserId: varchar("fb_ig_user_id", { length: 255 }),
+    fbIgUsername: varchar("fb_ig_username", { length: 255 }),
+    fbConnectedAt: timestamp("fb_connected_at"),
+    fbDataAccessExpiresAt: timestamp("fb_data_access_expires_at"),
 }, (table) => ({
     lastLoginAtIdx: index("idx_users_last_login_at").on(table.lastLoginAt),
     fraudRiskScoreIdx: index("idx_users_fraud_risk_score").on(table.fraudRiskScore),

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Run: node scripts/cleanup-admin-logs.js
 // Scheduled via cron to run daily: DELETE FROM admin_activity_logs WHERE created_at < NOW() - INTERVAL '90 days'
 

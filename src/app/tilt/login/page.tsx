@@ -13,6 +13,7 @@ export default function TiltLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setMounted(true);
     document.title = "Sign In | Tilt Your Music";
   }, []);

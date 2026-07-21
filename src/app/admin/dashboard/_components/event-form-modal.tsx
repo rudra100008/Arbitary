@@ -7,6 +7,7 @@ import ContentSectionEditor from "./content-section-editor";
 import AccessTypeEditor from "./access-type-editor";
 import TimelineEditor from "./timeline-editor";
 import { extractYouTubeId, youtubeEmbedUrl } from "@/src/lib/youtube-url";
+import Image from "next/image";
 
 interface HeroImage {
   url: string;
@@ -569,9 +570,12 @@ const EventFormModal = ({
                   }
                 >
                   {heroImage.previewUrl || heroImage.url ? (
-                    <img
+                    <Image
                       src={heroImage.previewUrl || heroImage.url}
                       alt="Hero Cover Preview"
+                      width={200}
+                      height={200}
+                      unoptimized
                       className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import EventTable from "../_components/event-table";
 import EventFormModal from "../_components/event-form-modal";
@@ -13,14 +13,14 @@ import type { Event } from "@/src/types/db";
 
 export default function AdminEvents() {
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
-  const [contentSections, setContentSections] = useState<ContentSection[]>([
-    { id: Math.random().toString(), type: "content", content: "" },
+  const [contentSections, setContentSections] = useState<ContentSection[]>(() => [
+    { id: crypto.randomUUID(), type: "content", content: "" },
   ]);
-  const [accessTypes, setAccessTypes] = useState<AccessType[]>([
-    { id: Math.random().toString(), title: "", price: "", pointCost: 0 },
+  const [accessTypes, setAccessTypes] = useState<AccessType[]>(() => [
+    { id: crypto.randomUUID(), title: "", price: "", pointCost: 0 },
   ]);
-  const [timelines, setTimelines] = useState<TimelineItem[]>([
-    { id: Math.random().toString(), time: "", description: "" },
+  const [timelines, setTimelines] = useState<TimelineItem[]>(() => [
+    { id: crypto.randomUUID(), time: "", description: "" },
   ]);
   const [heroImage, setHeroImage] = useState<{
     url: string;
@@ -57,20 +57,16 @@ export default function AdminEvents() {
     setEventDescription("");
     setHeroImage({ url: "" });
     setYoutubeUrl("");
-    setTimelines([{ id: Math.random().toString(), time: "", description: "" }]);
+    setTimelines([{ id: crypto.randomUUID(), time: "", description: "" }]);
     setAccessTypes([
-      { id: Math.random().toString(), title: "", price: "", pointCost: 0 },
+      { id: crypto.randomUUID(), title: "", price: "", pointCost: 0 },
     ]);
     setContentSections([
-      { id: Math.random().toString(), type: "content", content: "" },
+      { id: crypto.randomUUID(), type: "content", content: "" },
     ]);
   };
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const response = await fetch(`/api/events?t=${Date.now()}`);
       const data = await response.json();
@@ -80,7 +76,12 @@ export default function AdminEvents() {
     } catch (error) {
       console.error("Failed to fetch events:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
+    fetchEvents();
+  }, [fetchEvents]);
 
   const handleEditEvent = async (id: string) => {
     setLoadingEventId(id);

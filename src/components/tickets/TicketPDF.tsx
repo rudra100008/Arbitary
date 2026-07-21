@@ -231,16 +231,6 @@ const styles = StyleSheet.create({
   },
 });
 
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 interface TicketData {
   id: number;
   redemptionToken: string;
@@ -262,7 +252,7 @@ interface TicketPDFProps {
 function TicketCard({
   ticket,
   event,
-  user,
+  user: _user,
   accessType,
   qrDataUrl,
 }: {
@@ -351,6 +341,7 @@ function TicketCard({
 
           {qrDataUrl ? (
             <View style={styles.qrContainer}>
+              {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image does not support alt prop */}
               <Image style={styles.qrImage} src={qrDataUrl} />
             </View>
           ) : (

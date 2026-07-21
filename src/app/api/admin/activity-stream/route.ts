@@ -11,8 +11,6 @@ import { Pool } from "pg";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const NODE_ID = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
 let listenerPool: Pool | null = null;
 
 function getListenerPool(): Pool {

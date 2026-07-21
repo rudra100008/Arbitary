@@ -48,7 +48,7 @@ export default function TiltTermsPage() {
             Incentives & Experiences
           </h2>
           <p>
-            Any instant incentives are valid exclusively at the participating outlet where the entry was submitted. Redemption of these incentives is subject to the venue's current stock availability and cannot be transferred to another person. Tilt Your Music reserves the right to determine the final selection for the primary campaign experiences. These perks hold no cash value and may not be exchanged for alternative compensation.
+            Any instant incentives are valid exclusively at the participating outlet where the entry was submitted. Redemption of these incentives is subject to the venue&apos;s current stock availability and cannot be transferred to another person. Tilt Your Music reserves the right to determine the final selection for the primary campaign experiences. These perks hold no cash value and may not be exchanged for alternative compensation.
           </p>
 
           <h2 style={{ color: "#c8e63c", fontSize: "13px", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>

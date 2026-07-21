@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence } from "framer-motion";
 import { ModalShell } from "@/src/components/layout/manage-task/ModalShell";
+import Image from "next/image";
 
 type TeamMemberItem = {
   id: number;
@@ -46,6 +47,7 @@ export default function AdminTeamMembers() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     fetchMembers();
   }, []);
 
@@ -85,8 +87,14 @@ export default function AdminTeamMembers() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Name is required"); return; }
-    if (!form.role.trim()) { toast.error("Role is required"); return; }
+    if (!form.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    if (!form.role.trim()) {
+      toast.error("Role is required");
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -154,7 +162,8 @@ export default function AdminTeamMembers() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (photoPreview && !photoPreview.startsWith("blob:")) setPhotoPreview(null);
+    if (photoPreview && !photoPreview.startsWith("blob:"))
+      setPhotoPreview(null);
     setPhotoFile(file);
     setRemovePhoto(false);
     setPhotoPreview(URL.createObjectURL(file));
@@ -163,9 +172,7 @@ export default function AdminTeamMembers() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-zinc-500">
-          People behind the label
-        </p>
+        <p className="text-sm text-zinc-500">People behind the label</p>
         <button
           onClick={openAdd}
           className="px-5 py-2.5 text-xs font-black uppercase tracking-wider text-black bg-[#FACC15] hover:bg-black hover:text-[#FACC15] rounded-2xl transition-all"
@@ -186,8 +193,12 @@ export default function AdminTeamMembers() {
               <tr className="border-b border-black/5 text-[11px] font-black uppercase tracking-wider text-zinc-400">
                 <th className="text-left px-5 py-4">Photo</th>
                 <th className="text-left px-5 py-4">Name</th>
-                <th className="text-left px-5 py-4 hidden md:table-cell">Role</th>
-                <th className="text-left px-5 py-4 hidden md:table-cell">Sort</th>
+                <th className="text-left px-5 py-4 hidden md:table-cell">
+                  Role
+                </th>
+                <th className="text-left px-5 py-4 hidden md:table-cell">
+                  Sort
+                </th>
                 <th className="text-right px-5 py-4">Actions</th>
               </tr>
             </thead>
@@ -199,11 +210,14 @@ export default function AdminTeamMembers() {
                 >
                   <td className="px-5 py-4">
                     {m.photoUrl ? (
-                      <img
-                        src={m.photoUrl}
-                        alt={m.name}
-                        className="w-10 h-10 object-cover rounded-full bg-zinc-100"
-                      />
+                      <div className="relative w-10 h-10">
+                        <Image
+                          src={m.photoUrl}
+                          alt={m.name}
+                          fill
+                          className="object-cover rounded-full bg-zinc-100"
+                        />
+                      </div>
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 text-xs font-bold">
                         {m.name[0]}
@@ -324,8 +338,18 @@ export default function AdminTeamMembers() {
                   </div>
                 ) : (
                   <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 border-dashed cursor-pointer hover:border-[#FACC15] transition-colors text-sm text-zinc-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
+                      />
                     </svg>
                     Upload photo
                     <input
@@ -360,7 +384,9 @@ export default function AdminTeamMembers() {
                 <input
                   type="number"
                   value={form.sortOrder}
-                  onChange={(e) => setForm({ ...form, sortOrder: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, sortOrder: e.target.value })
+                  }
                   min={0}
                   className="w-full px-4 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 text-sm focus:outline-none focus:border-[#FACC15] focus:ring-1 focus:ring-[#FACC15] transition-all"
                 />

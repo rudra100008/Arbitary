@@ -1,7 +1,24 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useReducer } from "react";
 import { REJECTION_REASON_PRESETS } from "@/src/lib/constants/rejection-reasons";
+
+type ModalState = { selected: string; customReason: string };
+type ModalAction =
+  | { type: "RESET" }
+  | { type: "SET_SELECTED"; value: string }
+  | { type: "SET_CUSTOM_REASON"; value: string };
+
+function modalReducer(state: ModalState, action: ModalAction): ModalState {
+  switch (action.type) {
+    case "RESET":
+      return { selected: "", customReason: "" };
+    case "SET_SELECTED":
+      return { ...state, selected: action.value };
+    case "SET_CUSTOM_REASON":
+      return { ...state, customReason: action.value };
+  }
+}
 
 interface Submission {
   id: number;
@@ -24,19 +41,17 @@ export function RejectSubmissionModal({
   onConfirm,
   isSubmitting = false,
 }: RejectSubmissionModalProps) {
-  const [selected, setSelected] = useState<string>("");
-  const [customReason, setCustomReason] = useState("");
+  const [state, dispatch] = useReducer(modalReducer, { selected: "", customReason: "" });
 
   useEffect(() => {
     if (submission) {
-      setSelected("");
-      setCustomReason("");
+      dispatch({ type: "RESET" });
     }
   }, [submission]);
 
   if (!submission) return null;
 
-  const reason = selected === OTHER_VALUE ? customReason.trim() : selected;
+  const reason = state.selected === OTHER_VALUE ? state.customReason.trim() : state.selected;
   const canConfirm = reason.length > 0 && !isSubmitting;
 
   return (
@@ -54,14 +69,14 @@ export function RejectSubmissionModal({
             <label
               key={preset}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors
-                ${selected === preset ? "border-red-300 bg-red-50" : "border-gray-100 hover:bg-gray-50"}`}
+                ${state.selected === preset ? "border-red-300 bg-red-50" : "border-gray-100 hover:bg-gray-50"}`}
             >
               <input
                 type="radio"
                 name="rejection-reason"
                 value={preset}
-                checked={selected === preset}
-                onChange={() => setSelected(preset)}
+                checked={state.selected === preset}
+                onChange={() => dispatch({ type: "SET_SELECTED", value: preset })}
                 className="accent-red-500"
               />
               <span className="text-sm font-medium text-gray-700">{preset}</span>
@@ -70,23 +85,23 @@ export function RejectSubmissionModal({
 
           <label
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors
-              ${selected === OTHER_VALUE ? "border-red-300 bg-red-50" : "border-gray-100 hover:bg-gray-50"}`}
+              ${state.selected === OTHER_VALUE ? "border-red-300 bg-red-50" : "border-gray-100 hover:bg-gray-50"}`}
           >
             <input
               type="radio"
               name="rejection-reason"
               value={OTHER_VALUE}
-              checked={selected === OTHER_VALUE}
-              onChange={() => setSelected(OTHER_VALUE)}
+                checked={state.selected === OTHER_VALUE}
+                onChange={() => dispatch({ type: "SET_SELECTED", value: OTHER_VALUE })}
               className="accent-red-500"
             />
             <span className="text-sm font-medium text-gray-700">Other (custom reason)</span>
           </label>
 
-          {selected === OTHER_VALUE && (
+          {state.selected === OTHER_VALUE && (
             <textarea
-              value={customReason}
-              onChange={(e) => setCustomReason(e.target.value)}
+              value={state.customReason}
+              onChange={(e) => dispatch({ type: "SET_CUSTOM_REASON", value: e.target.value })}
               placeholder="Describe the reason for rejection..."
               maxLength={500}
               rows={3}

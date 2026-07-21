@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { db } from "../db";
-import { usersTable, tasksTable, userTasksTable } from "../db/schema";
+import { tasksTable, userTasksTable } from "../db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { TaskService } from "../services/task.service";
 

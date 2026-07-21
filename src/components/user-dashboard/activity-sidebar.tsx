@@ -223,7 +223,6 @@ export function ActivitySidebar({
             {completedTasks.map((task) => {
               const status = task.userStatus?.toLowerCase();
               const isPending = status === "pending verification";
-              const isVerified = status === "verified";
 
               return (
                 <div

@@ -2,7 +2,6 @@ import "@/src/app/globals.css";
 import { Geist, Geist_Mono } from "next/font/google";
 import Providers from "./providers";
 import { Toaster } from "sonner";
-import { DM_Sans } from "next/font/google";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,13 +11,6 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  preload: false,
-});
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "700", "800", "900"],
-  variable: "--font-dm-sans",
   preload: false,
 });
 

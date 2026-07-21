@@ -309,12 +309,15 @@ export function NotificationBell() {
     deleteAllNotifications,
   } = useNotifications();
 
-  // Portal needs DOM mounted
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setMounted(true);
   }, []);
 
   // Detect mobile breakpoint
+  
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
     check();
@@ -323,6 +326,8 @@ export function NotificationBell() {
   }, []);
 
   // Track newly-arrived notifications for entrance animation
+  
+
   useEffect(() => {
     const currentIds = new Set(notifications.map((n) => n.id));
     const arrived = new Set<number>();

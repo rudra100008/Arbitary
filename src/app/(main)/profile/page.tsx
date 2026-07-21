@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 
 import ProfileSidebar from "./_components/profile-sidebar";
 import ProfileTab from "./_components/profile-tab";
@@ -49,15 +49,24 @@ interface ProfileTask {
 
 export default function ProfilePage() {
   const { data: session, status, update } = useSession();
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [isEditing, setIsEditing] = useState(false);
 
   // Edit form state
+  const sessionDefaults = useMemo(
+    () => ({
+      name: session?.user?.name ?? "",
+      phone: session?.user?.phoneNumber ?? "",
+      bio: session?.user?.bio ?? "",
+      location: session?.user?.location ?? "",
+    }),
+    [session?.user],
+  );
+
   const [form, setForm] = useState({
-    name: session?.user?.name || "",
-    phone: "",
-    bio: "",
-    location: "",
+    name: sessionDefaults.name,
+    phone: sessionDefaults.phone,
+    bio: sessionDefaults.bio,
+    location: sessionDefaults.location,
   });
 
   const user = session?.user;
@@ -65,13 +74,12 @@ export default function ProfilePage() {
 
   // ── Read ?tab= query param to auto-select a tab on mount ──
   const searchParams = useSearchParams();
-  useEffect(() => {
-    const tab = searchParams.get("tab") as Tab | null;
-    const validTabs: Tab[] = ["profile", "settings", "tasks", "referrals"];
-    if (tab && validTabs.includes(tab)) {
-      setActiveTab(tab);
-    }
-  }, []);
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const validTabs: Tab[] = ["profile", "settings", "tasks", "referrals"];
+  const [activeTab, setActiveTab] = useState<Tab>(
+    tabParam && validTabs.includes(tabParam) ? tabParam : "profile",
+  );
+
 
   // ── Fetch the logged-in user's points and total completed tasks from DB ──
   const { data: pointsData } = useQuery<{
@@ -105,12 +113,11 @@ export default function ProfilePage() {
     },
     enabled: !!session?.user,
   });
-  const apiTasks = apiTasksData?.tasks ?? [];
 
   // Filter to tasks the user has actually interacted with and map to ProfileTask
   const tasks: ProfileTask[] = useMemo(
     () =>
-      apiTasks
+      (apiTasksData?.tasks ?? [])
         .filter((t) => t.userStatus !== null) // only tasks the user picked up
         .map((t) => ({
           id: t.id,
@@ -123,7 +130,7 @@ export default function ProfilePage() {
           platform: t.platform,
           difficulty: t.difficulty ?? "easy",
         })),
-    [apiTasks],
+    [apiTasksData?.tasks],
   );
 
   // ── Fetch tasks completed today ──
@@ -145,16 +152,19 @@ export default function ProfilePage() {
     document.title = `${TAB_TITLES[activeTab]} | Arbitrary`;
   }, [activeTab]);
 
+  const hasHydratedForm = useRef(false);
   useEffect(() => {
-    if (session?.user) {
-      setForm({
-        name: session?.user.name ?? "",
-        phone: session?.user.phoneNumber ?? "",
-        bio: session?.user?.bio ?? "",
-        location: session?.user?.location ?? "",
-      });
-    }
-  }, [session?.user]);
+    if (hasHydratedForm.current) return;
+    if (!session?.user) return;
+    hasHydratedForm.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from session, guarded by useRef
+    setForm({
+      name: sessionDefaults.name,
+      phone: sessionDefaults.phone,
+      bio: sessionDefaults.bio,
+      location: sessionDefaults.location,
+    });
+  }, [session?.user, sessionDefaults]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (profileData: typeof form) => {
@@ -220,7 +230,6 @@ export default function ProfilePage() {
             totalPoints={totalPoints}
             completedCount={completedCount}
             completedToday={completedToday}
-            totalTasks={tasks.length}
             tier={tier}
             currentStreak={currentStreak}
           />
@@ -247,6 +256,7 @@ export default function ProfilePage() {
                 userEmail={user?.email}
                 provider={user?.provider}
                 googleId={user?.googleId}
+                googleNeedsReconnect={session?.user?.googleNeedsReconnect}
                 facebookId={session?.user?.facebookId}
                 instagramUsername={session?.user?.instagramUsername}
                 googleImage={session?.user?.googleImage}

@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Footer from "@/src/components/ui/footer";
-import Header from "@/src/components/ui/header";
 import RecordsCatalog from "./RecordsCatalog";
 import { mapRecordToSong } from "./vinylSvg";
 import type { Song } from "./vinylSvg";

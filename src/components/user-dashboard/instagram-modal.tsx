@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useReducer } from "react";
 import { useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
 import { UserTaskItem } from "@/src/services/task.service";
@@ -25,14 +25,47 @@ export function InstagramModal({
   const { data: session } = useSession();
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [submittedForReview, setSubmittedForReview] = useState(false);
-  const [error, setError] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [codeLoading, setCodeLoading] = useState(false);
-  const [needsScreenshot, setNeedsScreenshot] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+
+  type IgState = {
+    codeLoading: boolean;
+    error: string;
+    needsScreenshot: boolean;
+    selectedFile: File | null;
+    previewUrl: string;
+    verificationCode: string;
+  };
+  type IgAction =
+    | { type: "FETCH_START" }
+    | { type: "FETCH_SUCCESS"; code: string }
+    | { type: "FETCH_ERROR"; error: string }
+    | { type: "CLEAR_ERROR" }
+    | { type: "SET_NEEDS_SCREENSHOT"; value: boolean }
+    | { type: "SET_FILE"; file: File | null; previewUrl: string };
+  const igReducer = (state: IgState, action: IgAction): IgState => {
+    switch (action.type) {
+      case "FETCH_START":
+        return { codeLoading: true, error: "", needsScreenshot: false, selectedFile: null, previewUrl: "", verificationCode: "" };
+      case "FETCH_SUCCESS":
+        return { ...state, codeLoading: false, verificationCode: action.code, error: "" };
+      case "FETCH_ERROR":
+        return { ...state, codeLoading: false, error: action.error };
+      case "CLEAR_ERROR":
+        return { ...state, error: "" };
+      case "SET_NEEDS_SCREENSHOT":
+        return { ...state, needsScreenshot: action.value };
+      case "SET_FILE":
+        return { ...state, selectedFile: action.file, previewUrl: action.previewUrl };
+    }
+  };
+  const [igState, igDispatch] = useReducer(igReducer, {
+    codeLoading: false,
+    error: "",
+    needsScreenshot: false,
+    selectedFile: null,
+    previewUrl: "",
+    verificationCode: "",
+  });
 
   const instagramUsername = session?.user?.instagramUsername;
   const { flags } = usePlatformFlags();
@@ -51,11 +84,7 @@ export function InstagramModal({
 
   useEffect(() => {
     if (isOpen && task.id && !isPlatformDisabled) {
-      setCodeLoading(true);
-      setError("");
-      setNeedsScreenshot(false);
-      setSelectedFile(null);
-      setPreviewUrl("");
+      igDispatch({ type: "FETCH_START" });
       fetch(`/api/user/tasks/instagram-complete?taskId=${task.id}`)
         .then(async (res) => {
           if (!res.ok) {
@@ -68,16 +97,13 @@ export function InstagramModal({
         })
         .then((data) => {
           if (data.verificationCode) {
-            setVerificationCode(data.verificationCode);
+            igDispatch({ type: "FETCH_SUCCESS", code: data.verificationCode });
           } else {
             throw new Error("No verification code received from server");
           }
         })
         .catch((err) => {
-          setError(err.message);
-        })
-        .finally(() => {
-          setCodeLoading(false);
+          igDispatch({ type: "FETCH_ERROR", error: err.message });
         });
     }
   }, [isOpen, task.id, isPlatformDisabled]);
@@ -91,15 +117,15 @@ export function InstagramModal({
   };
 
   const copyCode = () => {
-    if (verificationCode) {
-      navigator.clipboard.writeText(verificationCode);
+    if (igState.verificationCode) {
+      navigator.clipboard.writeText(igState.verificationCode);
     }
   };
 
   const handleVerify = async () => {
     if (isPlatformDisabled) return;
     setVerifying(true);
-    setError("");
+    igDispatch({ type: "CLEAR_ERROR" });
     try {
       const res = await fetch("/api/user/tasks/instagram-complete", {
         method: "POST",
@@ -111,7 +137,7 @@ export function InstagramModal({
         throw new Error(data.error || "Verification failed");
       }
       if (data.requiresScreenshot) {
-        setNeedsScreenshot(true);
+        igDispatch({ type: "SET_NEEDS_SCREENSHOT", value: true });
         setVerifying(false);
         return;
       }
@@ -122,7 +148,7 @@ export function InstagramModal({
       }, 1500);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      setError(error.message);
+      igDispatch({ type: "FETCH_ERROR", error: error.message });
     } finally {
       setVerifying(false);
     }
@@ -131,21 +157,20 @@ export function InstagramModal({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      igDispatch({ type: "SET_FILE", file, previewUrl: URL.createObjectURL(file) });
     }
   };
 
   const handleScreenshotSubmit = async () => {
-    if (!selectedFile) {
-      setError("Please select a screenshot to upload");
+    if (!igState.selectedFile) {
+      igDispatch({ type: "FETCH_ERROR", error: "Please select a screenshot to upload" });
       return;
     }
     setIsUploading(true);
-    setError("");
+    igDispatch({ type: "CLEAR_ERROR" });
     try {
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", igState.selectedFile);
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: formData,
@@ -157,9 +182,7 @@ export function InstagramModal({
       const uploadData = await uploadRes.json();
 
       if (uploadData.imageAnalysis?.isDuplicateImage) {
-        setError(
-          "This image has already been submitted as proof. Please upload a different screenshot.",
-        );
+        igDispatch({ type: "FETCH_ERROR", error: "This image has already been submitted as proof. Please upload a different screenshot." });
         setIsUploading(false);
         return;
       }
@@ -182,11 +205,10 @@ export function InstagramModal({
         const d = await proofRes.json();
         throw new Error(d.error || "Failed to submit proof");
       }
-      setSubmittedForReview(true);
       setTimeout(() => onComplete(task.id), 100);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      igDispatch({ type: "FETCH_ERROR", error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsUploading(false);
     }
@@ -233,9 +255,9 @@ export function InstagramModal({
           )}
 
           {/* Error */}
-          {error && (
+          {igState.error && (
             <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-red-600 text-xs sm:text-sm">
-              {error}
+              {igState.error}
             </div>
           )}
 
@@ -260,20 +282,20 @@ export function InstagramModal({
           )}
 
           {/* Screenshot upload flow */}
-          {needsScreenshot ? (
+          {igState.needsScreenshot ? (
             <div className="space-y-3">
               <p className="text-gray-700 text-xs sm:text-sm font-semibold">
                 Please upload a screenshot of your comment as proof.
               </p>
-              {previewUrl && (
+              {igState.previewUrl && (
                 <img
-                  src={previewUrl}
+                  src={igState.previewUrl}
                   alt="Preview"
                   className="w-full rounded-xl object-cover max-h-40"
                 />
               )}
               <label className="block w-full py-2.5 rounded-2xl border-2 border-dashed border-gray-300 text-center text-gray-500 text-xs sm:text-sm cursor-pointer hover:border-pink-300 hover:text-pink-500 transition-colors">
-                {selectedFile ? selectedFile.name : "Tap to choose screenshot"}
+                {igState.selectedFile ? igState.selectedFile.name : "Tap to choose screenshot"}
                 <input
                   type="file"
                   accept="image/*"
@@ -283,7 +305,7 @@ export function InstagramModal({
               </label>
               <button
                 onClick={handleScreenshotSubmit}
-                disabled={isUploading || !selectedFile}
+                disabled={isUploading || !igState.selectedFile}
                 className="w-full py-3 rounded-2xl bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-black text-sm flex items-center justify-center gap-2 transition-colors"
               >
                 {isUploading ? (
@@ -340,7 +362,7 @@ export function InstagramModal({
 
                   {/* Code box */}
                   <div className="mt-2 sm:mt-3 flex items-center gap-2">
-                    {codeLoading ? (
+                    {igState.codeLoading ? (
                       <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 sm:py-2.5 flex items-center gap-2">
                         <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
                         <span className="text-gray-400 text-xs">
@@ -351,7 +373,7 @@ export function InstagramModal({
                       <>
                         <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 sm:py-2.5">
                           <span className="text-pink-600 font-mono font-bold text-xs sm:text-sm">
-                            {verificationCode}
+                            {igState.verificationCode}
                           </span>
                         </div>
                         <button
@@ -385,7 +407,7 @@ export function InstagramModal({
               {/* Verify button */}
               <button
                 onClick={handleVerify}
-                disabled={verifying || codeLoading || isPlatformDisabled}
+                disabled={verifying || igState.codeLoading || isPlatformDisabled}
                 className="w-full py-3 sm:py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 transition-colors"
               >
                 {verifying ? (

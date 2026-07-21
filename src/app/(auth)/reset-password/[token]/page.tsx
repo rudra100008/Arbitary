@@ -38,7 +38,7 @@ const ResetPasswordPage = () => {
   const [tokenValid, setTokenValid] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [mounted, setMounted] = useState(true);
+  const mounted = true;
 
   useEffect(() => {
     async function validateToken() {

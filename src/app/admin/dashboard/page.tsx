@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useReducer, useState } from "react";
 import { useRouter } from "next/navigation";
 import OverviewTab, { type Trend } from "./_components/overview-tab";
 import type { Event } from "@/src/types/db";
@@ -43,15 +43,26 @@ interface SseLogRaw {
   __replay?: boolean;
 }
 
+type DashboardDataState = {
+  analytics: { totalPointsDistributed: number; activeUsers: number; pendingVerifications: number; tasksInProgress: number } | null;
+  trends: Record<string, Trend | null>;
+};
+type DashboardDataAction =
+  | { type: "SET_ANALYTICS"; analytics: DashboardDataState["analytics"]; trends: Record<string, Trend | null> };
+
+function dashboardDataReducer(state: DashboardDataState, action: DashboardDataAction): DashboardDataState {
+  switch (action.type) {
+    case "SET_ANALYTICS":
+      return { ...state, analytics: action.analytics, trends: action.trends };
+  }
+}
+
 const AdminDashboardPage = () => {
   const router = useRouter();
-  const [analytics, setAnalytics] = useState<{
-    totalPointsDistributed: number;
-    activeUsers: number;
-    pendingVerifications: number;
-    tasksInProgress: number;
-  } | null>(null);
-  const [trends, setTrends] = useState<Record<string, Trend | null>>({});
+  const [dataState, dataDispatch] = useReducer(dashboardDataReducer, {
+    analytics: null,
+    trends: {},
+  });
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [systemStatusError, setSystemStatusError] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
@@ -79,35 +90,7 @@ const AdminDashboardPage = () => {
     };
   }
 
-  useEffect(() => {
-    fetch("/api/admin/analytics")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) {
-          setAnalytics(d.data);
-          setTrends(d.trends ?? {});
-        }
-      })
-      .catch(() => {});
-    fetchEvents();
-    fetchSystemStatus();
-
-    fetch("/api/admin/global-activity?limit=30")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.logs) return;
-        for (const item of d.logs as GlobalActivityItem[]) {
-          adminCacheRef.current.set(item.admin.id, {
-            name: item.admin.name,
-            email: item.admin.email,
-          });
-        }
-        setGlobalActivity(d.logs);
-      })
-      .catch(() => {});
-  }, []);
-
-  const fetchSystemStatus = async () => {
+  const fetchSystemStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/system-status");
       const data = await res.json();
@@ -120,32 +103,14 @@ const AdminDashboardPage = () => {
     } catch {
       setSystemStatusError(true);
     }
-  };
-
-  useEffect(() => {
-    const es = new EventSource("/api/admin/activity-stream");
-
-    es.addEventListener("log", (e: MessageEvent) => {
-      try {
-        const raw: SseLogRaw = JSON.parse(e.data);
-        if (raw.__replay) return;
-        const item = sseLogToGlobalItem(raw);
-        setGlobalActivity((prev) => {
-          if (prev.some((a) => a.id === item.id)) return prev;
-          return [item, ...prev].slice(0, 100);
-        });
-      } catch {}
-    });
-
-    return () => es.close();
   }, []);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const response = await fetch(`/api/events?t=${Date.now()}`);
 
       const rawBody = await response.text();
-      let data: any = null;
+      let data: { success?: boolean; events?: Event[]; error?: string } | null = null;
       if (rawBody) {
         try {
           data = JSON.parse(rawBody);
@@ -170,43 +135,89 @@ const AdminDashboardPage = () => {
       }
 
       if (data?.success) {
-        setEvents(data.events);
+        setEvents(data.events ?? []);
       } else {
         console.error("GET /api/events responded without success:", data);
       }
     } catch (error) {
       console.error("Failed to fetch events:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/admin/analytics")
+      .then((r) => r.json())
+      .then((d: { success?: boolean; data?: DashboardDataState["analytics"]; trends?: Record<string, Trend | null> }) => {
+        if (d.success) {
+          dataDispatch({ type: "SET_ANALYTICS", analytics: d.data ?? null, trends: d.trends ?? {} });
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
+    fetchEvents();
+    fetchSystemStatus();
+
+    fetch("/api/admin/global-activity?limit=30")
+      .then((r) => r.json())
+      .then((d: { logs?: GlobalActivityItem[] }) => {
+        if (!d.logs) return;
+        for (const item of d.logs as GlobalActivityItem[]) {
+          adminCacheRef.current.set(item.admin.id, {
+            name: item.admin.name,
+            email: item.admin.email,
+          });
+        }
+        setGlobalActivity(d.logs);
+      })
+      .catch(() => {});
+  }, [fetchEvents, fetchSystemStatus]);
+
+  useEffect(() => {
+    const es = new EventSource("/api/admin/activity-stream");
+
+    es.addEventListener("log", (e: MessageEvent) => {
+      try {
+        const raw: SseLogRaw = JSON.parse(e.data);
+        if (raw.__replay) return;
+        const item = sseLogToGlobalItem(raw);
+        setGlobalActivity((prev) => {
+          if (prev.some((a) => a.id === item.id)) return prev;
+          return [item, ...prev].slice(0, 100);
+        });
+      } catch {}
+    });
+
+    return () => es.close();
+  }, []);
 
   const criticalAlerts = useMemo(
     () => globalActivity.filter((a) => a.logLevel === "CRITICAL").slice(0, 8),
     [globalActivity],
   );
 
-  const stats = analytics
+  const stats = dataState.analytics
     ? [
         {
           label: "Total Points Distributed",
-          value: analytics.totalPointsDistributed.toLocaleString(),
+          value: dataState.analytics.totalPointsDistributed.toLocaleString(),
           growth: "Across all users",
-          trend: trends.totalPointsDistributed ?? null,
+          trend: dataState.trends.totalPointsDistributed ?? null,
         },
         {
           label: "Active Users",
-          value: analytics.activeUsers.toLocaleString(),
+          value: dataState.analytics.activeUsers.toLocaleString(),
           growth: "Last 30 days",
-          trend: trends.activeUsers ?? null,
+          trend: dataState.trends.activeUsers ?? null,
         },
         {
           label: "Pending Verifications",
-          value: analytics.pendingVerifications.toLocaleString(),
+          value: dataState.analytics.pendingVerifications.toLocaleString(),
           growth: "Awaiting review",
           trend: null,
         },
         {
           label: "Tasks In Progress",
-          value: analytics.tasksInProgress.toLocaleString(),
+          value: dataState.analytics.tasksInProgress.toLocaleString(),
           growth: "Currently assigned",
           trend: null,
         },

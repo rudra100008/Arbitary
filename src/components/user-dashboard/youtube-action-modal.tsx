@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import type { UserTaskItem } from "@/src/services/task.service";
 
 type ActionType = "like" | "comment";
 
 type YouTubeActionModalProps = {
-  task: any;
+  task: UserTaskItem;
   action: ActionType;
   isOpen: boolean;
   onClose: () => void;
@@ -86,8 +87,8 @@ export function YouTubeActionModal({
         onComplete();
         onClose();
       }, 1500);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setVerifying(false);
     }
@@ -134,41 +135,41 @@ export function YouTubeActionModal({
       }
       onComplete();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to submit proof");
     } finally {
       setIsUploading(false);
     }
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-start md:items-center justify-center pt-[60px] md:pt-0">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[52px] sm:pt-[56px] md:pt-[68px]">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 max-h-[calc(100vh-80px)] md:max-h-none overflow-y-auto md:overflow-visible modal-in">
-        <div className={`bg-gradient-to-br ${headerGradient} px-6 pt-6 pb-8`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className={`text-[10px] font-black uppercase tracking-widest ${headerLabelColor}`}>
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md mx-3 sm:mx-4 mt-2 md:mt-4 max-h-[calc(100vh-64px)] sm:max-h-[calc(100vh-72px)] md:max-h-[calc(100vh-80px)] overflow-y-auto scrollbar-hide modal-in">
+        <div className={`bg-gradient-to-br ${headerGradient} px-4 pt-3 pb-5 sm:px-5 sm:pt-4 sm:pb-6 md:px-6 md:pt-5 md:pb-7 rounded-t-3xl`}>
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${headerLabelColor}`}>
               YouTube {label}
             </span>
             <button
               onClick={onClose}
-              className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          <h2 className="text-xl font-black text-white">{task?.title || ""}</h2>
-          <p className="text-sm text-white/80 mt-1 line-clamp-2">
+          <h2 className="text-base sm:text-lg md:text-xl font-black text-white">{task?.title || ""}</h2>
+          <p className="text-white/80 text-[11px] sm:text-xs md:text-sm mt-0.5 line-clamp-2">
             {task?.description || ""}
           </p>
         </div>
 
-        <div className="p-6">
+        <div className="p-3 sm:p-4 md:p-5">
           {verified ? (
             <div className="flex flex-col items-center gap-3 py-6">
               <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -238,12 +239,12 @@ export function YouTubeActionModal({
           ) : (
             <div className="flex flex-col gap-4">
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-600 text-white text-xs sm:text-sm font-black flex items-center justify-center shrink-0 mt-0.5">
                   1
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800 text-sm">Open the YouTube video</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="font-bold text-gray-800 text-xs sm:text-sm md:text-base">Open the YouTube video</p>
+                  <p className="text-gray-500 text-[11px] sm:text-xs mt-0.5">
                     Click the button below to open the video in a new tab.
                   </p>
                 </div>
@@ -262,12 +263,12 @@ export function YouTubeActionModal({
               )}
 
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-600 text-white text-xs sm:text-sm font-black flex items-center justify-center shrink-0 mt-0.5">
                   2
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800 text-sm">{label} & Verify</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="font-bold text-gray-800 text-xs sm:text-sm md:text-base">{label} & Verify</p>
+                  <p className="text-gray-500 text-[11px] sm:text-xs mt-0.5">
                     {isLike
                       ? "Click the like button on the video, then verify here."
                       : "Post your comment on the video, then verify here."}

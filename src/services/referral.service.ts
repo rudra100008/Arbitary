@@ -1,9 +1,11 @@
 import crypto from "crypto";
 import { db } from "@/src/db";
 import { usersTable, referralsTable, userTasksTable, pointsLogTable } from "@/src/db/schema";
-import { eq, and, isNull, sql, ilike } from "drizzle-orm";
+import { eq, and, isNull, sql, } from "drizzle-orm";
 import { ServiceResult, ok, fail } from "./result";
 import { rateLimit } from "@/src/lib/rate-limit";
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export const REFERRAL_BONUS = 100;
 
@@ -36,8 +38,8 @@ export const ReferralService = {
           .returning({ code: usersTable.referralCode });
         if (updated?.code) return ok({ code: updated.code });
         code = crypto.randomBytes(4).toString("hex").toUpperCase();
-      } catch (err: any) {
-        if (err?.code !== "23505" || attempt === 4) throw err;
+      } catch (err: unknown) {
+        if (!(err instanceof Error) || (err as NodeJS.ErrnoException).code !== "23505" || attempt === 4) throw err;
         code = crypto.randomBytes(4).toString("hex").toUpperCase();
       }
     }
@@ -115,7 +117,7 @@ export const ReferralService = {
       });
 
       return ok(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof ReferralRuleError) {
         // Known business rule violation — safe to show to the user
         return fail(err.message, 400);
@@ -168,8 +170,8 @@ export const ReferralService = {
     });
   },
 
-  async awardReferralBonusIfEligible(userId: number, tx?: any): Promise<void> {
-    const runInTransaction = async (transactionContext: any) => {
+  async awardReferralBonusIfEligible(userId: number, tx?: Tx): Promise<void> {
+    const runInTransaction = async (transactionContext: Tx) => {
       const [user] = await transactionContext
         .select()
         .from(usersTable)

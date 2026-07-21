@@ -52,9 +52,10 @@ export async function GET(req: NextRequest) {
     100,
   );
   const taskType = searchParams.get("taskType");
+  const platform = searchParams.get("platform");
   const search = searchParams.get("search")?.trim() ?? "";
 
-  const result = await TaskService.getAdminTasks({ page, limit, search, taskType });
+  const result = await TaskService.getAdminTasks({ page, limit, search, taskType, platform });
 
   return NextResponse.json(result, { status: 200 });
 }

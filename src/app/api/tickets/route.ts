@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireUser } from "@/src/services/auth.service";
 import { TicketService } from "@/src/services/ticket.service";
 

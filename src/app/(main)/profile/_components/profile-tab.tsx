@@ -10,10 +10,14 @@ import InfoField from "./info-field";
  * that parses as UTC midnight, which can display as the previous day for
  * users in negative UTC-offset timezones. Parsing the parts directly and
  * building a local Date sidesteps that.
+ *
+ * Accepts both bare "YYYY-MM-DD" and full ISO 8601 timestamps
+ * (e.g. "2000-05-14T00:00:00.000Z") — strips any time component first.
  */
 function formatDateOfBirth(dateOfBirth: string | null | undefined): string {
   if (!dateOfBirth) return "—";
-  const [year, month, day] = dateOfBirth.split("-").map(Number);
+  const datePart = dateOfBirth.split("T")[0]; // handles both "YYYY-MM-DD" and full ISO timestamps
+  const [year, month, day] = datePart.split("-").map(Number);
   if (!year || !month || !day) return "—";
   const local = new Date(year, month - 1, day);
   if (Number.isNaN(local.getTime())) return "—";

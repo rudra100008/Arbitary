@@ -35,6 +35,7 @@ export interface YTNamespace {
   PlayerState: {
     OFF: number;
     UNSTARTED: number;
+    ENDED: number;
     PLAYING: number;
     PAUSED: number;
     BUFFERING: number;

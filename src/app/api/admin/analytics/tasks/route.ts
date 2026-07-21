@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/services/auth.service";
-import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, type SQL } from "drizzle-orm";
 import { db } from "@/src/db";
 import { tasksTable, userTasksTable, dailyTaskCompletionsTable } from "@/src/db/schema";
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(tasksTable.createdAt));
 
   // ── Daily task history stats from permanent log ──
-  const dailyConditions: any[] = [];
+  const dailyConditions: SQL[] = [];
   if (from) dailyConditions.push(gte(dailyTaskCompletionsTable.completionDate, from));
   if (to) dailyConditions.push(lte(dailyTaskCompletionsTable.completionDate, to));
 

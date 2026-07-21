@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export default function AdminLiveStream() {
@@ -9,11 +9,7 @@ export default function AdminLiveStream() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
-
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/live");
       const data = await res.json();
@@ -29,7 +25,12 @@ export default function AdminLiveStream() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
+    fetchStatus();
+  }, [fetchStatus]);
 
   const handleSave = async () => {
     if (!youtubeUrl.trim()) {
@@ -47,8 +48,8 @@ export default function AdminLiveStream() {
       if (!res.ok) throw new Error(data.error || "Failed to save");
       toast.success("Live stream is now active");
       setLive(true);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -66,8 +67,8 @@ export default function AdminLiveStream() {
       toast.success("Live stream ended");
       setLive(false);
       setYoutubeUrl("");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to end live stream");
     } finally {
       setSaving(false);
     }

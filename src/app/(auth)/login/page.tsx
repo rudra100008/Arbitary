@@ -5,6 +5,7 @@ import FormInput from "@/src/components/layout/form-input";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
+import { toast } from "sonner";
 
 const errorMessages: Record<string, string> = {
   OAuthSignin: "Google sign-in failed. Please try again.",
@@ -96,27 +97,10 @@ const UserLoginPage = () => {
   const { flags } = usePlatformFlags();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setMounted(true);
     document.title = "Login | Arbitrary";
   }, []);
-
-  const handleGoogleLogin = async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const result = await signIn("google", {
-        redirect: true,
-        callbackUrl: "/dashboard",
-      });
-      if (result?.error) {
-        setError(result.error);
-        setIsLoading(false);
-      }
-    } catch {
-      setError("Google login failed. Please try again.");
-      setIsLoading(false);
-    }
-  };
 
   const handleFacebookLogin = async () => {
     setIsLoading(true);
@@ -136,7 +120,7 @@ const UserLoginPage = () => {
     }
   };
 
-  const handleCredentialsLogin = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCredentialsLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
@@ -145,12 +129,36 @@ const UserLoginPage = () => {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    signIn("credentials", {
-      email,
-      password,
-      redirect: true,
-      callbackUrl: "/dashboard",
-    });
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: "/dashboard",
+      });
+
+      if (result?.error) {
+        const msg = errorMessages[result.error] ?? errorMessages.Default;
+        setError(msg);
+        toast.error(msg);
+        setIsLoading(false);
+        return;
+      }
+
+      if (result?.ok) {
+        router.push(result.url ?? "/dashboard");
+        return;
+      }
+
+      setError(errorMessages.Default);
+      toast.error(errorMessages.Default);
+      setIsLoading(false);
+    } catch {
+      const msg = "Couldn't reach the server. Check your connection and try again.";
+      setError(msg);
+      toast.error(msg);
+      setIsLoading(false);
+    }
   };
 
   const dismissError = () => {

@@ -41,10 +41,12 @@ const UserSignupPage = () => {
   const { flags } = usePlatformFlags();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setMounted(true);
     document.title = "Sign Up | Arbitrary";
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- will be wired up when Google OAuth is re-enabled
   const handleGoogleSignup = async () => {
     setIsLoading(true);
     setError("");

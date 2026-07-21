@@ -1,5 +1,0 @@
-[33mcommit fe02bc9d86474a3705e6b95020911ddc9db595c8[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
-Author: rudra100008 <ashumbhuju123@gmail.com>
-Date:   Sun Jun 21 17:55:09 2026 +0545
-
-    Remove normalize-user-roles script causing build type error

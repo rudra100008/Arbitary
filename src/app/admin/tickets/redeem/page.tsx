@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { toast } from "sonner";
 
 interface TicketData {
@@ -13,33 +13,55 @@ interface TicketData {
   redemptionToken: string;
 }
 
+type RedeemState = { ticket: TicketData | null; loading: boolean; error: string | null };
+type RedeemAction =
+  | { type: "FETCH_START" }
+  | { type: "FETCH_SUCCESS"; ticket: TicketData }
+  | { type: "FETCH_ERROR"; error: string }
+  | { type: "NO_TOKEN" }
+  | { type: "UPDATE_TICKET"; updater: (prev: TicketData | null) => TicketData | null }
+  | { type: "SET_REDEEMING"; value: boolean };
+
+function redeemReducer(state: RedeemState, action: RedeemAction): RedeemState {
+  switch (action.type) {
+    case "FETCH_START":
+      return { ...state, loading: true, error: null };
+    case "FETCH_SUCCESS":
+      return { ticket: action.ticket, loading: false, error: null };
+    case "FETCH_ERROR":
+      return { ...state, loading: false, error: action.error };
+    case "NO_TOKEN":
+      return { ticket: null, loading: false, error: "No redemption token provided" };
+    case "UPDATE_TICKET":
+      return { ...state, ticket: action.updater(state.ticket) };
+    case "SET_REDEEMING":
+      return state;
+  }
+}
+
 export default function TicketRedeemPage() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
-  const [ticket, setTicket] = useState<TicketData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [state, dispatch] = useReducer(redeemReducer, { ticket: null, loading: true, error: null });
   const [redeeming, setRedeeming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
-      setError("No redemption token provided");
-      setLoading(false);
+      dispatch({ type: "NO_TOKEN" });
       return;
     }
+    dispatch({ type: "FETCH_START" });
     fetch(`/api/admin/tickets/lookup?token=${encodeURIComponent(token)}`)
       .then((res) => {
         if (!res.ok) throw new Error("Ticket not found");
         return res.json();
       })
       .then((data) => {
-        setTicket(data.ticket);
-        setLoading(false);
+        dispatch({ type: "FETCH_SUCCESS", ticket: data.ticket });
       })
       .catch((err) => {
-        setError(err.message);
-        setLoading(false);
+        dispatch({ type: "FETCH_ERROR", error: err.message });
       });
   }, [token]);
 
@@ -58,7 +80,7 @@ export default function TicketRedeemPage() {
         return;
       }
       toast.success("Ticket redeemed successfully!");
-      setTicket((prev) => prev ? { ...prev, status: "used" } : null);
+      dispatch({ type: "UPDATE_TICKET", updater: (prev) => prev ? { ...prev, status: "used" } : null });
     } catch {
       toast.error("Failed to redeem ticket");
     } finally {
@@ -66,7 +88,7 @@ export default function TicketRedeemPage() {
     }
   };
 
-  if (loading) {
+  if (state.loading) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-gray-200 border-t-slate-900 rounded-full animate-spin" />
@@ -74,7 +96,7 @@ export default function TicketRedeemPage() {
     );
   }
 
-  if (error || !ticket) {
+  if (state.error || !state.ticket) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
         <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-200 text-center max-w-md">
@@ -84,13 +106,13 @@ export default function TicketRedeemPage() {
             </svg>
           </div>
           <h2 className="text-xl font-bold text-slate-900 mb-2">Invalid Ticket</h2>
-          <p className="text-sm text-gray-500">{error || "Ticket not found"}</p>
+          <p className="text-sm text-gray-500">{state.error || "Ticket not found"}</p>
         </div>
       </div>
     );
   }
 
-  const isUsed = ticket.status === "used";
+  const isUsed = state.ticket!.status === "used";
 
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
@@ -98,7 +120,7 @@ export default function TicketRedeemPage() {
         <div className={`p-6 ${isUsed ? "bg-gray-100" : "bg-[#FACC15]"} transition-colors`}>
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-bold uppercase tracking-wider text-black/60">
-              Ticket #{ticket.id.toString().padStart(6, "0")}
+              Ticket #{state.ticket!.id.toString().padStart(6, "0")}
             </span>
             <span
               className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
@@ -110,10 +132,10 @@ export default function TicketRedeemPage() {
               {isUsed ? "Used" : "Active"}
             </span>
           </div>
-          <h1 className="text-2xl font-black text-black mb-1">{ticket.event?.title || "Unknown Event"}</h1>
-          {ticket.event && (
+          <h1 className="text-2xl font-black text-black mb-1">{state.ticket!.event?.title || "Unknown Event"}</h1>
+          {state.ticket!.event && (
             <p className="text-sm text-black/70">
-              {new Date(ticket.event.eventDate).toLocaleDateString("en-US", {
+              {new Date(state.ticket!.event!.eventDate).toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "long",
                 day: "numeric",
@@ -121,21 +143,21 @@ export default function TicketRedeemPage() {
               })}
             </p>
           )}
-          {ticket.event?.venue && (
-            <p className="text-sm text-black/70 mt-1">📍 {ticket.event.venue}</p>
+          {state.ticket!.event?.venue && (
+            <p className="text-sm text-black/70 mt-1">📍 {state.ticket!.event!.venue}</p>
           )}
         </div>
 
         <div className="p-6 space-y-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Attendee</p>
-            <p className="font-bold text-slate-900">{ticket.user.name || "N/A"}</p>
-            <p className="text-sm text-gray-500">{ticket.user.email}</p>
+            <p className="font-bold text-slate-900">{state.ticket!.user.name || "N/A"}</p>
+            <p className="text-sm text-gray-500">{state.ticket!.user.email}</p>
           </div>
 
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">Ticket Type</p>
-            <p className="font-semibold text-slate-900">{ticket.accessType?.title || "General Admission"}</p>
+            <p className="font-semibold text-slate-900">{state.ticket!.accessType?.title || "General Admission"}</p>
           </div>
 
           {isUsed ? (

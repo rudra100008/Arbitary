@@ -170,7 +170,11 @@ function SoundWave() {
       ctx.lineWidth = width;
       for (let x = 0; x <= canvas.width; x += 2) {
         const y = canvas.height / 2 + amp * Math.sin(x * freq + phase);
-        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        if (x === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
       }
       ctx.stroke();
     });
@@ -719,7 +723,7 @@ function ParticipantForm({
   useEffect(() => {
     const t = setTimeout(() => setDebouncedUrl(form.url.trim()), 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- debouncing a fast-changing input is the canonical use case for a timer effect
+     
   }, [form.url]);
 
   const parsedUrl = useMemo(
@@ -1246,13 +1250,9 @@ export default function ParticipantPage() {
   // the promo banner's confirmation modal), so re-check server-derived
   // session data here too. Missing/invalid dateOfBirth is always treated
   // as ineligible.
-  const [showIneligibleModal, setShowIneligibleModal] = useState(false);
-  useEffect(() => {
-    if (sessionStatus !== "authenticated") return;
-    if (!isEligibleAge(session?.user?.dateOfBirth)) {
-      setShowIneligibleModal(true);
-    }
-  }, [sessionStatus, session]);
+  const showIneligibleModal =
+    sessionStatus === "authenticated" && !isEligibleAge(session?.user?.dateOfBirth);
+
 
   // Use React Query so the SSE hook can invalidate ["participant-status"]
   // and trigger an automatic re-fetch when an admin approves/rejects —

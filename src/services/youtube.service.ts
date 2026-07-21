@@ -29,6 +29,7 @@ export const YouTubeService = {
     let token: string | undefined = s?.googleAccessToken;
     let expiry: number | undefined = s?.googleTokenExpiry;
     let refreshToken: string | undefined = s?.googleRefreshToken;
+    let decryptFailed = false;
 
     // Fall back to DB-stored encrypted refresh token if missing from session
     if (!refreshToken && userId) {
@@ -43,10 +44,17 @@ export const YouTubeService = {
             refreshToken = decrypted;
             expiry = 0;
             updateJwtToken({ googleRefreshToken: decrypted, googleTokenExpiry: 0 });
+          } else {
+            decryptFailed = true;
           }
         }
       } catch (e) {
         console.error(`[youtube] getAuthorizedClient: DB fallback failed (userId=${userId}):`, e);
+        decryptFailed = true;
+        await db.update(usersTable)
+          .set({ googleRefreshToken: null })
+          .where(eq(usersTable.id, userId))
+          .catch(err => console.error("[youtube] Failed to clear corrupted googleRefreshToken:", err));
       }
     }
 
@@ -74,6 +82,7 @@ export const YouTubeService = {
           await updateJwtToken({
             googleAccessToken: data.access_token,
             googleTokenExpiry: Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
+            googleNeedsReconnect: false,
           });
           if (data.refresh_token) {
             const encrypted = encryptToken(data.refresh_token);
@@ -85,6 +94,15 @@ export const YouTubeService = {
           }
         } else {
           console.error(`[youtube] getAuthorizedClient: refresh returned no access_token:`, data);
+          // Self-heal: clear the rejected refresh token from DB so the
+          // settings UI stops showing a false "Connected" status.
+          if (userId) {
+            await db.update(usersTable)
+              .set({ googleRefreshToken: null })
+              .where(eq(usersTable.id, userId))
+              .catch(err => console.error("[youtube] Failed to clear rejected googleRefreshToken:", err));
+          }
+          await updateJwtToken({ googleNeedsReconnect: true }).catch(() => {});
           return fail("Your Google connection expired. Please reconnect your account in settings.", 401);
         }
       } catch {
@@ -92,7 +110,12 @@ export const YouTubeService = {
       }
     }
 
-    if (!token) return fail("YouTube not linked. Sign in with Google.", 401);
+    if (!token) {
+      if (decryptFailed) {
+        return fail("Your YouTube connection needs to be reconnected. Please sign out and sign back in with Google.", 401);
+      }
+      return fail("YouTube not linked. Sign in with Google.", 401);
+    }
     return ok(token);
   },
 

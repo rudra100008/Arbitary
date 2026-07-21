@@ -1,5 +1,9 @@
 import crypto from "crypto";
 import { checkCommentQuality, type CommentQualityOptions } from "./comment-quality";
+import { db } from "@/src/db";
+import { usersTable } from "@/src/db/schema";
+import { eq } from "drizzle-orm";
+import { decryptToken } from "./token-crypto";
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v20.0";
 
@@ -30,6 +34,50 @@ export interface LikeCheckResult {
     hasQualityComment?: boolean;
 }
 
+export type FbCredsResult =
+  | { ok: true; pageId: string; pageAccessToken: string }
+  | { ok: false; reason: "NOT_CONFIGURED" | "DECRYPT_FAILED" };
+
+/**
+ * Resolve the Facebook Page ID and access token for the given admin user.
+ * Returns a typed result distinguishing "never connected" from "token corrupted".
+ */
+export async function getAdminFbCredentials(adminUserId?: number): Promise<FbCredsResult> {
+    if (!adminUserId) return { ok: false, reason: "NOT_CONFIGURED" };
+
+    const [user] = await db
+        .select({
+            fbPageId: usersTable.fbPageId,
+            fbPageAccessToken: usersTable.fbPageAccessToken,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, adminUserId))
+        .limit(1);
+
+    if (!user?.fbPageId || !user?.fbPageAccessToken) {
+        return { ok: false, reason: "NOT_CONFIGURED" };
+    }
+
+    try {
+        const decrypted = decryptToken(user.fbPageAccessToken, 'facebook');
+        if (!decrypted) {
+            return { ok: false, reason: "NOT_CONFIGURED" };
+        }
+        return { ok: true, pageId: user.fbPageId, pageAccessToken: decrypted };
+    } catch (err) {
+        console.error(
+            `[facebook] Failed to decrypt fbPageAccessToken for admin user ${adminUserId} — ` +
+            `key mismatch (see round-6 fix). The Facebook Page must be reconnected.`,
+            err,
+        );
+        await db.update(usersTable)
+            .set({ fbPageAccessToken: null, fbPageId: null, fbPageName: null })
+            .where(eq(usersTable.id, adminUserId))
+            .catch((e) => console.error("[facebook] Failed to clear corrupted fbPageAccessToken:", e));
+        return { ok: false, reason: "DECRYPT_FAILED" };
+    }
+}
+
 /** Generate a deterministic verification code for a user+task combination */
 export function getVerificationCode(userId: number, taskId: number, prefix: string = '#fb'): string {
     const date = new Date().toISOString().slice(0, 10);
@@ -41,16 +89,15 @@ export function getVerificationCode(userId: number, taskId: number, prefix: stri
         .slice(0, 8)}`;
 }
 
-export async function getPagePosts(): Promise<Post[]> {
-    const pageId = process.env.FACEBOOK_PAGE_ID;
-    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+export async function getPagePosts(adminUserId?: number): Promise<Post[]> {
+    const creds = await getAdminFbCredentials(adminUserId);
 
-    if (!pageId || !token) {
-        throw new Error("FACEBOOK_PAGE_ID or FACEBOOK_PAGE_ACCESS_TOKEN is missing from .env");
+    if (!creds.ok) {
+        throw new Error("Facebook Page credentials are not configured. Connect a Facebook account in Admin Settings.");
     }
 
-    const url = new URL(`${GRAPH_API_BASE}/${pageId}/posts`);
-    url.searchParams.set("access_token", token);
+    const url = new URL(`${GRAPH_API_BASE}/${creds.pageId}/posts`);
+    url.searchParams.set("access_token", creds.pageAccessToken);
     url.searchParams.set("fields", "id,message,created_time,full_picture,permalink_url,likes.summary(true)");
     url.searchParams.set("limit", "10");
 
@@ -68,15 +115,19 @@ export async function findCodeInComments(
     postId: string,
     code: string,
     qualityOptions?: CommentQualityOptions,
+    adminUserId?: number,
 ): Promise<LikeCheckResult> {
-    const pageToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    const creds = await getAdminFbCredentials(adminUserId);
 
-    if (!pageToken) {
-        return { liked: false, userId: "", postId, checkedAt: new Date().toISOString(), error: "FACEBOOK_PAGE_ACCESS_TOKEN is missing from .env" };
+    if (!creds.ok) {
+        const error = creds.reason === "DECRYPT_FAILED"
+            ? "FB_TOKEN_EXPIRED"
+            : "FB_NOT_CONFIGURED";
+        return { liked: false, userId: "", postId, checkedAt: new Date().toISOString(), error };
     }
 
     const url = new URL(`${GRAPH_API_BASE}/${postId}/comments`);
-    url.searchParams.set("access_token", pageToken);
+    url.searchParams.set("access_token", creds.pageAccessToken);
     url.searchParams.set("limit", "1000");
     url.searchParams.set("fields", "from,message,created_time");
 
@@ -113,15 +164,19 @@ export async function checkUserCommentedOnPost(
     asid: string,
     code?: string,
     qualityOptions?: CommentQualityOptions,
+    adminUserId?: number,
 ): Promise<LikeCheckResult> {
-    const pageToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    const creds = await getAdminFbCredentials(adminUserId);
 
-    if (!pageToken) {
-        return { liked: false, userId: asid, postId, checkedAt: new Date().toISOString(), error: "FACEBOOK_PAGE_ACCESS_TOKEN is missing from .env" };
+    if (!creds.ok) {
+        const error = creds.reason === "DECRYPT_FAILED"
+            ? "FB_TOKEN_EXPIRED"
+            : "FB_NOT_CONFIGURED";
+        return { liked: false, userId: asid, postId, checkedAt: new Date().toISOString(), error };
     }
 
     const url = new URL(`${GRAPH_API_BASE}/${postId}/comments`);
-    url.searchParams.set("access_token", pageToken);
+    url.searchParams.set("access_token", creds.pageAccessToken);
     url.searchParams.set("limit", "1000");
     url.searchParams.set("fields", "from,message,created_time");
 

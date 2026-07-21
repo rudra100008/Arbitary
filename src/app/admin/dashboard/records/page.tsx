@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence } from "framer-motion";
 import { ModalShell } from "@/src/components/layout/manage-task/ModalShell";
+import Image from "next/image";
 
 type RecordItem = {
   id: number;
@@ -20,8 +21,18 @@ type RecordItem = {
 };
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 const emptyForm = {
@@ -46,11 +57,7 @@ export default function AdminRecords() {
   const [coverPreview, setCoverPreview] = useState("");
   const [removeCover, setRemoveCover] = useState(false);
 
-  useEffect(() => {
-    fetchRecords();
-  }, []);
-
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/records");
       const data = await res.json();
@@ -58,7 +65,12 @@ export default function AdminRecords() {
     } catch {
       toast.error("Failed to load records");
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
+    fetchRecords();
+  }, [fetchRecords]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -110,9 +122,18 @@ export default function AdminRecords() {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { toast.error("Title is required"); return; }
-    if (!form.artist.trim()) { toast.error("Artist is required"); return; }
-    if (!form.youtubeUrl.trim()) { toast.error("YouTube link is required"); return; }
+    if (!form.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    if (!form.artist.trim()) {
+      toast.error("Artist is required");
+      return;
+    }
+    if (!form.youtubeUrl.trim()) {
+      toast.error("YouTube link is required");
+      return;
+    }
     if (!/(?:youtube\.com|youtu\.be)/i.test(form.youtubeUrl.trim())) {
       toast.error("Please enter a valid YouTube link");
       return;
@@ -122,16 +143,18 @@ export default function AdminRecords() {
     try {
       let coverUrl = form.coverImageUrl;
       if (coverFile) {
-        coverUrl = await uploadCover() ?? coverUrl;
+        coverUrl = (await uploadCover()) ?? coverUrl;
       }
 
       const payload: Record<string, unknown> = {
         title: form.title,
         artist: form.artist,
-        releaseMonth: form.releaseMonth ? parseInt(form.releaseMonth, 10) : null,
+        releaseMonth: form.releaseMonth
+          ? parseInt(form.releaseMonth, 10)
+          : null,
         releaseYear: form.releaseYear ? parseInt(form.releaseYear, 10) : null,
         genre: form.genre || null,
-        coverImageUrl: removeCover ? null : (coverUrl || null),
+        coverImageUrl: removeCover ? null : coverUrl || null,
         labelColor: form.labelColor || null,
         youtubeUrl: form.youtubeUrl.trim(),
         removeCover: removeCover || undefined,
@@ -150,8 +173,10 @@ export default function AdminRecords() {
       toast.success(editingId ? "Record updated" : "Record created");
       setIsModalOpen(false);
       fetchRecords();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "An unexpected error occurred";
+      toast.error(message);
     } finally {
       setIsSaving(false);
     }
@@ -176,8 +201,10 @@ export default function AdminRecords() {
     }
   };
 
-  const inputClass = "w-full px-4 py-3 bg-zinc-50 border border-black/10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FACC15]/40 focus:border-[#FACC15]/50 transition-all";
-  const labelClass = "text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 block";
+  const inputClass =
+    "w-full px-4 py-3 bg-zinc-50 border border-black/10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FACC15]/40 focus:border-[#FACC15]/50 transition-all";
+  const labelClass =
+    "text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 block";
 
   return (
     <div className="animate-fade-in space-y-8">
@@ -212,12 +239,24 @@ export default function AdminRecords() {
         <div className="bg-white rounded-[2.5rem] border border-black/5 shadow-sm overflow-hidden">
           {/* Desktop header */}
           <div className="hidden sm:grid grid-cols-[80px_2fr_1.5fr_1fr_1fr_1fr] gap-4 px-4 md:px-8 py-4 md:py-6 bg-zinc-50 border-b border-black/5">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Cover</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Title</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Artist</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Year</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Genre</span>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 text-right">Actions</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+              Cover
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+              Title
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+              Artist
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+              Year
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+              Genre
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 text-right">
+              Actions
+            </span>
           </div>
 
           {/* Body */}
@@ -228,23 +267,36 @@ export default function AdminRecords() {
                 <div className="hidden sm:grid grid-cols-[80px_2fr_1.5fr_1fr_1fr_1fr] gap-4 px-4 md:px-8 py-3 md:py-4 items-center hover:bg-zinc-50/50 transition-colors group">
                   <div>
                     {record.coverImageUrl ? (
-                      <img
-                        src={record.coverImageUrl}
-                        alt={record.title}
-                        className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover border border-black/5"
-                      />
+                      <div className="relative w-10 h-10 md:w-12 md:h-12">
+                        <Image
+                          src={record.coverImageUrl}
+                          alt={record.title}
+                          fill
+                          className="rounded-xl object-cover border border-black/5"
+                        />
+                      </div>
                     ) : (
                       <div
                         className="w-10 h-10 md:w-12 md:h-12 rounded-xl border border-black/5 flex items-center justify-center"
-                        style={{ backgroundColor: record.labelColor || "#e0e0e0" }}
+                        style={{
+                          backgroundColor: record.labelColor || "#e0e0e0",
+                        }}
                       >
-                        <span className="text-[8px] font-black text-white/70 uppercase">N/A</span>
+                        <span className="text-[8px] font-black text-white/70 uppercase">
+                          N/A
+                        </span>
                       </div>
                     )}
                   </div>
-                  <p className="font-bold text-xs md:text-sm uppercase tracking-tight">{record.title}</p>
-                  <p className="text-[11px] md:text-xs font-bold text-zinc-500">{record.artist}</p>
-                  <p className="text-[11px] md:text-xs font-bold text-zinc-500">{record.releaseYear || "—"}</p>
+                  <p className="font-bold text-xs md:text-sm uppercase tracking-tight">
+                    {record.title}
+                  </p>
+                  <p className="text-[11px] md:text-xs font-bold text-zinc-500">
+                    {record.artist}
+                  </p>
+                  <p className="text-[11px] md:text-xs font-bold text-zinc-500">
+                    {record.releaseYear || "—"}
+                  </p>
                   <div>
                     {record.genre ? (
                       <span className="text-[9px] font-black uppercase tracking-widest border border-black/5 px-2 md:px-3 py-1 rounded-full bg-zinc-50">
@@ -285,17 +337,24 @@ export default function AdminRecords() {
                   <div className="flex items-start gap-3 mb-2">
                     <div className="shrink-0">
                       {record.coverImageUrl ? (
-                        <img
-                          src={record.coverImageUrl}
-                          alt={record.title}
-                          className="w-10 h-10 rounded-xl object-cover border border-black/5"
-                        />
+                        <div className="relative w-10 h-10">
+                          <Image
+                            src={record.coverImageUrl}
+                            alt={record.title}
+                            fill
+                            className="rounded-xl object-cover border border-black/5"
+                          />
+                        </div>
                       ) : (
                         <div
                           className="w-10 h-10 rounded-xl border border-black/5 flex items-center justify-center"
-                          style={{ backgroundColor: record.labelColor || "#e0e0e0" }}
+                          style={{
+                            backgroundColor: record.labelColor || "#e0e0e0",
+                          }}
                         >
-                          <span className="text-[7px] font-black text-white/70 uppercase">N/A</span>
+                          <span className="text-[7px] font-black text-white/70 uppercase">
+                            N/A
+                          </span>
                         </div>
                       )}
                     </div>
@@ -305,7 +364,9 @@ export default function AdminRecords() {
                       </p>
                       <p className="text-[11px] font-bold text-zinc-500">
                         {record.artist}
-                        {record.releaseYear && <span> · {record.releaseYear}</span>}
+                        {record.releaseYear && (
+                          <span> · {record.releaseYear}</span>
+                        )}
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0 ml-2">
@@ -389,11 +450,15 @@ export default function AdminRecords() {
                   <select
                     className={inputClass}
                     value={form.releaseMonth}
-                    onChange={(e) => setForm({ ...form, releaseMonth: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, releaseMonth: e.target.value })
+                    }
                   >
                     <option value="">—</option>
                     {MONTHS.map((m, i) => (
-                      <option key={i + 1} value={i + 1}>{m}</option>
+                      <option key={i + 1} value={i + 1}>
+                        {m}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -404,7 +469,9 @@ export default function AdminRecords() {
                     type="number"
                     placeholder="e.g. 2024"
                     value={form.releaseYear}
-                    onChange={(e) => setForm({ ...form, releaseYear: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, releaseYear: e.target.value })
+                    }
                   />
                 </div>
               </div>
@@ -423,21 +490,49 @@ export default function AdminRecords() {
                 <label className={labelClass}>Cover Image</label>
                 <label className="flex flex-col items-center justify-center gap-2 px-4 py-6 bg-zinc-50 border-2 border-dashed border-black/10 rounded-xl cursor-pointer hover:bg-zinc-100 transition-colors">
                   {coverPreview && !removeCover ? (
-                    <img src={coverPreview} alt="Cover preview" className="w-24 h-24 object-cover rounded-lg" />
+                    <Image
+                      src={coverPreview}
+                      alt="Cover preview"
+                      width={200}
+                      height={200}
+                      unoptimized
+                      className="w-24 h-24 object-cover rounded-lg"
+                    />
                   ) : (
-                    <svg className="w-8 h-8 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <svg
+                      className="w-8 h-8 text-zinc-300"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
                     </svg>
                   )}
                   <span className="text-[10px] text-zinc-400 font-medium">
-                    {coverPreview && !removeCover ? "Tap to change" : "Tap to upload cover art"}
+                    {coverPreview && !removeCover
+                      ? "Tap to change"
+                      : "Tap to upload cover art"}
                   </span>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} className="hidden" />
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
                 </label>
                 {coverPreview && !removeCover && (
                   <button
                     type="button"
-                    onClick={(e) => { e.preventDefault(); setRemoveCover(true); setCoverFile(null); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setRemoveCover(true);
+                      setCoverFile(null);
+                    }}
                     className="mt-2 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
                   >
                     Remove cover
@@ -446,7 +541,10 @@ export default function AdminRecords() {
                 {removeCover && (
                   <button
                     type="button"
-                    onClick={(e) => { e.preventDefault(); setRemoveCover(false); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setRemoveCover(false);
+                    }}
                     className="mt-2 text-xs font-bold text-blue-500 hover:text-blue-700 transition-colors"
                   >
                     Undo remove
@@ -460,25 +558,33 @@ export default function AdminRecords() {
                   <input
                     type="color"
                     value={form.labelColor}
-                    onChange={(e) => setForm({ ...form, labelColor: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, labelColor: e.target.value })
+                    }
                     className="w-12 h-12 rounded-xl border border-black/10 cursor-pointer bg-transparent"
                   />
                   <input
                     className={inputClass}
                     placeholder="#000000"
                     value={form.labelColor}
-                    onChange={(e) => setForm({ ...form, labelColor: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, labelColor: e.target.value })
+                    }
                   />
                 </div>
               </div>
 
               <div>
-                <label className={labelClass}>YouTube URL <span className="text-[#FACC15]">*</span></label>
+                <label className={labelClass}>
+                  YouTube URL <span className="text-[#FACC15]">*</span>
+                </label>
                 <input
                   className={inputClass}
                   placeholder="https://youtube.com/watch?v=..."
                   value={form.youtubeUrl}
-                  onChange={(e) => setForm({ ...form, youtubeUrl: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, youtubeUrl: e.target.value })
+                  }
                   required
                 />
               </div>

@@ -1,6 +1,6 @@
 import { db } from "@/src/db";
-import { usersTable, referralsTable, userTasksTable, tasksTable, pointsLogTable } from "@/src/db/schema";
-import { eq, and, desc, sql, aliasedTable, gte } from "drizzle-orm";
+import { usersTable, referralsTable, userTasksTable, tasksTable } from "@/src/db/schema";
+import { eq, and, desc, sql, aliasedTable } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { toDateStr } from "@/src/lib/streak-helper";
 import { getStreakMultiplier, getCurrentMonthlyTier, getTierKey } from "@/src/lib/gamification";

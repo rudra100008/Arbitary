@@ -34,12 +34,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Task ID is required" }, { status: 400 });
   }
 
-  const result = await TaskService.completeInstagramTask(auth.data.id, Number(taskId), fingerprint);
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });
-  }
+  try {
+    const result = await TaskService.completeInstagramTask(auth.data.id, Number(taskId), fingerprint);
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });
+    }
 
-  return NextResponse.json(result.data, { status: 200 });
+    return NextResponse.json(result.data, { status: 200 });
+  } catch (err) {
+    console.error("[instagram-complete] Unhandled error:", err);
+    return NextResponse.json(
+      { error: "Something went wrong while verifying your Instagram comment. Please try again in a moment." },
+      { status: 503 },
+    );
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -63,6 +71,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "taskId query param is required" }, { status: 400 });
   }
 
-  const code = await TaskService.getVerificationCode(auth.data.id, Number(taskId), '#ig');
-  return NextResponse.json({ verificationCode: code });
+  try {
+    const code = await TaskService.getVerificationCode(auth.data.id, Number(taskId), '#ig');
+    return NextResponse.json({ verificationCode: code });
+  } catch (err) {
+    console.error("[instagram-complete GET] Unhandled error:", err);
+    return NextResponse.json(
+      { error: "Could not generate verification code. Please try again." },
+      { status: 503 },
+    );
+  }
 }

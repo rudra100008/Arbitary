@@ -11,32 +11,8 @@ interface GraphAPIError {
 
 interface CustomError extends Error {
   statusCode?: number;
+  code?: string;
   facebookError?: GraphAPIError;
-}
-
-interface FacebookPostItem {
-  id: string;
-  message?: string;
-  full_picture?: string;
-  permalink_url?: string;
-  likes?: { summary?: { total_count?: number } };
-  created_time: string;
-}
-
-interface FacebookPostsResponse {
-  data?: FacebookPostItem[];
-  error?: GraphAPIError;
-}
-
-interface InstagramMediaItem {
-  id: string;
-  caption?: string;
-  media_type: string;
-  media_url?: string;
-  thumbnail_url?: string;
-  permalink: string;
-  like_count: number;
-  timestamp: string;
 }
 
 interface YoutubePlaylistItem {
@@ -48,62 +24,25 @@ interface YoutubePlaylistItem {
   };
 }
 
-async function fetchFacebookPosts(): Promise<SocialPost[]> {
-  const pageId = process.env.FACEBOOK_PAGE_ID;
-  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-  if (!pageId || !token) {
-    const err = new Error("Facebook environment variables are not configured") as CustomError;
-    err.statusCode = 500;
-    throw err;
-  }
+async function fetchFacebookPosts(adminUserId?: number): Promise<SocialPost[]> {
+  const { getPagePosts } = await import("@/src/lib/facebook");
 
-  const url = new URL("https://graph.facebook.com/v19.0/me/posts");
-  url.searchParams.set("access_token", token);
-  url.searchParams.set("fields", "id,message,created_time,full_picture,permalink_url");
-  url.searchParams.set("limit", "10");
-
-  let res: Response;
+  let posts: Awaited<ReturnType<typeof getPagePosts>>;
   try {
-    res = await fetch(url.toString());
-  } catch (netErr: unknown) {
-    const netMessage = netErr instanceof Error ? netErr.message : String(netErr);
-    const err = new Error(`Failed to connect to Facebook Graph API: ${netMessage}`) as CustomError;
-    err.statusCode = 502;
-    throw err;
-  }
-
-  let data: FacebookPostsResponse;
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    try {
-      data = (await res.json()) as FacebookPostsResponse;
-    } catch (jsonErr: unknown) {
-      const jsonMessage = jsonErr instanceof Error ? jsonErr.message : String(jsonErr);
-      const err = new Error(`Failed to parse JSON response from Facebook. Status: ${res.status}. Error: ${jsonMessage}`) as CustomError;
-      err.statusCode = 502;
-      throw err;
+    posts = await getPagePosts(adminUserId);
+  } catch (libErr: unknown) {
+    const message = libErr instanceof Error ? libErr.message : String(libErr);
+    const err = new Error(message) as CustomError;
+    if (message.includes("credentials are not configured")) {
+      err.statusCode = 409;
+      err.code = "NOT_CONNECTED";
+    } else {
+      err.statusCode = 500;
     }
-  } else {
-    const bodyText = await res.text().catch(() => "");
-    const err = new Error(`Facebook API returned non-JSON response. Status: ${res.status}. Body: ${bodyText.slice(0, 200)}`) as CustomError;
-    err.statusCode = 502;
     throw err;
   }
 
-  if (data?.error) {
-    const err = new Error(data.error.message || "Facebook Graph API error") as CustomError;
-    err.facebookError = data.error;
-    err.statusCode = res.status || 500;
-    throw err;
-  }
-
-  if (!data || !Array.isArray(data.data)) {
-    const err = new Error("Invalid response format received from Facebook Graph API") as CustomError;
-    err.statusCode = 502;
-    throw err;
-  }
-
-  return data.data.map((p: FacebookPostItem) => ({
+  return posts.map((p) => ({
     id: p.id,
     platform: "facebook" as Platform,
     title: p.message?.slice(0, 80) || "Facebook Post",
@@ -114,11 +53,11 @@ async function fetchFacebookPosts(): Promise<SocialPost[]> {
   }));
 }
 
-async function fetchInstagramPosts(type?: string): Promise<SocialPost[]> {
+async function fetchInstagramPosts(type?: string, adminUserId?: number): Promise<SocialPost[]> {
   const { InstagramService } = await import("@/src/lib/instagram");
 
   try {
-    const media = await InstagramService.getInstagramMedia();
+    const media = await InstagramService.getInstagramMedia(adminUserId);
 
     let filteredMedia = media;
     if (type === 'reels') {
@@ -133,12 +72,18 @@ async function fetchInstagramPosts(type?: string): Promise<SocialPost[]> {
       title: p.caption?.slice(0, 80) || "Instagram Post",
       thumbnailUrl: p.media_type === 'VIDEO' ? p.thumbnail_url : p.media_url,
       url: p.permalink,
-      likeCount: 0, // Not fetched in the a-sync getInstagramMedia currently
-      publishedAt: "", // Not fetched in the current lib implementation
+      likeCount: 0,
+      publishedAt: "",
     }));
-  } catch (err: any) {
-    const customErr = new Error(err.message) as CustomError;
-    customErr.statusCode = 502;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Instagram fetch failed";
+    const customErr = new Error(message) as CustomError;
+    if (message.includes("credentials missing")) {
+      customErr.statusCode = 409;
+      customErr.code = "NOT_CONNECTED";
+    } else {
+      customErr.statusCode = 502;
+    }
     throw customErr;
   }
 }
@@ -176,9 +121,9 @@ async function fetchTiktokPosts(): Promise<SocialPost[]> {
   return [];
 }
 
-const FETCHERS: Record<string, (type?: string) => Promise<SocialPost[]>> = {
-  facebook: () => fetchFacebookPosts(),
-  instagram: (type) => fetchInstagramPosts(type),
+const FETCHERS: Record<string, (type?: string, adminUserId?: number) => Promise<SocialPost[]>> = {
+  facebook: (_type, adminUserId) => fetchFacebookPosts(adminUserId),
+  instagram: (type, adminUserId) => fetchInstagramPosts(type, adminUserId),
   youtube: () => fetchYoutubePosts(),
   tiktok: () => fetchTiktokPosts(),
 };
@@ -211,7 +156,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const posts = await FETCHERS[platform](type ?? undefined);
+    const posts = await FETCHERS[platform](type ?? undefined, auth.data.id);
     return NextResponse.json({ posts });
   } catch (err: unknown) {
 
@@ -230,6 +175,7 @@ export async function GET(req: NextRequest) {
       {
         error: message,
         platform,
+        code: customErr.code,
         ...(customErr.facebookError && {
           facebookError: {
             message: customErr.facebookError.message,

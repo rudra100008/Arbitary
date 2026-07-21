@@ -5,7 +5,7 @@ import { usersTable } from "@/src/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { rateLimit, getClientIp } from "@/src/lib/rate-limit";
+import { rateLimit } from "@/src/lib/rate-limit";
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
@@ -18,7 +18,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
 
-  const ip = getClientIp(req);
   const rl = await rateLimit(`change-password:user:${auth.data.id}`, 5, 60_000);
   if (!rl.allowed) {
     return NextResponse.json(

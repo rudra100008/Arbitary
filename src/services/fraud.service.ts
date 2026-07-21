@@ -120,7 +120,7 @@ export const FraudService = {
 
     // Build per-user fingerprint scores
     const fingerprintScores = new Map<number, { sharedFingerprint: number; multipleAccounts: number }>();
-    for (const [fp, users] of fpToUsers) {
+    for (const [_fp, users] of fpToUsers) {
       const userCount = users.size;
       for (const uid of users) {
         const entry = fingerprintScores.get(uid) || { sharedFingerprint: 0, multipleAccounts: 0 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useReducer } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -502,15 +502,29 @@ function SubmissionRow({
   );
 }
 
+type FetchState = { loading: boolean; submissions: Submission[]; hasMore: boolean; page: number };
+type FetchAction =
+  | { type: "FETCH_START" }
+  | { type: "FETCH_SUCCESS"; submissions: Submission[]; hasMore: boolean; page: number }
+  | { type: "FETCH_MORE_SUCCESS"; submissions: Submission[]; hasMore: boolean; page: number };
+
+function fetchReducer(state: FetchState, action: FetchAction): FetchState {
+  switch (action.type) {
+    case "FETCH_START":
+      return { ...state, loading: true };
+    case "FETCH_SUCCESS":
+      return { loading: false, submissions: action.submissions, hasMore: action.hasMore, page: action.page };
+    case "FETCH_MORE_SUCCESS":
+      return { loading: false, submissions: [...state.submissions, ...action.submissions], hasMore: action.hasMore, page: action.page };
+  }
+}
+
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function AdminParticipantsPage() {
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetchState, fetchDispatch] = useReducer(fetchReducer, { loading: true, submissions: [], hasMore: false, page: 1 });
   const [category, setCategory] = useState<Category>("all");
   const [status, setStatus] = useState<Status>("all");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
 
   // filterKey bumps whenever category/status change so the main fetch effect
   // re-runs cleanly without needing fetchSubmissions in its dep array.
@@ -523,7 +537,7 @@ export default function AdminParticipantsPage() {
     if (category !== "all") params.set("category", category);
     if (status !== "all") params.set("status", status);
 
-    setLoading(true);
+    fetchDispatch({ type: "FETCH_START" });
     fetch(`/api/admin/participants?${params}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch");
@@ -531,22 +545,17 @@ export default function AdminParticipantsPage() {
       })
       .then((data) => {
         if (cancelled) return;
-        setSubmissions(data.submissions);
-        setHasMore(data.submissions.length === 20);
-        setPage(1);
+        fetchDispatch({ type: "FETCH_SUCCESS", submissions: data.submissions, hasMore: data.submissions.length === 20, page: 1 });
       })
       .catch(() => {
         if (!cancelled) toast.error("Failed to load submissions");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
     // filterKey is the manual-refresh escape hatch; category/status are filters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [category, status, filterKey]);
 
   // ── Load-more (append) ────────────────────────────────────────────────────
@@ -557,8 +566,8 @@ export default function AdminParticipantsPage() {
         setFilterKey((k) => k + 1);
         return;
       }
-      setLoading(true);
-      const p = page + 1;
+      fetchDispatch({ type: "FETCH_START" });
+      const p = fetchState.page + 1;
       const params = new URLSearchParams({ page: String(p) });
       if (category !== "all") params.set("category", category);
       if (status !== "all") params.set("status", status);
@@ -568,16 +577,12 @@ export default function AdminParticipantsPage() {
         const res = await fetch(`/api/admin/participants?${params}`);
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        setSubmissions((prev) => [...prev, ...data.submissions]);
-        setHasMore(data.submissions.length === 20);
-        setPage(p);
+        fetchDispatch({ type: "FETCH_MORE_SUCCESS", submissions: data.submissions, hasMore: data.submissions.length === 20, page: p });
       } catch {
         toast.error("Failed to load submissions");
-      } finally {
-        setLoading(false);
       }
     },
-    [category, status, search, page],
+    [category, status, search, fetchState.page],
   );
 
   // ── Debounced search ──────────────────────────────────────────────────────
@@ -589,60 +594,52 @@ export default function AdminParticipantsPage() {
       if (status !== "all") params.set("status", status);
       params.set("search", search.trim());
 
-      setLoading(true);
+      fetchDispatch({ type: "FETCH_START" });
       fetch(`/api/admin/participants?${params}`)
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch");
           return res.json();
         })
         .then((data) => {
-          setSubmissions(data.submissions);
-          setHasMore(data.submissions.length === 20);
-          setPage(1);
+          fetchDispatch({ type: "FETCH_SUCCESS", submissions: data.submissions, hasMore: data.submissions.length === 20, page: 1 });
         })
-        .catch(() => toast.error("Failed to load submissions"))
-        .finally(() => setLoading(false));
+        .catch(() => toast.error("Failed to load submissions"));
     }, 400);
     return () => clearTimeout(t);
   }, [search, category, status]);
 
-  async function handleStatusChange(
-    id: number,
-    newStatus: string,
-    reason?: string,
-  ) {
-    try {
-      const res = await fetch("/api/admin/participants", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: newStatus, rejectedReason: reason }),
-      });
+  const handleStatusChange = useCallback(
+    async (id: number, newStatus: string, reason?: string) => {
+      try {
+        const res = await fetch("/api/admin/participants", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, status: newStatus, rejectedReason: reason }),
+        });
 
-      if (res.status === 409) {
-        toast.error(`Submission is already ${newStatus}`);
-        return;
+        if (res.status === 409) {
+          toast.error(`Submission is already ${newStatus}`);
+          return;
+        }
+        if (!res.ok) throw new Error();
+
+        toast.success(`Submission ${newStatus}`);
+        fetchDispatch({ type: "FETCH_SUCCESS", submissions: fetchState.submissions.map((s) =>
+          s.id === id ? { ...s, status: newStatus, rejectedReason: reason ?? null } : s
+        ), hasMore: fetchState.hasMore, page: fetchState.page });
+      } catch {
+        toast.error("Failed to update status");
       }
-      if (!res.ok) throw new Error();
-
-      toast.success(`Submission ${newStatus}`);
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === id
-            ? { ...s, status: newStatus, rejectedReason: reason ?? null }
-            : s,
-        ),
-      );
-    } catch {
-      toast.error("Failed to update status");
-    }
-  }
+    },
+    [fetchState.submissions, fetchState.hasMore, fetchState.page],
+  );
 
   // Stats
   const stats = {
-    total: submissions.length,
-    pending: submissions.filter((s) => s.status === "pending").length,
-    approved: submissions.filter((s) => s.status === "approved").length,
-    rejected: submissions.filter((s) => s.status === "rejected").length,
+    total: fetchState.submissions.length,
+    pending: fetchState.submissions.filter((s) => s.status === "pending").length,
+    approved: fetchState.submissions.filter((s) => s.status === "approved").length,
+    rejected: fetchState.submissions.filter((s) => s.status === "rejected").length,
   };
 
   return (
@@ -769,7 +766,7 @@ export default function AdminParticipantsPage() {
 
       {/* Table */}
       <div className="rounded-2xl border border-black/8 overflow-hidden bg-white">
-        {loading && submissions.length === 0 ? (
+        {fetchState.loading && fetchState.submissions.length === 0 ? (
           <div className="flex items-center justify-center py-20 text-black/30">
             <svg
               className="animate-spin w-5 h-5 mr-2"
@@ -794,7 +791,7 @@ export default function AdminParticipantsPage() {
               Loading…
             </span>
           </div>
-        ) : submissions.length === 0 ? (
+        ) : fetchState.submissions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-black/30">
             <svg
               width="32"
@@ -828,7 +825,7 @@ export default function AdminParticipantsPage() {
               )}
             </div>
             <div className="divide-y divide-black/5">
-              {submissions.map((s) => (
+              {fetchState.submissions.map((s) => (
                 <SubmissionRow
                   key={s.id}
                   s={s}
@@ -841,10 +838,10 @@ export default function AdminParticipantsPage() {
       </div>
 
       {/* Load more */}
-      {hasMore && (
+      {fetchState.hasMore && (
         <button
           onClick={() => {
-            setPage((p) => p + 1);
+            fetchDispatch({ type: "FETCH_START" });
             fetchSubmissions();
           }}
           className="self-center px-6 py-2.5 rounded-full border border-black/10 text-xs font-black uppercase tracking-wider text-black/50 hover:text-black hover:border-black/25 transition-colors"

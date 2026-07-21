@@ -132,6 +132,32 @@ async function supportsTorch(track: MediaStreamTrack): Promise<boolean> {
   }
 }
 
+type StatsHistoryState = { stats: { totalTickets: number; redeemedCount: number }; historyEntry: HistoryEntry | null };
+type StatsHistoryAction =
+  | { type: "SET_STATS"; stats: { totalTickets: number; redeemedCount: number } }
+  | { type: "SET_HISTORY_ENTRY"; entry: HistoryEntry | null }
+  | { type: "RESET" };
+
+function statsHistoryReducer(state: StatsHistoryState, action: StatsHistoryAction): StatsHistoryState {
+  switch (action.type) {
+    case "SET_STATS": return { ...state, stats: action.stats };
+    case "SET_HISTORY_ENTRY": return { ...state, historyEntry: action.entry };
+    case "RESET": return { stats: { totalTickets: 0, redeemedCount: 0 }, historyEntry: null };
+  }
+}
+
+type EventsState = { events: Event[]; eventsLoading: boolean };
+type EventsAction =
+  | { type: "SET_EVENTS"; events: Event[] }
+  | { type: "SET_LOADING"; loading: boolean };
+
+function eventsReducer(state: EventsState, action: EventsAction): EventsState {
+  switch (action.type) {
+    case "SET_EVENTS": return { ...state, events: action.events };
+    case "SET_LOADING": return { ...state, eventsLoading: action.loading };
+  }
+}
+
 function ScannerPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -139,8 +165,7 @@ function ScannerPageInner() {
 
   const [state, dispatch] = useReducer(scanReducer, { phase: "idle" });
 
-  const [events, setEvents] = useState<Event[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(!eventId);
+  const [eventsState, eventsDispatch] = useReducer(eventsReducer, { events: [], eventsLoading: !eventId });
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -154,8 +179,7 @@ function ScannerPageInner() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraDenied, setCameraDenied] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [stats, setStats] = useState({ totalTickets: 0, redeemedCount: 0 });
-  const [historyEntry, setHistoryEntry] = useState<HistoryEntry | null>(null);
+  const [statsHistState, statsHistDispatch] = useReducer(statsHistoryReducer, { stats: { totalTickets: 0, redeemedCount: 0 }, historyEntry: null });
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -319,13 +343,13 @@ function ScannerPageInner() {
           feedbackType: "invalid",
           message: result.error,
         });
-        setHistoryEntry({
+        statsHistDispatch({ type: "SET_HISTORY_ENTRY", entry: {
           token,
           status: "invalid",
           attendeeName: null,
           timestamp: Date.now(),
           ticketId: null,
-        });
+        } });
         return;
       }
 
@@ -368,13 +392,13 @@ function ScannerPageInner() {
             ? "invalid"
             : "error";
 
-    setHistoryEntry({
+    statsHistDispatch({ type: "SET_HISTORY_ENTRY", entry: {
       token,
       status: historyStatus,
       attendeeName: state.ticket.user.name,
       timestamp: Date.now(),
       ticketId: state.ticket.id,
-    });
+    } });
 
     dispatch({
       type: "REDEEM_DONE",
@@ -402,13 +426,13 @@ function ScannerPageInner() {
           feedbackType: "invalid",
           message: "Unrecognized format",
         });
-        setHistoryEntry({
+        statsHistDispatch({ type: "SET_HISTORY_ENTRY", entry: {
           token: decodedText.slice(0, 20),
           status: "invalid",
           attendeeName: null,
           timestamp: Date.now(),
           ticketId: null,
-        });
+        } });
         return;
       }
       handleScanResult(token);
@@ -534,7 +558,7 @@ function ScannerPageInner() {
       );
       if (res.ok) {
         const data = await res.json();
-        setStats(data);
+        statsHistDispatch({ type: "SET_STATS", stats: data });
       }
     } catch {}
   }, [eventId]);
@@ -551,12 +575,12 @@ function ScannerPageInner() {
 
   useEffect(() => {
     // Reset entire scanner state when the event changes
-    setStats({ totalTickets: 0, redeemedCount: 0 });
-    setHistoryEntry(null);
+    statsHistDispatch({ type: "RESET" });
   }, [eventId]);
 
   useEffect(() => {
     dispatch({ type: "STOP" });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- stop camera when event changes
     stopCamera();
   }, [eventId, stopCamera]);
 
@@ -565,12 +589,11 @@ function ScannerPageInner() {
       fetch(`/api/events?t=${Date.now()}`)
         .then((r) => r.json())
         .then((d) => {
-          if (d.success) setEvents(d.events);
+          if (d.success) eventsDispatch({ type: "SET_EVENTS", events: d.events });
         })
         .catch(() => {})
-        .finally(() => setEventsLoading(false));
-      // Set loading AFTER kicking off the fetch, inside a microtask
-      Promise.resolve().then(() => setEventsLoading(true));
+        .finally(() => eventsDispatch({ type: "SET_LOADING", loading: false }));
+      eventsDispatch({ type: "SET_LOADING", loading: true });
     }
   }, [eventId]);
 
@@ -598,7 +621,7 @@ function ScannerPageInner() {
             </p>
           </div>
 
-          {eventsLoading ? (
+          {eventsState.eventsLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
                 <div
@@ -611,7 +634,7 @@ function ScannerPageInner() {
                 </div>
               ))}
             </div>
-          ) : events.length === 0 ? (
+          ) : eventsState.events.length === 0 ? (
             <div className="bg-white rounded-[2rem] border border-black/5 shadow-sm p-12 text-center">
               <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
@@ -637,7 +660,7 @@ function ScannerPageInner() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {events.map((event) => (
+              {eventsState.events.map((event) => (
                 <button
                   key={event.id}
                   onClick={() =>
@@ -911,7 +934,7 @@ function ScannerPageInner() {
           </button>
           <div className="text-right">
             <span className="text-white text-sm font-bold">
-              {stats.redeemedCount} / {stats.totalTickets}
+              {statsHistState.stats.redeemedCount} / {statsHistState.stats.totalTickets}
             </span>
             <span className="text-white/40 text-xs ml-2">Redeemed</span>
           </div>
@@ -968,7 +991,7 @@ function ScannerPageInner() {
       </div>
 
       {/* Scan history */}
-      <ScanHistory eventId={eventId} newEntry={historyEntry} />
+      <ScanHistory eventId={eventId} newEntry={statsHistState.historyEntry} />
     </div>
   );
 }

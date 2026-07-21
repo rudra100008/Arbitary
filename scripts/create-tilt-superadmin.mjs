@@ -1,15 +1,15 @@
 /**
- * create-tilt-superadmin.js
+ * create-tilt-superadmin.mjs
  *
  * Creates (or upgrades) a user with role = "SUPERADMIN" in the
  * Tilt Your Music database (the `tilt_users` table pointed to by
  * TILT_DATABASE_URL).
  *
  * Usage:
- *   node create-tilt-superadmin.js <email> <password> [name]
+ *   node create-tilt-superadmin.mjs <email> <password> [name]
  *
  * Example:
- *   node create-tilt-superadmin.js super@tiltyourmusic.com SuperSecret123 "Tilt Super Admin"
+ *   node create-tilt-superadmin.mjs super@tiltyourmusic.com SuperSecret123 "Tilt Super Admin"
  *
  * Notes:
  * - If a user with this email already exists, it updates their password
@@ -20,17 +20,20 @@
  *   isn't blocked by an email verification flow.
  */
 
-require('dotenv').config({ path: '.env.local' });
-require('dotenv').config({ path: '.env' });
+import dotenv from 'dotenv';
+import pg from 'pg';
+import bcrypt from 'bcryptjs';
 
-const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
+const { Pool } = pg;
+
+dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env' });
 
 async function main() {
   const [, , email, password, name] = process.argv;
 
   if (!email || !password) {
-    console.error('Usage: node create-tilt-superadmin.js <email> <password> [name]');
+    console.error('Usage: node create-tilt-superadmin.mjs <email> <password> [name]');
     process.exit(1);
   }
 

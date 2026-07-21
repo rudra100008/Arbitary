@@ -49,7 +49,7 @@ export default function AmbientBlob({ className = "", color = "#FACC15", count =
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    let start = performance.now();
+    const start = performance.now();
 
     const draw = (now: number) => {
       const elapsed = ((now - start) / 1000) * speed;

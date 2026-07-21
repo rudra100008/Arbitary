@@ -1,4 +1,4 @@
-import { and, count, eq, isNotNull, sql, gte, lt } from "drizzle-orm";
+import { and, count, eq, gte, isNotNull, lt } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
 import { qrTokensTable, lotterySessionsTable, instantRewardsTable } from "@/src/db/tilt-schema";

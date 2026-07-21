@@ -311,6 +311,7 @@ export default function PromoBanner() {
     !isEligibleAge(session?.user?.dateOfBirth);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setMounted(true);
   }, []);
 
@@ -349,7 +350,9 @@ export default function PromoBanner() {
   useEffect(() => {
     if (dismissed) return;
     const id = setInterval(
-      () => setTimeLeft(calcTimeLeft(BANNER_CONFIG.eventDate)),
+      () => {
+        setTimeLeft(calcTimeLeft(BANNER_CONFIG.eventDate));
+      },
       30_000,
     );
     return () => clearInterval(id);

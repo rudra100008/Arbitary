@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useReducer, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -54,18 +54,33 @@ function getInitials(name: string | null, email: string): string {
   return email.substring(0, 2).toUpperCase();
 }
 
+type UsersState = { users: AdminUser[]; pagination: Pagination | null; loading: boolean };
+type UsersAction =
+  | { type: "FETCH_START" }
+  | { type: "FETCH_SUCCESS"; users: AdminUser[]; pagination: Pagination }
+  | { type: "FETCH_ERROR" };
+
+function usersReducer(state: UsersState, action: UsersAction): UsersState {
+  switch (action.type) {
+    case "FETCH_START":
+      return { ...state, loading: true };
+    case "FETCH_SUCCESS":
+      return { users: action.users, pagination: action.pagination, loading: false };
+    case "FETCH_ERROR":
+      return { ...state, loading: false };
+  }
+}
+
 export default function AdminUsersPage() {
   const router = useRouter();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [state, dispatch] = useReducer(usersReducer, { users: [], pagination: null, loading: true });
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
   const [role, setRole] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchUsers = useCallback(async (q: string, p: number, r: string) => {
-    setLoading(true);
+    dispatch({ type: "FETCH_START" });
     try {
       const params = new URLSearchParams({ page: String(p) });
       if (q) params.set("search", q);
@@ -73,13 +88,12 @@ export default function AdminUsersPage() {
       const res = await fetch(`/api/admin/users?${params}`);
       const data = await res.json();
       if (res.ok) {
-        setUsers(data.users);
-        setPagination(data.pagination);
+        dispatch({ type: "FETCH_SUCCESS", users: data.users, pagination: data.pagination });
+      } else {
+        dispatch({ type: "FETCH_ERROR" });
       }
     } catch {
       // ignore — table will keep showing last-known data
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -102,7 +116,7 @@ export default function AdminUsersPage() {
     setPage(1);
   };
 
-  const totalUsers = pagination?.total ?? 0;
+  const totalUsers = state.pagination?.total ?? 0;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -113,7 +127,7 @@ export default function AdminUsersPage() {
             User Management
           </h1>
           <p className="text-sm text-zinc-400 font-medium mt-0.5">
-            {pagination ? `${totalUsers.toLocaleString()} total users` : "Loading…"}
+            {state.pagination ? `${totalUsers.toLocaleString()} total users` : "Loading…"}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -143,20 +157,20 @@ export default function AdminUsersPage() {
         <SummaryCard
           icon={<CheckCircle className="w-4 h-4 text-green-500" />}
           label="Verified"
-          value={users.filter((u) => u.isVerified).length.toLocaleString()}
+          value={state.users.filter((u) => u.isVerified).length.toLocaleString()}
           sub="this page"
         />
         <SummaryCard
           icon={<ShieldAlert className="w-4 h-4 text-red-500" />}
           label="Flagged"
-          value={users.filter((u) => u.isFlagged).length.toLocaleString()}
+          value={state.users.filter((u) => u.isFlagged).length.toLocaleString()}
           sub="this page"
           warn
         />
         <SummaryCard
           icon={<XCircle className="w-4 h-4 text-zinc-400" />}
           label="Unverified"
-          value={users.filter((u) => !u.isVerified).length.toLocaleString()}
+          value={state.users.filter((u) => !u.isVerified).length.toLocaleString()}
           sub="this page"
         />
       </div>
@@ -207,7 +221,7 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {loading ? (
+              {state.loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i}>
                     {[...Array(8)].map((_, j) => (
@@ -217,14 +231,14 @@ export default function AdminUsersPage() {
                     ))}
                   </tr>
                 ))
-              ) : users.length === 0 ? (
+              ) : state.users.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-16 text-sm text-zinc-400">
                     {search ? "No users match that search." : "No users found."}
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
+                state.users.map((user) => (
                   <tr key={user.id} className="hover:bg-zinc-50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -306,11 +320,11 @@ export default function AdminUsersPage() {
         </div>
 
         {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
+        {state.pagination && state.pagination.totalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-black/5">
             <p className="text-[10px] font-medium text-zinc-400">
-              Page {pagination.page} of {pagination.totalPages} ·{" "}
-              {pagination.total.toLocaleString()} users
+              Page {state.pagination.page} of {state.pagination.totalPages} ·{" "}
+              {state.pagination.total.toLocaleString()} users
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -320,9 +334,9 @@ export default function AdminUsersPage() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+              {Array.from({ length: Math.min(5, state.pagination!.totalPages) }, (_, i) => {
                 const p =
-                  Math.max(1, Math.min(pagination.totalPages - 4, page - 2)) + i;
+                  Math.max(1, Math.min(state.pagination!.totalPages - 4, page - 2)) + i;
                 return (
                   <button
                     key={p}
@@ -338,8 +352,8 @@ export default function AdminUsersPage() {
                 );
               })}
               <button
-                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                disabled={page >= pagination.totalPages}
+                onClick={() => setPage((p) => Math.min(state.pagination!.totalPages, p + 1))}
+                disabled={page >= state.pagination!.totalPages}
                 className="p-1.5 rounded-lg border border-black/10 text-zinc-500 hover:bg-zinc-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />

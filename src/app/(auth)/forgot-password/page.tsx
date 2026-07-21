@@ -15,7 +15,7 @@ const ForgotPasswordPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
-  const [mounted, setMounted] = useState(true);
+  const mounted = true;
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -98,7 +98,7 @@ const ForgotPasswordPage = () => {
               </div>
               <p className="text-sm font-medium text-gray-900">Check your email</p>
               <p className="text-xs text-gray-500 leading-relaxed">
-                If an account exists with <strong className="text-gray-700">{email}</strong>, you'll receive a password reset link shortly.
+                If an account exists with <strong className="text-gray-700">{email}</strong>, you&apos;ll receive a password reset link shortly.
               </p>
               <Link href="/login" className="inline-block mt-2 text-xs font-semibold text-gray-700 hover:text-gray-900 hover:underline transition-colors">
                 Back to sign in

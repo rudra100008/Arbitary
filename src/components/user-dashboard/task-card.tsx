@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useReducer } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { YoutubeModal } from "./youtube-modal";
 import { FacebookModal } from "./facebook-modal";
@@ -191,14 +191,21 @@ export function TaskCard({
   cancelVariable,
   onYoutubeComplete,
   onModalComplete,
-  streak = 0,
 }: TaskCardProps) {
   const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);
   const [isFacebookModalOpen, setIsFacebookModalOpen] = useState(false);
   const [isInstagramModalOpen, setIsInstagramModalOpen] = useState(false);
   const [fingerprint, setFingerprint] = useState<string | undefined>(undefined);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
+
+  type SuccessState = { show: boolean; msg: string };
+  type SuccessAction = | { type: "SHOW"; msg: string } | { type: "HIDE" };
+  const successReducer = (_: SuccessState, action: SuccessAction): SuccessState => {
+    switch (action.type) {
+      case "SHOW": return { show: true, msg: action.msg };
+      case "HIDE": return { show: false, msg: "" };
+    }
+  };
+  const [success, successDispatch] = useReducer(successReducer, { show: false, msg: "" });
   const prevStatusRef = useRef(task.userStatus);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isSubscribeModalOpen, setIsSubscribeModalOpen] = useState(false);
@@ -241,8 +248,7 @@ export function TaskCard({
       currentStatus === "pending verification"
     ) {
       const msg = currentStatus === "verified" ? "Verified!" : "Submitted!";
-      setSuccessMsg(msg);
-      setShowSuccess(true);
+      successDispatch({ type: "SHOW", msg });
       if (currentStatus === "verified" && cardRef.current) {
         const rect = cardRef.current.getBoundingClientRect();
         triggerReward(
@@ -251,7 +257,7 @@ export function TaskCard({
           task.points || 0,
         );
       }
-      setTimeout(() => setShowSuccess(false), 2000);
+      setTimeout(() => successDispatch({ type: "HIDE" }), 2000);
     }
     prevStatusRef.current = currentStatus;
   }, [currentStatus, task.points, triggerReward]);
@@ -297,7 +303,7 @@ export function TaskCard({
 
       {/* Success overlay */}
       <AnimatePresence>
-        {showSuccess && (
+        {success.show && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -325,7 +331,7 @@ export function TaskCard({
                 />
               </svg>
             </motion.div>
-            <p className="text-white font-black text-sm mt-2">{successMsg}</p>
+            <p className="text-white font-black text-sm mt-2">{success.msg}</p>
           </motion.div>
         )}
       </AnimatePresence>

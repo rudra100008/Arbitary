@@ -10,7 +10,6 @@ export default function TiltOutletQrPage() {
   const [qrError, setQrError] = useState("");
   const [qrExpiresAt, setQrExpiresAt] = useState("");
   const [qrImageDataUrl, setQrImageDataUrl] = useState("");
-  const [qrToken, setQrToken] = useState<string | null>(null);
   const [qrStatus, setQrStatus] = useState<QrStatus>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -101,7 +100,6 @@ export default function TiltOutletQrPage() {
         color: { dark: "#0e1f10", light: "#ffffff" },
       });
 
-      setQrToken(token);
       setQrExpiresAt(expiresAt);
       setQrImageDataUrl(imageDataUrl);
       setQrStatus("active");

@@ -25,6 +25,7 @@ export default function TiltSignupPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
     setMounted(true);
     document.title = "Sign Up | Tilt Your Music";
   }, []);

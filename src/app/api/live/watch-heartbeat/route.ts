@@ -11,7 +11,7 @@ const heartbeatSchema = z.object({
 
 export async function PATCH(req: NextRequest) {
   const auth = await requireUser();
-  console.log("[watch-heartbeat] auth:", auth.success, (auth as any).data?.id);
+  console.log("[watch-heartbeat] auth:", auth.success, auth.success ? auth.data.id : undefined);
   if (!auth.success) {
     return NextResponse.json({ error: "Sign in to earn points" }, { status: 401 });
   }
@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const streamResult = await AboutService.getLiveStreamId();
-  console.log("[watch-heartbeat] streamResult:", streamResult.success, (streamResult as any).data);
+  console.log("[watch-heartbeat] streamResult:", streamResult.success, streamResult.success ? streamResult.data : undefined);
   if (!streamResult.success || !streamResult.data) {
     return NextResponse.json({ error: "No live stream active" }, { status: 400 });
   }
@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest) {
     streamResult.data,
     parsed.data.deltaSeconds,
   );
-  console.log("[watch-heartbeat] heartbeat result:", result.success, (result as any).error ?? "");
+  console.log("[watch-heartbeat] heartbeat result:", result.success, result.success ? undefined : result.error ?? "");
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });

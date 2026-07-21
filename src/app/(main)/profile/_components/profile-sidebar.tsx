@@ -19,7 +19,6 @@ export interface ProfileSidebarProps {
   totalPoints: number;
   completedCount: number;
   completedToday: number;
-  totalTasks: number;
   tier: string;
   currentStreak: number;
 }
@@ -121,7 +120,6 @@ export default function ProfileSidebar({
   totalPoints,
   completedCount,
   completedToday,
-  totalTasks,
   tier,
   currentStreak,
 }: ProfileSidebarProps) {

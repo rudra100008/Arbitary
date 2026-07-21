@@ -17,7 +17,6 @@ const FormInput: React.FC<FormInputProps> = ({
   name,
   label,
   placeholder,
-  required = false,
   icon,
   rightElement,
 }) => {

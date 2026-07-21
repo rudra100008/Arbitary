@@ -4,7 +4,7 @@ import { TaskService } from "@/src/services/task.service";
 import { toNextResponse } from "@/src/lib/api-response";
 import { rateLimit } from "@/src/lib/rate-limit";
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   const auth = await requireUser();
   if (!auth.success) {
     return NextResponse.json({ error: auth.error }, { status: 401 });

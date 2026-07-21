@@ -418,7 +418,7 @@ function DashboardInner() {
     },
   });
 
-  const handleModalComplete = (taskId: number, taskType?: string | null) => {
+  const handleModalComplete = (_taskId: number, _taskType?: string | null) => {
     queryClient.invalidateQueries({
       queryKey: ["user-tasks", "dashboard"],
     });
@@ -487,6 +487,7 @@ function DashboardInner() {
   useEffect(() => {
     for (const page of dashboardData?.pages ?? []) {
       if (page.availableTaskTypes && page.availableTaskTypes.length > 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
         setAllTaskTypes(page.availableTaskTypes);
         return;
       }
@@ -686,7 +687,6 @@ function DashboardInner() {
                 inProgressCount={inProgressCount}
                 completedCount={completedCount}
                 monthlyPoints={pointsData?.monthlyPoints ?? 0}
-                tier={pointsData?.tier ?? "bronze"}
               />
               <div className="fade-in-up" key={activeTab}>
                 <TaskList

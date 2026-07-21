@@ -13,7 +13,6 @@ type StatsHeaderProps = {
   inProgressCount: number;
   completedCount: number;
   monthlyPoints: number;
-  tier: string;
 };
 
 export function StatsHeader({
@@ -23,7 +22,6 @@ export function StatsHeader({
   inProgressCount,
   completedCount,
   monthlyPoints,
-  tier,
 }: StatsHeaderProps) {
   const tabLabel =
     activeTab === "all"

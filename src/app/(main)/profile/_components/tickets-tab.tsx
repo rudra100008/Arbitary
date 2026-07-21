@@ -63,7 +63,10 @@ export default function TicketsTab() {
   });
 
   const sendEmailRef = useRef(sendEmailMutation);
-  sendEmailRef.current = sendEmailMutation;
+
+  useEffect(() => {
+    sendEmailRef.current = sendEmailMutation;
+  });
 
   useEffect(() => {
     if (data?.tickets && session?.user?.email) {
@@ -83,7 +86,7 @@ export default function TicketsTab() {
           });
         });
     }
-  }, [data?.tickets, session?.user?.email]);
+  }, [data?.tickets, session?.user?.email, data?.serverTime]);
 
   if (isLoading) {
     return (

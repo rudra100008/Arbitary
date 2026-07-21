@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -97,6 +97,13 @@ export function TaskFormModal({
     if (!task) return "watch";
     const tt = (task.taskType || "").toLowerCase();
     if (tt === "video_watch") return "watch";
+    if (tt === "youtube_subscribe") return "subscribe";
+    if (tt === "youtube_like") return "like";
+    if (tt === "youtube_comment") return "comment";
+    // Legacy fallback: tasks created before structured YouTube action types
+    // existed all share taskType "social"  infer from title/description
+    // the same way verification's legacy fallback does, so editing an old
+    // task pre-selects the right action in the form.
     const text = (
       (task.title || "") +
       " " +
@@ -150,7 +157,14 @@ export function TaskFormModal({
     } else if (isManualScreenshot) {
       resolvedTaskType = "SCREENSHOT_UPLOAD";
     } else if (isYoutube) {
-      resolvedTaskType = youtubeAction === "watch" ? "video_watch" : "social";
+      resolvedTaskType =
+        youtubeAction === "watch"
+          ? "video_watch"
+          : youtubeAction === "subscribe"
+            ? "youtube_subscribe"
+            : youtubeAction === "like"
+              ? "youtube_like"
+              : "youtube_comment";
     } else {
       // facebook, instagram → social
       resolvedTaskType = "social";
@@ -199,7 +213,7 @@ export function TaskFormModal({
   };
 
   const defaultDuration =
-    mode === "edit" ? ((task as any)?.watchDuration ?? 30) : 30;
+    mode === "edit" ? (task?.watchDuration ?? 30) : 30;
 
   return (
     <ModalShell

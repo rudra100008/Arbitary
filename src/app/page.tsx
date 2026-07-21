@@ -5,6 +5,7 @@ import Header from "../components/ui/header";
 import Footer from "../components/ui/footer";
 import PromoBanner from "../components/ui/promo-banner";
 import Link from "next/link";
+import Image from "next/image";
 
 interface HomePageEvent {
   id: number;
@@ -159,9 +160,10 @@ const HomePage = () => {
                       {/* Background Hero Image with Left-to-Right Fade */}
                       {event.heroImageUrl && (
                         <div className="absolute inset-0 z-0">
-                          <img
+                          <Image
                             src={event.heroImageUrl}
                             alt=""
+                            fill
                             className="absolute right-0 top-0 h-full w-2/3 object-cover transition-transform duration-1000 group-hover:scale-105"
                           />
                           <div className="absolute inset-0 bg-gradient-to-r from-white via-white to-transparent z-10 w-full" />
@@ -319,10 +321,11 @@ const HomePage = () => {
                   >
                     <div className="aspect-square bg-zinc-200 rounded-2xl mb-6 overflow-hidden border border-black/5 transition-all duration-500 group-hover:shadow-2xl">
                       {m.photoUrl ? (
-                        <img
+                        <Image
                           src={m.photoUrl}
                           alt={m.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          fill
+                          className="object-cover group-hover:scale-110 transition-transform duration-500"
                         />
                       ) : (
                         <div className="w-full h-full bg-zinc-300 flex items-center justify-center">
@@ -355,12 +358,14 @@ const HomePage = () => {
               <div className="flex flex-wrap justify-center items-center gap-12 md:gap-20">
                 {partners.map((p) =>
                   p.logoUrl ? (
-                    <img
-                      key={p.name}
-                      src={p.logoUrl}
-                      alt={p.name}
-                      className="h-16 md:h-20 object-contain grayscale opacity-40 hover:opacity-100 hover:grayscale-0 transition-all duration-300"
-                    />
+                    <div key={p.name} className="relative h-16 md:h-20 w-auto">
+                      <Image
+                        src={p.logoUrl}
+                        alt={p.name}
+                        fill
+                        className="object-contain grayscale opacity-40 hover:opacity-100 hover:grayscale-0 transition-all duration-300"
+                      />
+                    </div>
                   ) : (
                     <div
                       key={p.name}
@@ -403,9 +408,7 @@ const HomePage = () => {
                           {rest && (
                             <>
                               <br />
-                              <span className="text-[#FACC15]">
-                                {rest}
-                              </span>
+                              <span className="text-[#FACC15]">{rest}</span>
                             </>
                           )}
                         </h2>
@@ -453,11 +456,14 @@ const HomePage = () => {
                 <div className="relative lg:col-span-2">
                   <div className="rounded-3xl border border-black/5 overflow-hidden shadow-sm">
                     {aboutContent.heroImageUrl ? (
-                      <img
-                        src={aboutContent.heroImageUrl}
-                        alt="About Arbitrary"
-                        className="w-full block"
-                      />
+                      <div className="relative w-full min-h-[200px]">
+                        <Image
+                          src={aboutContent.heroImageUrl}
+                          alt="About Arbitrary"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
                     ) : (
                       <div className="text-[15vw] font-black text-black/5 select-none py-32 bg-zinc-50 flex items-center justify-center min-h-[200px]">
                         A

@@ -1,4 +1,4 @@
-import { desc, count } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { tiltDb } from "@/src/db/tilt-db";
 import { lotteryCampaignsTable, lotteryEntriesTable } from "@/src/db/tilt-schema";

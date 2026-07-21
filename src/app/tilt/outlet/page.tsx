@@ -109,7 +109,7 @@ export default function TiltOutletPage() {
           </div>
           {rewardsToday >= rewardTarget && (
             <p className="text-[9px] mt-1.5 font-bold uppercase tracking-widest" style={{ color: "#d42b2b" }}>
-              Today's limit reached
+              Today&apos;s limit reached
             </p>
           )}
         </div>

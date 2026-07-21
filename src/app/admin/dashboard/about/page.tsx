@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import Image from "next/image";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type AboutData = {
@@ -37,11 +38,7 @@ export default function AdminAbout() {
   const [heroPreview, setHeroPreview] = useState("");
   const [removeHero, setRemoveHero] = useState(false);
 
-  useEffect(() => {
-    fetchContent();
-  }, []);
-
-  const fetchContent = async () => {
+  const fetchContent = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/about");
       const data = await res.json();
@@ -65,7 +62,12 @@ export default function AdminAbout() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
+    fetchContent();
+  }, [fetchContent]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,7 +103,7 @@ export default function AdminAbout() {
         tagline: form.tagline || null,
         heading: form.heading || null,
         description: form.description || null,
-        heroImageUrl: removeHero ? null : (heroUrl || null),
+        heroImageUrl: removeHero ? null : heroUrl || null,
         projectsCount: form.projectsCount || null,
         projectsLabel: form.projectsLabel || null,
         awardsCount: form.awardsCount || null,
@@ -122,8 +124,8 @@ export default function AdminAbout() {
 
       toast.success("About content saved");
       fetchContent();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -137,8 +139,10 @@ export default function AdminAbout() {
     );
   }
 
-  const inputClass = "w-full px-4 py-3 bg-zinc-50 border border-black/10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FACC15]/40 focus:border-[#FACC15]/50 transition-all";
-  const labelClass = "text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 block";
+  const inputClass =
+    "w-full px-4 py-3 bg-zinc-50 border border-black/10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FACC15]/40 focus:border-[#FACC15]/50 transition-all";
+  const labelClass =
+    "text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 block";
 
   return (
     <div className="animate-fade-in space-y-8 max-w-3xl">
@@ -156,7 +160,9 @@ export default function AdminAbout() {
       <div className="bg-white rounded-[2.5rem] border border-black/5 overflow-hidden shadow-sm p-4 md:p-8">
         <div className="space-y-6">
           <div>
-            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">Hero Section</h4>
+            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">
+              Hero Section
+            </h4>
             <div className="space-y-4">
               <div>
                 <label className={labelClass}>Tagline</label>
@@ -164,7 +170,9 @@ export default function AdminAbout() {
                   className={inputClass}
                   placeholder="e.g. The Arbitrary"
                   value={form.tagline}
-                  onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, tagline: e.target.value })
+                  }
                 />
               </div>
               <div>
@@ -173,28 +181,58 @@ export default function AdminAbout() {
                   className={inputClass}
                   placeholder="e.g. DEFINING THE ARBITRARY"
                   value={form.heading}
-                  onChange={(e) => setForm({ ...form, heading: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, heading: e.target.value })
+                  }
                 />
               </div>
               <div>
                 <label className={labelClass}>Hero Image</label>
                 <label className="flex flex-col items-center justify-center gap-2 px-4 py-6 bg-zinc-50 border-2 border-dashed border-black/10 rounded-xl cursor-pointer hover:bg-zinc-100 transition-colors">
                   {heroPreview && !removeHero ? (
-                    <img src={heroPreview} alt="Hero preview" className="w-full max-h-48 object-cover rounded-lg" />
+                    <Image
+                      src={heroPreview}
+                      alt="Hero preview"
+                      width={200}
+                      height={200}
+                      unoptimized
+                      className="w-full max-h-48 object-cover rounded-lg"
+                    />
                   ) : (
-                    <svg className="w-8 h-8 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <svg
+                      className="w-8 h-8 text-zinc-300"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
                     </svg>
                   )}
                   <span className="text-[10px] text-zinc-400 font-medium">
-                    {heroPreview && !removeHero ? "Tap to change" : "Tap to upload hero image"}
+                    {heroPreview && !removeHero
+                      ? "Tap to change"
+                      : "Tap to upload hero image"}
                   </span>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} className="hidden" />
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
                 </label>
                 {heroPreview && !removeHero && (
                   <button
                     type="button"
-                    onClick={(e) => { e.preventDefault(); setRemoveHero(true); setHeroFile(null); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setRemoveHero(true);
+                      setHeroFile(null);
+                    }}
                     className="mt-2 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
                   >
                     Remove image
@@ -203,7 +241,10 @@ export default function AdminAbout() {
                 {removeHero && (
                   <button
                     type="button"
-                    onClick={(e) => { e.preventDefault(); setRemoveHero(false); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setRemoveHero(false);
+                    }}
                     className="mt-2 text-xs font-bold text-blue-500 hover:text-blue-700 transition-colors"
                   >
                     Undo remove
@@ -216,14 +257,18 @@ export default function AdminAbout() {
           <hr className="border-black/5" />
 
           <div>
-            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">Story</h4>
+            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">
+              Story
+            </h4>
             <div>
               <label className={labelClass}>Description</label>
               <textarea
                 className={`${inputClass} min-h-[120px] resize-y`}
                 placeholder="About the company story..."
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
               />
             </div>
           </div>
@@ -231,7 +276,9 @@ export default function AdminAbout() {
           <hr className="border-black/5" />
 
           <div>
-            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">Statistics</h4>
+            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">
+              Statistics
+            </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Projects Count</label>
@@ -239,7 +286,9 @@ export default function AdminAbout() {
                   className={inputClass}
                   placeholder="e.g. 150+"
                   value={form.projectsCount}
-                  onChange={(e) => setForm({ ...form, projectsCount: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, projectsCount: e.target.value })
+                  }
                 />
               </div>
               <div>
@@ -248,7 +297,9 @@ export default function AdminAbout() {
                   className={inputClass}
                   placeholder="e.g. Projects Completed"
                   value={form.projectsLabel}
-                  onChange={(e) => setForm({ ...form, projectsLabel: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, projectsLabel: e.target.value })
+                  }
                 />
               </div>
               <div>
@@ -257,7 +308,9 @@ export default function AdminAbout() {
                   className={inputClass}
                   placeholder="e.g. 25+"
                   value={form.awardsCount}
-                  onChange={(e) => setForm({ ...form, awardsCount: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, awardsCount: e.target.value })
+                  }
                 />
               </div>
               <div>
@@ -266,7 +319,9 @@ export default function AdminAbout() {
                   className={inputClass}
                   placeholder="e.g. Awards Won"
                   value={form.awardsLabel}
-                  onChange={(e) => setForm({ ...form, awardsLabel: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, awardsLabel: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -275,7 +330,9 @@ export default function AdminAbout() {
           <hr className="border-black/5" />
 
           <div>
-            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">Motto / Quote</h4>
+            <h4 className="text-sm font-black uppercase tracking-wider text-black mb-4">
+              Motto / Quote
+            </h4>
             <div className="space-y-4">
               <div>
                 <label className={labelClass}>Motto</label>
@@ -292,7 +349,9 @@ export default function AdminAbout() {
                   className={inputClass}
                   placeholder="e.g. - Founding Philosophy"
                   value={form.mottoAuthor}
-                  onChange={(e) => setForm({ ...form, mottoAuthor: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, mottoAuthor: e.target.value })
+                  }
                 />
               </div>
             </div>

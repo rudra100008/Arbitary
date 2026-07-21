@@ -1,7 +1,7 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
-import Header from "@/src/components/ui/header";
 
 type AboutData = {
   tagline: string | null;
@@ -58,9 +58,7 @@ export default function AboutPage() {
                       {rest && (
                         <>
                           {" "}
-                          <span className="text-[#FACC15]">
-                            {rest}
-                          </span>
+                          <span className="text-[#FACC15]">{rest}</span>
                         </>
                       )}
                     </h1>
@@ -73,11 +71,12 @@ export default function AboutPage() {
               )}
             </div>
             {about?.heroImageUrl && (
-              <div className="rounded-3xl border border-black/5 overflow-hidden shadow-sm">
-                <img
+              <div className="relative w-full min-h-[200px] rounded-3xl border border-black/5 overflow-hidden shadow-sm">
+                <Image
                   src={about.heroImageUrl}
                   alt="About Arbitrary"
-                  className="w-full block"
+                  fill
+                  className="object-cover"
                 />
               </div>
             )}

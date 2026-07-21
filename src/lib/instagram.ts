@@ -1,4 +1,8 @@
 import { checkCommentQuality, type CommentQualityOptions } from "./comment-quality";
+import { db } from "@/src/db";
+import { usersTable } from "@/src/db/schema";
+import { eq } from "drizzle-orm";
+import { decryptToken } from "./token-crypto";
 
 interface InstagramMedia {
     id: string;
@@ -15,23 +19,66 @@ interface InstagramComment {
     username: string;
 }
 
+export type IgCredsResult =
+  | { ok: true; userId: string; accessToken: string }
+  | { ok: false; reason: "NOT_CONFIGURED" | "DECRYPT_FAILED" };
+
+/**
+ * Resolve Instagram credentials for the given admin user.
+ * Returns a typed result distinguishing "never connected" from "token corrupted".
+ */
+async function getAdminIgCredentials(adminUserId?: number): Promise<IgCredsResult> {
+    if (!adminUserId) return { ok: false, reason: "NOT_CONFIGURED" };
+
+    const [user] = await db
+        .select({
+            fbIgUserId: usersTable.fbIgUserId,
+            fbPageAccessToken: usersTable.fbPageAccessToken,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, adminUserId))
+        .limit(1);
+
+    if (!user?.fbIgUserId || !user?.fbPageAccessToken) {
+        return { ok: false, reason: "NOT_CONFIGURED" };
+    }
+
+    try {
+        const decrypted = decryptToken(user.fbPageAccessToken, 'facebook');
+        if (!decrypted) {
+            return { ok: false, reason: "NOT_CONFIGURED" };
+        }
+        return { ok: true, userId: user.fbIgUserId, accessToken: decrypted };
+    } catch (err) {
+        console.error(
+            `[instagram] Failed to decrypt fbPageAccessToken for admin user ${adminUserId} — ` +
+            `key mismatch. The Facebook/Instagram connection must be re-established.`,
+            err,
+        );
+        await db.update(usersTable)
+            .set({ fbPageAccessToken: null, fbPageId: null, fbPageName: null, fbIgUserId: null })
+            .where(eq(usersTable.id, adminUserId))
+            .catch((e) => console.error("[instagram] Failed to clear corrupted fbPageAccessToken:", e));
+        return { ok: false, reason: "DECRYPT_FAILED" };
+    }
+}
+
 export class InstagramService {
-    private static accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
-    private static userId = process.env.INSTAGRAM_USER_ID;
-    private static baseUrl = 'https://graph.facebook.com/v19.0';
+    private static baseUrl = 'https://graph.facebook.com/v20.0';
 
     /**
      * Fetch recent media from the Instagram account
      */
-    static async getInstagramMedia() {
-        if (!this.accessToken || !this.userId) {
-            throw new Error('Instagram API credentials missing in environment variables');
+    static async getInstagramMedia(adminUserId?: number) {
+        const creds = await getAdminIgCredentials(adminUserId);
+        if (!creds.ok) {
+            throw new Error('Instagram API credentials missing. Connect a Facebook account with an Instagram account in Admin Settings.');
         }
 
         try {
-            const url = new URL(`${this.baseUrl}/${this.userId}/media`);
+            const url = new URL(`${this.baseUrl}/${creds.userId}/media`);
             url.searchParams.set('fields', 'id,caption,media_type,media_url,thumbnail_url,permalink');
-            url.searchParams.set('access_token', this.accessToken);
+            url.searchParams.set('access_token', creds.accessToken);
 
             const response = await fetch(url.toString());
             if (!response.ok) {
@@ -55,14 +102,19 @@ export class InstagramService {
         code: string,
         expectedUsername: string,
         qualityOptions?: CommentQualityOptions,
+        adminUserId?: number,
     ) {
-        if (!this.accessToken) {
-            throw new Error('Instagram API access token missing');
+        const creds = await getAdminIgCredentials(adminUserId);
+        if (!creds.ok) {
+            const errorMsg = creds.reason === "DECRYPT_FAILED"
+                ? "Instagram verification needs to be reconnected by an admin."
+                : "Instagram API access token missing";
+            throw new Error(errorMsg);
         }
 
         const url = new URL(`${this.baseUrl}/${mediaId}/comments`);
         url.searchParams.set('fields', 'id,text,username');
-        url.searchParams.set('access_token', this.accessToken);
+        url.searchParams.set('access_token', creds.accessToken);
         url.searchParams.set('limit', '1000');
 
         const response = await fetch(url.toString());

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useReducer } from "react";
 import {
   MIN_DAILY_REWARD_TARGET,
   MAX_DAILY_REWARD_TARGET,
@@ -26,10 +26,60 @@ function toTimeInput(value: string | null): string {
   return value.slice(0, 5);
 }
 
+type TiltAdminState = {
+  users: OutletRow[];
+  totalSubmissions: number;
+  isLoading: boolean;
+  outletTargetInputs: Record<number, string>;
+  outletStartInputs: Record<number, string>;
+  outletEndInputs: Record<number, string>;
+};
+type TiltAdminAction =
+  | { type: "LOAD_START" }
+  | {
+      type: "LOAD_SUCCESS";
+      users: OutletRow[];
+      totalSubmissions: number;
+      outletTargetInputs: Record<number, string>;
+      outletStartInputs: Record<number, string>;
+      outletEndInputs: Record<number, string>;
+    }
+  | { type: "UPDATE_USER"; users: OutletRow[]; outletTargetInputs?: Record<number, string>; outletStartInputs?: Record<number, string>; outletEndInputs?: Record<number, string> };
+
+function tiltAdminReducer(state: TiltAdminState, action: TiltAdminAction): TiltAdminState {
+  switch (action.type) {
+    case "LOAD_START":
+      return { ...state, isLoading: true };
+    case "LOAD_SUCCESS":
+      return {
+        ...state,
+        isLoading: false,
+        users: action.users,
+        totalSubmissions: action.totalSubmissions,
+        outletTargetInputs: action.outletTargetInputs,
+        outletStartInputs: action.outletStartInputs,
+        outletEndInputs: action.outletEndInputs,
+      };
+    case "UPDATE_USER":
+      return {
+        ...state,
+        users: action.users,
+        ...(action.outletTargetInputs ? { outletTargetInputs: action.outletTargetInputs } : {}),
+        ...(action.outletStartInputs ? { outletStartInputs: action.outletStartInputs } : {}),
+        ...(action.outletEndInputs ? { outletEndInputs: action.outletEndInputs } : {}),
+      };
+  }
+}
+
 export default function TiltAdminPage() {
-  const [users, setUsers] = useState<OutletRow[]>([]);
-  const [totalSubmissions, setTotalSubmissions] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [adminState, adminDispatch] = useReducer(tiltAdminReducer, {
+    users: [],
+    totalSubmissions: 0,
+    isLoading: true,
+    outletTargetInputs: {},
+    outletStartInputs: {},
+    outletEndInputs: {},
+  });
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<{
     type: "invite" | "user";
@@ -40,15 +90,6 @@ export default function TiltAdminPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [isInviting, setIsInviting] = useState(false);
-  const [outletTargetInputs, setOutletTargetInputs] = useState<
-    Record<number, string>
-  >({});
-  const [outletStartInputs, setOutletStartInputs] = useState<
-    Record<number, string>
-  >({});
-  const [outletEndInputs, setOutletEndInputs] = useState<
-    Record<number, string>
-  >({});
   const [savingOutletId, setSavingOutletId] = useState<number | null>(null);
   const [outletTargetError, setOutletTargetError] = useState<string | null>(
     null,
@@ -58,12 +99,11 @@ export default function TiltAdminPage() {
   );
 
   const loadUsers = async () => {
-    setIsLoading(true);
+    adminDispatch({ type: "LOAD_START" });
     try {
       const res = await fetch("/api/tilt/admin/users");
       if (!res.ok) return;
       const data = await res.json();
-      setUsers(data.users ?? []);
       const nextInputs: Record<number, string> = {};
       const nextStartInputs: Record<number, string> = {};
       const nextEndInputs: Record<number, string> = {};
@@ -76,16 +116,16 @@ export default function TiltAdminPage() {
           nextEndInputs[user.id] = toTimeInput(user.operatingHoursEnd);
         }
       }
-      setOutletTargetInputs(nextInputs);
-      setOutletStartInputs(nextStartInputs);
-      setOutletEndInputs(nextEndInputs);
-      if (typeof data.totalSubmissions === "number") {
-        setTotalSubmissions(data.totalSubmissions);
-      }
+      adminDispatch({
+        type: "LOAD_SUCCESS",
+        users: data.users ?? [],
+        totalSubmissions: typeof data.totalSubmissions === "number" ? data.totalSubmissions : 0,
+        outletTargetInputs: nextInputs,
+        outletStartInputs: nextStartInputs,
+        outletEndInputs: nextEndInputs,
+      });
     } catch {
       // silent
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -99,7 +139,7 @@ export default function TiltAdminPage() {
     setOutletTargetMessage(null);
 
     const parsedTarget = Number.parseInt(
-      outletTargetInputs[outletId] ?? "",
+      adminState.outletTargetInputs[outletId] ?? "",
       10,
     );
     if (
@@ -121,8 +161,8 @@ export default function TiltAdminPage() {
         body: JSON.stringify({
           outletId: String(outletId),
           target: parsedTarget,
-          operatingHoursStart: outletStartInputs[outletId],
-          operatingHoursEnd: outletEndInputs[outletId],
+          operatingHoursStart: adminState.outletStartInputs[outletId],
+          operatingHoursEnd: adminState.outletEndInputs[outletId],
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -140,40 +180,35 @@ export default function TiltAdminPage() {
         typeof data.dailyRewardTarget === "number"
           ? data.dailyRewardTarget
           : parsedTarget;
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === outletId
-            ? {
-                ...u,
-                dailyRewardTarget: nextTarget,
-                operatingHoursStart:
-                  typeof data.operatingHoursStart === "string"
-                    ? data.operatingHoursStart
-                    : u.operatingHoursStart,
-                operatingHoursEnd:
-                  typeof data.operatingHoursEnd === "string"
-                    ? data.operatingHoursEnd
-                    : u.operatingHoursEnd,
-              }
-            : u,
-        ),
+      const updatedUsers = adminState.users.map((u) =>
+        u.id === outletId
+          ? {
+              ...u,
+              dailyRewardTarget: nextTarget,
+              operatingHoursStart:
+                typeof data.operatingHoursStart === "string"
+                  ? data.operatingHoursStart
+                  : u.operatingHoursStart,
+              operatingHoursEnd:
+                typeof data.operatingHoursEnd === "string"
+                  ? data.operatingHoursEnd
+                  : u.operatingHoursEnd,
+            }
+          : u,
       );
-      setOutletTargetInputs((prev) => ({
-        ...prev,
-        [outletId]: String(nextTarget),
-      }));
-      if (typeof data.operatingHoursStart === "string") {
-        setOutletStartInputs((prev) => ({
-          ...prev,
-          [outletId]: toTimeInput(data.operatingHoursStart ?? null),
-        }));
-      }
-      if (typeof data.operatingHoursEnd === "string") {
-        setOutletEndInputs((prev) => ({
-          ...prev,
-          [outletId]: toTimeInput(data.operatingHoursEnd ?? null),
-        }));
-      }
+      const patch: Partial<TiltAdminAction> = { type: "UPDATE_USER", users: updatedUsers };
+      adminDispatch({
+        ...patch,
+        type: "UPDATE_USER",
+        users: updatedUsers,
+        outletTargetInputs: { ...adminState.outletTargetInputs, [outletId]: String(nextTarget) },
+        ...(typeof data.operatingHoursStart === "string"
+          ? { outletStartInputs: { ...adminState.outletStartInputs, [outletId]: toTimeInput(data.operatingHoursStart ?? null) } }
+          : {}),
+        ...(typeof data.operatingHoursEnd === "string"
+          ? { outletEndInputs: { ...adminState.outletEndInputs, [outletId]: toTimeInput(data.operatingHoursEnd ?? null) } }
+          : {}),
+      });
       setOutletTargetMessage("Outlet reward target updated.");
     } catch (error) {
       const message =
@@ -240,17 +275,17 @@ export default function TiltAdminPage() {
   };
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return users;
+    if (!search.trim()) return adminState.users;
     const q = search.toLowerCase();
-    return users.filter(
+    return adminState.users.filter(
       (u) =>
         (u.name && u.name.toLowerCase().includes(q)) ||
         u.email.toLowerCase().includes(q),
     );
-  }, [users, search]);
+  }, [adminState.users, search]);
 
-  const activeCount = users.filter((u) => u.status === "active").length;
-  const invitedCount = users.filter((u) => u.status === "invited").length;
+  const activeCount = adminState.users.filter((u) => u.status === "active").length;
+  const invitedCount = adminState.users.filter((u) => u.status === "invited").length;
 
   const formatDate = (d: Date | string | null) => {
     if (!d) return "—";
@@ -272,7 +307,7 @@ export default function TiltAdminPage() {
           className="text-sm font-medium mt-1"
           style={{ color: "rgba(255,255,255,0.35)" }}
         >
-          {isLoading ? "Loading…" : `${users.length} total`}
+          {adminState.isLoading ? "Loading…" : `${adminState.users.length} total`}
         </p>
       </div>
 
@@ -338,7 +373,7 @@ export default function TiltAdminPage() {
           >
             Total
           </p>
-          <p className="text-2xl font-black text-white mt-1">{users.length}</p>
+          <p className="text-2xl font-black text-white mt-1">{adminState.users.length}</p>
         </div>
         <div
           className="rounded-xl border px-5 py-4"
@@ -384,7 +419,7 @@ export default function TiltAdminPage() {
             Submissions
           </p>
           <p className="text-2xl font-black text-white mt-1">
-            {totalSubmissions}
+            {adminState.totalSubmissions}
           </p>
         </div>
       </div>
@@ -431,7 +466,7 @@ export default function TiltAdminPage() {
       </div>
 
       {/* Table */}
-      {isLoading ? (
+      {adminState.isLoading ? (
         <div className="flex items-center justify-center py-20">
           <div
             style={{
@@ -541,14 +576,18 @@ export default function TiltAdminPage() {
                           max={MAX_DAILY_REWARD_TARGET}
                           step={1}
                           value={
-                            outletTargetInputs[u.id] ??
+                            adminState.outletTargetInputs[u.id] ??
                             String(u.dailyRewardTarget ?? "")
                           }
                           onChange={(e) =>
-                            setOutletTargetInputs((prev) => ({
-                              ...prev,
-                              [u.id!]: e.target.value,
-                            }))
+                            adminDispatch({
+                              type: "UPDATE_USER",
+                              users: adminState.users,
+                              outletTargetInputs: {
+                                ...adminState.outletTargetInputs,
+                                [u.id!]: e.target.value,
+                              },
+                            })
                           }
                           className="tilt-input w-24 px-2 py-1 text-xs"
                           disabled={savingOutletId === u.id}
@@ -576,14 +615,18 @@ export default function TiltAdminPage() {
                         <input
                           type="time"
                           value={
-                            outletStartInputs[u.id] ??
+                            adminState.outletStartInputs[u.id] ??
                             toTimeInput(u.operatingHoursStart)
                           }
                           onChange={(e) =>
-                            setOutletStartInputs((prev) => ({
-                              ...prev,
-                              [u.id!]: e.target.value,
-                            }))
+                            adminDispatch({
+                              type: "UPDATE_USER",
+                              users: adminState.users,
+                              outletStartInputs: {
+                                ...adminState.outletStartInputs,
+                                [u.id!]: e.target.value,
+                              },
+                            })
                           }
                           className="tilt-input w-28 px-2 py-1 text-xs"
                           disabled={savingOutletId === u.id}
@@ -594,14 +637,18 @@ export default function TiltAdminPage() {
                         <input
                           type="time"
                           value={
-                            outletEndInputs[u.id] ??
+                            adminState.outletEndInputs[u.id] ??
                             toTimeInput(u.operatingHoursEnd)
                           }
                           onChange={(e) =>
-                            setOutletEndInputs((prev) => ({
-                              ...prev,
-                              [u.id!]: e.target.value,
-                            }))
+                            adminDispatch({
+                              type: "UPDATE_USER",
+                              users: adminState.users,
+                              outletEndInputs: {
+                                ...adminState.outletEndInputs,
+                                [u.id!]: e.target.value,
+                              },
+                            })
                           }
                           className="tilt-input w-28 px-2 py-1 text-xs"
                           disabled={savingOutletId === u.id}

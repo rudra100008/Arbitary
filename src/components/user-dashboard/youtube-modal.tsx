@@ -235,7 +235,7 @@ export function YoutubeModal({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     return () => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setMounted(false);
     };
   }, []);
@@ -448,7 +448,7 @@ export function YoutubeModal({
       >
         {/* ── Top bar ── */}
         <div
-          className="flex items-center justify-between px-5 py-3.5"
+          className="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-3.5"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
         >
           <div className="flex items-center gap-2.5">
@@ -463,7 +463,7 @@ export function YoutubeModal({
               Watch &amp; Earn
             </span>
             <span
-              className="text-xs px-2 py-0.5 rounded-full font-medium"
+              className="hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full font-medium"
               style={{
                 background: "rgba(255,255,255,0.07)",
                 color: "rgba(255,255,255,0.45)",
@@ -606,7 +606,7 @@ export function YoutubeModal({
         </div>
 
         {/* ── Footer / Progress ── */}
-        <div className="px-5 py-4 flex flex-col gap-3">
+        <div className="px-3 sm:px-5 py-3 sm:py-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isCompleted ? (

@@ -3,6 +3,8 @@
 import { ShareTaskCard } from "@/src/components/user-dashboard/share-task-card";
 import { isYtLike, isYtSubscribe, isYtComment } from "@/src/lib/task-detector";
 import { UserTaskItem } from "@/src/services/task.service";
+import { usePlatformFlags } from "@/src/hooks/use-platform-flags";
+import Image from "next/image";
 
 type Props = {
   task: UserTaskItem;
@@ -42,6 +44,9 @@ export function TaskActionButtons({
   onScreenshotSubmit,
   onComplete,
 }: Props) {
+  const { flags } = usePlatformFlags();
+  const isFacebookAvailable = flags.facebook && flags.facebookConnected;
+
   return (
     <div className="flex flex-col gap-1.5 mt-1 w-full min-w-[200px]">
       {task.isShare && task.shareLink ? (
@@ -56,13 +61,17 @@ export function TaskActionButtons({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onOpenFacebook();
+              if (isFacebookAvailable) onOpenFacebook();
             }}
-            className="text-xs font-bold text-white bg-blue-500/80 hover:bg-blue-500
-                             px-2.5 py-1 rounded-full backdrop-blur-sm transition-all duration-200
-                             hover:scale-105 flex-1"
+            disabled={!isFacebookAvailable}
+            className={`text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm transition-all duration-200
+                        hover:scale-105 flex-1 ${
+                          isFacebookAvailable
+                            ? "text-white bg-blue-500/80 hover:bg-blue-500"
+                            : "text-slate-400 bg-slate-100 cursor-not-allowed"
+                        }`}
           >
-            f Verify with Facebook
+            f {isFacebookAvailable ? "Verify with Facebook" : "Unavailable"}
           </button>
           <button
             onClick={(e) => {
@@ -196,9 +205,12 @@ export function TaskActionButtons({
                        cursor-pointer hover:bg-indigo-100 transition-all duration-200"
           >
             {previewUrl ? (
-              <img
+              <Image
                 src={previewUrl}
                 alt="Preview"
+                width={200}
+                height={200}
+                unoptimized
                 className="w-full max-h-32 object-contain rounded-lg"
               />
             ) : (
@@ -292,9 +304,12 @@ export function TaskActionButtons({
                        cursor-pointer hover:bg-indigo-100 transition-all duration-200"
           >
             {previewUrl ? (
-              <img
+              <Image
                 src={previewUrl}
                 alt="Preview"
+                width={200}
+                height={200}
+                unoptimized
                 className="w-full max-h-32 object-contain rounded-lg"
               />
             ) : (
